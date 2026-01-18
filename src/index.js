@@ -100,7 +100,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "create-doc",
         description:
-          "Create a DOCX document with title, paragraphs, and tables. Generated file can be used for reports or templates.",
+          "Create a DOCX document with title, paragraphs, tables, headers, and footers. Supports custom styling including background colors.",
         inputSchema: {
           type: "object",
           properties: {
@@ -125,6 +125,43 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               enum: ["minimal", "professional", "colorful"],
               description: "Name of style preset to use (default: minimal)",
+            },
+            header: {
+              type: "object",
+              description: "Header configuration options",
+              properties: {
+                text: {
+                  type: "string",
+                  description: "Text to display in header",
+                },
+                alignment: {
+                  type: "string",
+                  enum: ["left", "center", "right"],
+                  description: "Header text alignment (default: center)",
+                },
+              },
+            },
+            footer: {
+              type: "object",
+              description:
+                "Footer configuration options. Use {{page}} for page number.",
+              properties: {
+                text: {
+                  type: "string",
+                  description:
+                    "Text to display in footer. Use '{{page}}' placeholder for page numbers (e.g., 'Page {{page}} of 5')",
+                },
+                alignment: {
+                  type: "string",
+                  enum: ["left", "center", "right"],
+                  description: "Footer text alignment (default: center)",
+                },
+              },
+            },
+            backgroundColor: {
+              type: "string",
+              description:
+                "Page background color as hex code (e.g., 'FFFFFF' for white, or with #: '#FFFFFF')",
             },
             style: {
               type: "object",

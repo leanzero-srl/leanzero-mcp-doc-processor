@@ -32,7 +32,7 @@ Excel files are handled by reading data across multiple sheets. The system extra
 
 Beyond just reading documents, you can also create them. The system provides two tools for document generation:
 
-The DOCX creation tool lets you build Word documents with titles, paragraphs, and tables. You can apply different styling presets or customize the formatting to match your needs. This is useful for generating reports, creating templates, or producing consistent documentation.
+The DOCX creation tool lets you build Word documents with titles, paragraphs, tables, headers, and footers. You can apply different styling presets or customize the formatting to match your needs. This is useful for generating reports, creating templates, or producing consistent documentation.
 
 The Excel creation tool allows you to build spreadsheets with multiple sheets. You can control column widths, row heights, font styling, and header formatting. This helps when you need to generate data exports, create standardized report formats, or produce structured outputs from your applications.
 
@@ -178,7 +178,7 @@ This returns the complete document representation, which is useful when you are 
 
 ### Creating DOCX Documents
 
-The create-doc tool lets you generate Word documents programmatically. You provide a title, any paragraphs you want, and optionally tables, and the system creates a properly formatted DOCX file.
+The create-doc tool lets you generate Word documents programmatically. You provide a title, any paragraphs you want, and optionally tables, headers, footers, and background colors, and the system creates a properly formatted DOCX file with professional styling.
 
 The basic usage looks like this:
 
@@ -207,6 +207,41 @@ You can also add tables to your document by providing them as two-dimensional ar
 ```
 
 The system will create tables with proper formatting and borders automatically.
+
+### Adding Headers and Footers to DOCX
+
+You can add headers and footers to your documents for professional presentation. Headers appear at the top of each page, and footers appear at the bottom. Use `{{page}}` in footer text to insert automatic page numbers:
+
+```javascript
+{
+  "title": "Quarterly Report",
+  "paragraphs": ["This report covers Q4 performance metrics."],
+  "header": {
+    "text": "Q4 2024 Financial Report - Confidential",
+    "alignment": "center"
+  },
+  "footer": {
+    "text": "Page {{page}} of 10", // Will show as: Page 1 of 10, Page 2 of 10, etc.
+    "alignment": "center"
+  }
+}
+```
+
+Headers and footers support left, center, and right alignment options.
+
+### Setting Document Background Color
+
+You can set a page background color for your documents using the `backgroundColor` parameter:
+
+```javascript
+{
+  "title": "Special Announcement",
+  "paragraphs": ["Important company news to share."],
+  "backgroundColor": "#F5F5F5" // Light gray background
+}
+```
+
+Use six-digit hex color codes (without the # symbol) for best results.
 
 ### Creating Excel Files
 
@@ -275,6 +310,13 @@ Here is an example of combining a preset with custom overrides:
   "title": "Quarterly Report",
   "paragraphs": ["Executive Summary"],
   "stylePreset": "professional",
+  "header": {
+    "text": "Q4 Financial Results"
+  },
+  "footer": {
+    "text": "Confidential - Page {{page}}"
+  },
+  "backgroundColor": "FFFFFFEF",
   "style": {
     "font": {
       "size": 14,
@@ -302,7 +344,7 @@ Understanding the technical architecture can help you troubleshoot issues or ext
 
 The system relies on several established libraries to handle different file formats. PDF parsing uses pdf-parse, which we have extended to access the raw PDF stream for image extraction. DOCX files are processed using mammoth to convert them to raw text while preserving basic formatting, and jszip is used to unzip the DOCX structure to access embedded media.
 
-For Excel files, the xlsx library handles parsing the spreadsheet structure and extracting cell data across multiple sheets. When creating documents, docx is used for generating DOCX files with rich formatting support.
+For Excel files, the xlsx library handles parsing the spreadsheet structure and extracting cell data across multiple sheets. When creating documents, docx is used for generating DOCX files with rich formatting support including headers, footers, page numbers, and background colors.
 
 ### How The Code Is Organized
 
@@ -338,7 +380,7 @@ The test/test-ocr-improvements.js script validates the three OCR enhancement ser
 
 ### Styling Demonstration
 
-The test/test-styling.js script is not exactly a test but rather a demonstration. It creates example documents using all the different style presets and customization options. This helps you see what the various styling combinations look like in practice and can serve as examples when you are designing your own document formats.
+The test/test-styling.js script is not exactly a test but rather a demonstration. It creates example documents using all the different style presets and customization options, including headers, footers with page numbers, and background colors. This helps you see what the various styling combinations look like in practice and can serve as examples when you are designing your own document formats.
 
 ## Running Specific Tests
 
@@ -354,13 +396,13 @@ This runs only the OCR improvement tests and shows you detailed output about wha
 npm test:styling
 ```
 
-This creates sample documents with different styling options so you can see the visual results and understand how the styling system works.
+This creates sample documents with different styling options including headers, footers, and background colors so you can see the visual results and understand how the styling system works.
 
 ```bash
 npm test:create
 ```
 
-This tests just the document creation tools to ensure they are generating files correctly.
+This tests just the document creation tools to ensure they are generating files correctly with all formatting features working properly.
 
 ## Troubleshooting Common Issues
 
@@ -412,7 +454,7 @@ The codebase uses ES modules and follows modern JavaScript patterns. Error handl
 
 ### The Styling System Design
 
-The styling module uses a configuration object pattern with merge capabilities. Presets are defined as complete configuration objects. Custom options override preset values using object spreading for simple properties and nullish coalescing for nested structures. This design allows presets to be complete defaults while still permitting fine-grained customization.
+The styling module uses a configuration object pattern with merge capabilities. Presets are defined as complete configuration objects. Custom options override preset values using object spreading for simple properties and nullish coalescing for nested structures. This design allows presets to be complete defaults while still permitting fine-grained customization including headers, footers, and background colors.
 
 ## Best Practices For Using The System
 
@@ -428,7 +470,7 @@ Use get-doc-summary when you want a quick overview without processing everything
 
 ### Test Your Changes
 
-When modifying code or adding features, run the relevant test suites to ensure you have not broken anything. The integration tests cover the main workflows, and the specific test scripts focus on individual components.
+When modifying code or adding features, run the relevant test suites to ensure you have not broken anything. The integration tests cover the main workflows, and the specific test scripts focus on individual components including document creation with headers and footers.
 
 ### Handle Errors Gracefully
 
@@ -440,7 +482,7 @@ When you encounter unexpected behavior, check the logs directory. The server wri
 
 ### Use Styling Consistently
 
-When creating multiple documents for the same purpose, use the same style preset or similar styling parameters. This creates visual consistency across your documents, which looks more professional and makes them easier for readers to navigate.
+When creating multiple documents for the same purpose, use the same style preset or similar styling parameters. This creates visual consistency across your documents with matching headers, footers, and background colors which looks more professional and makes them easier for readers to navigate.
 
 ### Consider Performance
 
@@ -450,7 +492,7 @@ Be aware that document processing takes time, especially for PDFs with OCR and c
 
 ### What The System Does Well
 
-The PDF processing with OCR enhancements can handle most common document types effectively. Table extraction works well for clearly formatted tables in various standard formats. Document generation produces professional-looking outputs with comprehensive styling options.
+The PDF processing with OCR enhancements can handle most common document types effectively. Table extraction works well for clearly formatted tables in various standard formats. Document generation produces professional-looking outputs with comprehensive styling options including headers, footers with page numbers, and background colors.
 
 ### Known Limitations
 
@@ -458,8 +500,8 @@ DOCX cell-level borders are somewhat limited and table-level borders are preferr
 
 ### Potential Future Enhancements
 
-There are opportunities to extend the system further. Advanced DOCX formatting could include page headers, footers, watermarks, or backgrounds. Image embedding in generated documents would allow including graphics in reports. Charts and graphs could be added to Excel generation for visual data presentation. Style caching could improve performance when generating many documents with the same styling.
+There are opportunities to extend the system further. Image embedding in generated documents would allow including graphics in reports. Charts and graphs could be added to Excel generation for visual data presentation using libraries like ExcelJS which has native chart support. Style caching could improve performance when generating many documents with the same styling.
 
 ## Conclusion
 
-The MCP Document Processor provides a comprehensive solution for working with documents in an intelligent way. It combines robust reading capabilities with flexible document creation, enhanced by OCR improvements and a sophisticated styling system. The modular architecture makes it maintainable and extensible, while the thorough test coverage ensures reliability. Whether you need to analyze existing documents or generate new ones, this system gives you the tools to do it effectively and with professional results.
+The MCP Document Processor provides a comprehensive solution for working with documents in an intelligent way. It combines robust reading capabilities with flexible document creation, enhanced by OCR improvements and a sophisticated styling system that includes headers, footers, page numbers, and background colors. The modular architecture makes it maintainable and extensible, while the thorough test coverage ensures reliability. Whether you need to analyze existing documents or generate new ones with professional formatting, this system gives you the tools to do it effectively.
