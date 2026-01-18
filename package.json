@@ -1,0 +1,22 @@
+{
+  "name": "mcp-doc-processor",
+  "version": "1.0.0",
+  "description": "MCP server for reading and processing PDF, DOCX, Excel files with intelligent OCR, layout analysis, and document generation capabilities",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node test/integration.js",
+    "test:ocr": "node test/test-ocr-improvements.js",
+    "test:styling": "node test/test-styling.js",
+    "test:create": "node test/create-tools.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "pdf-parse": "^2.4.5",
+    "mammoth": "^1.5.4",
+    "xlsx": "^0.18.5",
+    "jszip": "^3.10.1",
+    "docx": "^9.5.1"
+  }
+}

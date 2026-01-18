@@ -1,0 +1,21 @@
+{
+  "sheets": [
+    {
+      "name": "Tasks",
+      "data": [
+        ["Task", "Owner", "Status"],
+        ["Fix bug #123", "Alice", "Done"],
+        ["Review PR", "Bob", "Pending"]
+      ]
+    },
+    {
+      "name": "Metrics",
+      "data": [
+        ["Metric", "Value"],
+        ["Completion Rate", "85%"],
+        ["Avg Time", "3.2h"]
+      ]
+    }
+  ],
+  "outputPath": "./output/report.xlsx"
+}
