@@ -26,7 +26,9 @@ export function setupLogging() {
     // Log header with separator for readability
     const separator = "=".repeat(80);
     logFileStream.write(`\n${separator}\n`);
-    logFileStream.write(`MCP Doc-Reader Server Started: ${timestamp}\n`);
+    logFileStream.write(
+      `MCP Document Processor Server Started: ${timestamp}\n`,
+    );
     logFileStream.write(`${separator}\n`);
     logFileStream.write(`Log file path: ${LOG_FILE}\n\n`);
   } catch (error) {

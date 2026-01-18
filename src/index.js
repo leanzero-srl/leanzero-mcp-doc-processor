@@ -26,7 +26,7 @@ setupLogging();
 // Create MCP server
 const server = new Server(
   {
-    name: "mcp-doc-reader",
+    name: "mcp-doc-processor",
     version: "1.0.0",
   },
   {
@@ -372,7 +372,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function run() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  log("info", "MCP Doc-Reader Server running on stdio");
+  log("info", "MCP Document Processor server running on stdio");
   log("info", `Vision Provider: ${visionService.name}`);
 }
 

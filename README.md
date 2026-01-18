@@ -1,58 +1,85 @@
 # MCP Document Processor
 
-A Model Context Protocol (MCP) server that processes PDF, DOCX, and Excel files with intelligent document understanding capabilities. It extracts text, structure, metadata, and embedded images, enabling AI agents to read and understand complex documents through standardized tools.
+Welcome to the MCP Document Processor. This is a Model Context Protocol server that helps you work with PDF, DOCX, and Excel files in a more intelligent way. The server extracts text, understands document structure, pulls out metadata and embedded images, and even creates new documents with professional styling. It is designed to work with AI agents like LM Studio, Cline, or Roo Code so they can read and understand complex documents through standardized tools.
 
-The system also includes document creation tools for generating DOCX and Excel files with professional styling options.
+The system also includes the ability to generate documents, not just read them. This means you can create DOCX reports and Excel spreadsheets with customizable styling options to match your needs.
 
-## Overview
+## What This Project Can Do For You
 
-This project provides a comprehensive document processing solution with the following key capabilities:
+Think of this as having a smart assistant for your documents. Here is what it handles across different file types:
 
-- Multi-format support for PDF, DOCX, and Excel files
-- Intelligent OCR using vision models (LM Studio or Z.AI)
-- Advanced document analysis with layout understanding
-- Table detection and extraction with high accuracy
-- Document generation with customizable styling
-- Smart query-based document analysis with clarification workflows
+### Working With PDF Files
 
-The architecture is modular and designed for easy extension, with clear separation between parsing logic, services, and tool handlers.
+The PDF processor is quite sophisticated. When you give it a PDF file, the system first tries to read any text that is embedded directly in the document. This works well for modern PDFs that were created digitally. However, many PDFs are scanned images or photographs of documents where the text cannot be extracted directly. For these cases, the system uses optical character recognition (OCR) with the help of vision models.
 
-## Installation
+The PDF processing has three main enhancements that work together:
 
-### Prerequisites
+First, there is a layout analyzer that looks at the structure of each page before attempting to read it. This helps the system understand whether a document is organized into columns, has many images, or is text-heavy. This contextual information improves how well the OCR works.
 
-- Node.js (version 18 or higher recommended)
-- For OCR functionality, either:
-  - LM Studio running with a vision-capable model (local)
-  - Z.AI API key (cloud)
+Second, after extracting text (either natively or through OCR), there is a post-processor that refines the results. It looks for common OCR problems like words that are broken across lines, unusual spacing, or character substitutions that are clearly wrong. The system uses artificial intelligence to fix these issues while being careful to preserve the actual meaning of the document.
 
-### Setup Steps
+Third, there is a dedicated table extractor that finds tables in the document and pulls them out properly formatted. This works on both text-based PDFs and image-based PDFs that have been processed through OCR. Tables are detected in various formats like markdown tables, tab-separated data, or column-aligned information, and are extracted with confidence scores so you know how reliable the extraction is.
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd mcp-doc-processor
-```
+### Working With DOCX Files
 
-2. Install dependencies:
+For Word documents in DOCX format, the system extracts rich text content while preserving basic formatting. It can also pull out any images or media that are embedded in the document. This is particularly useful when you have reports or documents that contain diagrams, charts, or photos alongside the text.
+
+### Working With Excel Files
+
+Excel files are handled by reading data across multiple sheets. The system extracts all the cell values and can work with workbooks that have numerous tabs of information. This is helpful when you need to analyze financial data, lists, or structured information that is organized in spreadsheet format.
+
+### Creating New Documents
+
+Beyond just reading documents, you can also create them. The system provides two tools for document generation:
+
+The DOCX creation tool lets you build Word documents with titles, paragraphs, and tables. You can apply different styling presets or customize the formatting to match your needs. This is useful for generating reports, creating templates, or producing consistent documentation.
+
+The Excel creation tool allows you to build spreadsheets with multiple sheets. You can control column widths, row heights, font styling, and header formatting. This helps when you need to generate data exports, create standardized report formats, or produce structured outputs from your applications.
+
+## Getting Started With The System
+
+Getting the MCP Document Processor running on your machine is straightforward. You will need Node.js installed, and then you can set up the server to work with your preferred tools.
+
+### Installing The Dependencies
+
+First, you need to install the required packages. Open your terminal or command prompt and navigate to the project directory. Then run the following command to download and install everything that is needed:
+
 ```bash
 npm install
 ```
 
-3. Verify installation by running the test suite:
+This will install all the libraries that handle PDF parsing, Excel file manipulation, DOCX creation, and the various utilities that the system uses.
+
+### Verifying That Everything Works
+
+Once the installation is complete, you can run the test suite to make sure everything is functioning correctly on your system. This is a good practice because it confirms that all the parsers are working, the vision service can connect, and the basic tools are operating as expected.
+
 ```bash
 npm test
 ```
 
-## Configuration
+The test suite will check several document formats and processing scenarios. It looks for test files in the testfiles directory and processes them through all the available tools to verify they work correctly.
 
-The server uses a vision provider strategy for OCR and image analysis. You can choose between a local LM Studio setup or cloud-based Z.AI through the `mcp.json` configuration file.
+### Running The Server
 
-### Using LM Studio (Local - Recommended)
+When you are ready to use the system, you need to start the MCP server. The server is what listens for requests from your AI assistant or tool and responds by processing documents. You can start it with:
 
-This option provides privacy and offline capability. Requires LM Studio running with a Vision-Language Model loaded (such as qwen2-vl or llava).
+```bash
+npm start
+```
 
-Configuration in `mcp.json`:
+This command starts the server and it will begin listening for incoming requests. The server logs its activity, so if you need to troubleshoot any issues, you can check the log files to see what is happening.
+
+## Configuring The Vision Service
+
+The system uses a vision service provider strategy to handle OCR and image analysis. This means you can choose between running everything locally on your machine for privacy, or using a cloud service for potentially higher accuracy.
+
+### Using LM Studio Locally
+
+The local option is recommended if you want to keep everything on your own machine and do not want your documents being sent to external services. You will need to have LM Studio installed and running with a vision-capable model loaded. Good model choices include qwen2-vl or llava, which are designed to understand both text and images.
+
+To configure this option, you would set up your mcp.json configuration file like this:
+
 ```json
 {
   "mcpServers": {
@@ -69,11 +96,14 @@ Configuration in `mcp.json`:
 }
 ```
 
-### Using Z.AI (Cloud)
+The important part here is the VISION_PROVIDER being set to lm-studio, which tells the system to use your local LM Studio instance. You also need to make sure the path in the args field points to the correct location where you have the project installed.
 
-This option provides high-accuracy OCR using GLM-4V models.
+### Using Z.AI Cloud Service
 
-Configuration in `mcp.json`:
+If you prefer to use a cloud service that might offer higher accuracy or have more powerful models, you can configure the system to use Z.AI. This service uses the GLM-4V models and requires an internet connection to send documents for processing.
+
+The configuration for Z.AI looks like this:
+
 ```json
 {
   "mcpServers": {
@@ -90,114 +120,117 @@ Configuration in `mcp.json`:
 }
 ```
 
-### Environment Variables
+When using Z.AI, you need to provide your API key in the configuration. The system will then send documents to the Z.AI service for processing when OCR is needed.
 
-The following environment variables control server behavior:
+### Understanding Environment Variables
 
-| Variable | Description | Default |
-|-----------|-------------|----------|
-| VISION_PROVIDER | OCR connector to use ("lm-studio" or "zai") | lm-studio |
-| LM_STUDIO_BASE_URL | URL for local LLM server | http://localhost:1234/v1 |
-| Z_AI_API_KEY | API key for Z.AI services | - |
-| Z_AI_MODE | Platform mode for Z.AI | ZAI |
+There are several environment variables that control how the system behaves. You might not need to set all of these, but it is helpful to understand what they do:
 
-## Usage
+- VISION_PROVIDER: This determines which vision service to use. The value should be either lm-studio or zai. If you do not set this, it defaults to lm-studio.
+- LM_STUDIO_BASE_URL: This is the URL where your local LM Studio server is running. The default is http://localhost:1234/v1, but you can change this if you have configured LM Studio to run on a different port.
+- Z_AI_API_KEY: This is your personal API key for the Z.AI service. You only need this if you choose to use Z.AI as your vision provider.
+- Z_AI_MODE: This specifies which platform mode to use with Z.AI. The value should be ZAI.
 
-Once configured in your MCP client, the following tools become available for document processing.
+## Using The Document Tools
 
-### Document Reading Tools
+Once you have the server configured and running in your MCP client (like LM Studio, Cline, or other tools), you can access several tools for working with documents.
 
-#### get-doc-summary
+### Getting A Document Summary
 
-Provides a high-level overview including document structure, sections, and content summary. This tool extracts embedded images and includes them in the response.
+The summary tool gives you a high-level overview of a document. This is perfect when you want to quickly understand what a document is about without reading through all the details. It extracts the main sections, provides metadata about the document (like creation date, author, page count), and identifies any images that are embedded in the file.
 
-Example usage:
+To use this tool, you simply provide the file path:
+
 ```javascript
 {
   "filePath": "/Users/me/documents/report.pdf"
 }
 ```
 
-Best suited for getting a quick understanding of document contents without processing the entire text.
+The system will process the document and return a structured summary that includes the most important information at a glance.
 
-#### get-doc-focused
+### Asking Focused Questions About A Document
 
-Performs targeted analysis based on your specific query. This tool may ask clarification questions if the document is large or ambiguous, helping refine the analysis to your needs.
+Sometimes you have a specific question about a document, or you want the system to help you understand what it should focus on. The focused tool lets you ask a question and the system will analyze the document with that question in mind. If the document is large or complex, the system might even ask you some clarification questions to make sure it understands exactly what you are looking for.
 
-Example usage:
+For example, you might ask:
+
 ```javascript
 {
   "filePath": "/Users/me/documents/contract.docx",
-  "userQuery": "What are the termination conditions?"
+  "userQuery": "What are the termination conditions mentioned in this agreement?"
 }
 ```
 
-This tool is most useful when you have specific questions about the document content.
+The system will then search through the document specifically for information related to your question and provide a targeted response.
 
-#### get-doc-indepth
+### Getting Complete Document Details
 
-Returns comprehensive information including full text, headers, structure hierarchy, and image data.
+When you need everything in a document, the in-depth tool provides comprehensive access to all the information. This includes the full text content, complete structural hierarchy, all formatting details, and every image that was extracted. Use this when you need to perform detailed analysis or work with all the content programmatically.
 
-Example usage:
 ```javascript
 {
   "filePath": "/Users/me/documents/data.xlsx"
 }
 ```
 
-Use this when you need complete access to all document information for detailed analysis.
+This returns the complete document representation, which is useful when you are building applications that need to access or process all of the document information.
 
-### Document Creation Tools
+### Creating DOCX Documents
 
-#### create-doc
+The create-doc tool lets you generate Word documents programmatically. You provide a title, any paragraphs you want, and optionally tables, and the system creates a properly formatted DOCX file.
 
-Creates DOCX documents with titles, paragraphs, and tables. The generated files are suitable for reports or templates.
+The basic usage looks like this:
 
-Input parameters:
-- `title` (required): Document title, appears as Heading 1
-- `paragraphs` (optional): Array of paragraph strings or paragraph objects with styling
-- `tables` (optional): Array of tables, each as a 2D array
-- `stylePreset` (optional): "minimal", "professional", or "colorful"
-- `style` (optional): Custom styling object to override preset defaults
-- `outputPath` (optional): Output file path, defaults to ./output/document.docx
-
-Example with basic content:
 ```javascript
 {
   "title": "Project Report",
   "paragraphs": [
     "This document was generated programmatically.",
-    "It contains structured content."
+    "It contains structured content and tables."
   ]
 }
 ```
 
-Example with professional styling:
+You can also add tables to your document by providing them as two-dimensional arrays:
+
 ```javascript
 {
-  "title": "Quarterly Report",
-  "paragraphs": [
-    {
-      "text": "Executive Summary",
-      "bold": true,
-      "color": "336699"
-    }
-  ],
-  "stylePreset": "professional"
+  "title": "Employee Status Report",
+  "paragraphs": ["Current employee assignments:"],
+  "tables": [[
+    ["Employee ID", "Name", "Department", "Status"],
+    [1, "Alice", "Engineering", "Active"],
+    [2, "Bob", "QA", "Inactive"]
+  ]]
 }
 ```
 
-#### create-excel
+The system will create tables with proper formatting and borders automatically.
 
-Creates Excel workbooks with multiple sheets and data. Supports column widths, row heights, and comprehensive styling.
+### Creating Excel Files
 
-Input parameters:
-- `sheets` (required): Array of sheet definitions, each with name and data
-- `stylePreset` (optional): "minimal", "professional", or "colorful"
-- `style` (optional): Custom styling with font, column widths, row heights
-- `outputPath` (optional): Output file path, defaults to ./output/data.xlsx
+The create-excel tool generates spreadsheets with multiple sheets. You define each sheet with a name and the data it should contain. This is particularly useful when you need to export data in a structured format or create reports that others can work with in Excel.
 
-Example with multiple sheets:
+Here is how to create a simple Excel file:
+
+```javascript
+{
+  "sheets": [
+    {
+      "name": "Sales Data",
+      "data": [
+        ["Month", "Revenue", "Profit"],
+        ["January", "$150,000", "$30,000"],
+        ["February", "$180,000", "$40,000"]
+      ]
+    }
+  ]
+}
+```
+
+You can create multiple sheets in a single workbook:
+
 ```javascript
 {
   "sheets": [
@@ -209,57 +242,38 @@ Example with multiple sheets:
       "name": "Employees",
       "data": [["Emp ID", "Dept ID"], [1001, 1], [1002, 2]]
     }
-  ],
-  "stylePreset": "professional"
+  ]
 }
 ```
 
-## Styling System
+## Styling Your Documents
 
-The document creation tools include a comprehensive styling system that provides consistent formatting across documents.
+The document generation tools include a comprehensive styling system that makes it easy to create professional-looking documents without needing to understand all the formatting details yourself. The system provides pre-configured presets that cover common use cases, and you can also customize any aspect of the styling to get exactly the appearance you want.
 
-### Style Presets
+### Understanding Style Presets
 
-Three pre-configured presets are available for common use cases:
+There are three built-in style presets that you can use as starting points. These are designed to cover common document needs without requiring you to specify every formatting detail:
 
-**Minimal** (default)
-- Clean, simple formatting
-- 11pt black font
-- Left alignment
-- Minimal spacing
+The minimal preset provides clean, simple formatting with black text at 11 points, left alignment, and basic spacing. This is useful for everyday documents where clarity is more important than decoration.
 
-**Professional**
-- Enhanced readability
-- 12pt blueish font
-- Improved spacing (1.15 line height)
-- Better visual hierarchy
+The professional preset uses enhanced formatting with blueish text at 12 points and improved spacing (1.15 line height). This creates documents that look more formal and suitable for business reports or official documentation.
 
-**Colorful**
-- Visually striking formatting
-- 11pt red font
-- Center alignment
-- Double borders on tables
+The colorful preset makes documents visually striking with red text at 11 points and center alignment. This can be useful for highlighting important information or creating attention-grabbing materials.
 
-### Custom Styling Options
+### Customizing Document Appearance
 
-You can override preset values with custom styling for fine-grained control.
+When the presets do not quite match what you need, you can override specific properties while keeping the rest of the preset. This gives you control over individual aspects without having to configure everything from scratch.
 
-**DOCX Styling Properties**
-- Font: size, color, bold, italics, underline, fontFamily
-- Paragraph: alignment, spacingBefore, spacingAfter, lineSpacing
-- Table: borderColor, borderStyle, borderWidth
+For DOCX documents, you can control font properties like size, color, bold, italic, underline, and font family. You can also adjust paragraph formatting including alignment, spacing before and after paragraphs, and line spacing. Tables can be customized with border color, border style, and border width.
 
-**Excel Styling Properties**
-- Font: size, color, bold, italics, underline
-- Dimensions: columnWidths (map of index to width), rowHeights (map of index to height)
-- Header: headerBold (boolean for first row)
+For Excel documents, you can control font properties including size, color, bold, italic, and underline. You can set specific column widths and row heights to control the layout of your spreadsheet. The header bold option makes the first row stand out, which is useful for data tables.
 
-### Styling Example
+Here is an example of combining a preset with custom overrides:
 
-Combining preset with custom overrides:
 ```javascript
 {
-  "title": "Custom Report",
+  "title": "Quarterly Report",
+  "paragraphs": ["Executive Summary"],
   "stylePreset": "professional",
   "style": {
     "font": {
@@ -274,413 +288,178 @@ Combining preset with custom overrides:
 }
 ```
 
-## OCR and Document Analysis
+This example starts with the professional preset but then increases the font size and changes the table styling. Only the properties you specify will override the preset values.
 
-The PDF parser includes three advanced services that work together to enhance document processing accuracy.
+### Working With Colors
 
-### Layout Analysis
+The system uses hexadecimal color codes without the hash prefix. When you specify colors, use six-digit codes like "FF0000" for red or "336699" for blue. Do not include the hash symbol at the beginning.
 
-Analyzes document structure before processing to understand page layout, text blocks, images, and potential tables.
+## How The System Works Internally
 
-**What it identifies:**
-- Text block patterns (paragraphs, sections)
-- Image regions and density
-- Potential table structures
-- Document type classification (structured, image-heavy, text-dense, mixed)
+Understanding the technical architecture can help you troubleshoot issues or extend the system for your specific needs. The project is organized into several layers with clear responsibilities.
 
-**Benefits:**
-- Informs OCR decisions with document context
-- Generates layout-aware OCR prompts
-- Provides metadata for downstream analysis
+### The Core Libraries In Use
 
-### OCR Post-Processing
+The system relies on several established libraries to handle different file formats. PDF parsing uses pdf-parse, which we have extended to access the raw PDF stream for image extraction. DOCX files are processed using mammoth to convert them to raw text while preserving basic formatting, and jszip is used to unzip the DOCX structure to access embedded media.
 
-Uses AI to refine OCR output and fix common errors while preserving document structure.
+For Excel files, the xlsx library handles parsing the spreadsheet structure and extracting cell data across multiple sheets. When creating documents, docx is used for generating DOCX files with rich formatting support.
 
-**What it does:**
-- Detects common OCR artifacts (broken words, spacing issues)
-- Applies conservative character substitutions only when clearly wrong
-- Reconstructs text broken across line breaks
-- Maintains document structure (headers, paragraphs, lists)
+### How The Code Is Organized
 
-**Benefits:**
-- Improves OCR accuracy with confidence scoring
-- Preserves original formatting and meaning
-- Handles edge cases gracefully with fallback to basic cleaning
+The source code is structured in directories that separate concerns. The tools directory contains the handlers that respond to MCP requests and manage the protocol layer, including validating input and formatting responses. The services directory contains specialized modules for different capabilities.
 
-### Table Detection and Extraction
+Document processing is handled by file-type specific parsers in the parsers directory. Each parser knows how to work with its particular format and implements the common interface for consistency. The styling system is centralized in a dedicated module that both document creation tools use.
 
-Dedicated service for detecting and extracting tables from documents.
+### How OCR Processing Happens
 
-**What it does:**
-- Detects multiple table patterns (markdown, tab-separated, column-aligned)
-- Extracts tables using AI with markdown formatting
-- Processes both text-based and image-based tables
+When the system encounters a PDF that appears to be image-based (either because there is very little extractable text or because the layout analysis indicates it), it initiates the OCR process. This is done through the vision service factory, which decides whether to use your local LM Studio or the cloud Z.AI service based on your configuration.
 
-**Benefits:**
-- Accurate table extraction with confidence scores
-- Preserves table structure in markdown format
-- Handles merged cells and special formatting
+The vision service takes the PDF pages (either as images extracted from the file or as screenshots if possible) and sends them to the vision model. The model analyzes the visual content and returns the text it recognizes. This text is then merged with any native text that was extractable, creating a complete representation.
 
-### Processing Flow
+After OCR is complete, the post-processor refines the text by looking for and fixing common problems. Finally, the table extractor scans the complete text (both original and OCR-generated) to find any tables and extract them with proper formatting.
 
-The PDF parser follows this enhanced workflow:
+## Testing The System
 
-1. Load PDF file
-2. Extract text and images
-3. Run Layout Analysis
-4. Determine if OCR needed (improved with layout context)
-5. If OCR needed: Perform OCR with layout-aware prompts
-6. Post-process OCR output
-7. Extract tables from document (applies to both OCR and non-OCR paths)
-8. Return enhanced results with:
-   - Original text and images
-   - Layout analysis metadata
-   - OCR post-processing metadata
-   - Extracted tables
+The project includes several test files that verify different aspects of the system. Running these tests helps ensure that everything is working correctly on your machine and that changes do not break existing functionality.
 
-### Enhanced Result Structure
+### Integration Tests
 
-The PDF parser returns an expanded result object with metadata:
+The main integration test suite is in test/integration.js. This script finds documents in your testfiles directory and runs each one through all the available document reading tools. It checks that file type detection works correctly, that parsers can handle real files, and that the MCP protocol layer returns properly formatted responses.
 
-```javascript
-{
-  success: true,
-  text: "final processed text",
-  pages: number_of_pages,
-  metadata: { /* PDF metadata */ },
-  images: [/* extracted images */],
-  isImageBased: boolean,
-  ocrApplied: boolean,
-  ocrSource: "vision-service-name" | null,
-  layoutAnalysis: {
-    success: true,
-    pages: [/* per-page analysis */],
-    totalPages: number,
-    layoutSummary: string,
-    structureType: "structured-document" | "image-heavy-document" | "text-dense-document" | "mixed-document"
-  },
-  ocrPostProcessing: {
-    processedText: "improved text",
-    improvements: [/* array of improvement objects */],
-    confidence: number (0.75-0.95),
-    processingSteps: ["Initial OCR extraction", ...]
-  },
-  tables: [
-    {
-      type: "markdown" | "tab-separated" | "column-aligned" | "header-separator",
-      content: "raw table content",
-      formattedContent: "markdown formatted table",
-      confidence: number,
-      source: "text" | "image"
-    }
-  ],
-  tableCount: number
-}
+For each test file, it verifies four scenarios: summary generation, in-depth extraction, focused analysis without a query, and focused analysis with a specific query. This comprehensive testing approach helps catch issues early.
+
+### Document Creation Tests
+
+The test/create-tools.js script specifically tests the document creation tools. It loads sample input data from JSON files and creates both DOCX and Excel documents. This validates that the tools can accept their input parameters, generate files correctly, and return proper success or error responses.
+
+### OCR Improvement Tests
+
+The test/test-ocr-improvements.js script validates the three OCR enhancement services individually. It tests the layout analyzer to ensure it can identify document structures correctly. It tests the OCR post-processor to confirm it refines text and provides confidence scores. It also tests the table extractor to verify it can find and format tables properly.
+
+### Styling Demonstration
+
+The test/test-styling.js script is not exactly a test but rather a demonstration. It creates example documents using all the different style presets and customization options. This helps you see what the various styling combinations look like in practice and can serve as examples when you are designing your own document formats.
+
+## Running Specific Tests
+
+While npm test runs the main integration suite, you can also run individual test scripts when you want to focus on a particular aspect of the system:
+
+```bash
+npm test:ocr
 ```
 
-## Architecture
+This runs only the OCR improvement tests and shows you detailed output about what each service detected and how well it performed.
 
-This project uses a modular service-oriented architecture located in the `src/` directory.
+```bash
+npm test:styling
+```
 
-### Core Libraries
+This creates sample documents with different styling options so you can see the visual results and understand how the styling system works.
 
-- pdf-parse: Used for PDF text extraction with a modified approach for image extraction
-- mammoth: Converts DOCX to raw text while preserving basic formatting
-- jszip: Unzips DOCX/XLSX files to access internal media directories
-- xlsx: Parses Excel spreadsheets to extract cell data across multiple sheets
-- docx: Creates DOCX documents with rich formatting support
+```bash
+npm test:create
+```
+
+This tests just the document creation tools to ensure they are generating files correctly.
+
+## Troubleshooting Common Issues
+
+Here are some problems you might encounter and how to resolve them.
+
+### The Server Will Not Start
+
+If the server fails to start, first check that Node.js is installed on your system and that you are in the correct directory. Verify that all dependencies were installed successfully by running npm install again. Check the logs directory for error messages that might indicate what went wrong.
+
+### File Not Found Errors
+
+When you provide a file path to a tool, it must be an absolute path on your file system. Relative paths like "./documents/report.pdf" will not work because the server does not know what directory to start from. Always use the full path from the root of your file system.
+
+### OCR Is Not Working
+
+If OCR seems to not be functioning, first verify that the VISION_PROVIDER environment variable is set correctly. If you are using LM Studio, make sure it is running and that a vision-capable model is loaded in the Local Server tab. The logs will show connection errors if the server cannot reach the vision service.
+
+### Images Are Missing From Documents
+
+Some document formats do not support image extraction as well. Legacy .doc files (not DOCX) or complex Excel sheets might not contain extractable images. Ensure your files are in .docx, .xlsx, or .pdf format for the best experience.
+
+### Styling Is Not Applied
+
+If you specify styling options but do not see them applied in the generated document, check that the stylePreset value is one of the valid options: minimal, professional, or colorful. Verify that color codes are six-digit hex numbers without the hash symbol. Make sure that your custom style object structure matches what is documented.
+
+### Tables Are Not Extracted
+
+There was a bug in an earlier version where tables were only extracted from PDFs that did not require OCR. This has been fixed, and tables should now be extracted regardless of whether OCR was used. If you experience this issue, make sure you have the latest version of the code.
+
+### Processing Seems Slow
+
+The enhanced processing features do add some overhead to document processing. Layout analysis takes approximately five to ten seconds because it needs to parse the entire PDF structure. OCR post-processing adds about three to five seconds for the AI call. Table extraction takes five to fifteen seconds depending on how many tables are found. These times are typical for the additional intelligence being provided, but if processing seems unusually slow, check the logs to see which step is taking the most time.
+
+## Project Architecture For Developers
+
+If you are interested in extending or modifying the system, understanding the architecture will help you navigate the codebase effectively.
 
 ### Directory Structure
 
-- src/tools/: Contains MCP tool handlers (summary-tool.js, etc.) that handle protocol layer validation and response formatting
-- src/services/:
-  - document-processor.js: Main facade detecting file types and routing to correct parser
-  - vision-factory.js: Determines which OCR connector to use based on configuration
-  - zai-vision.js / lm-studio-service.js: Connector implementations for vision providers
-  - layout-analyzer.js: Document structure analysis service
-  - ocr-postprocessor.js: AI-based text refinement service
-  - table-extractor.js: Table detection and extraction service
-- src/parsers/: File-type specific parsing logic (pdf-parser.js, docx-parser.js, etc.)
-- src/tools/styling.js: Centralized styling configuration module
+The project is organized with clear separation of concerns. The src directory contains all the application code. Tools in src/tools handle the MCP protocol layer. Services in src/services provide specialized functionality like vision processing, layout analysis, and table extraction. Parsers in src/parsers handle file-type specific operations. Utilities in src/utils provide helper functions for logging and file operations.
 
-### How OCR Works
+### Adding New Features
 
-1. Detection: The PDF parser analyzes text density versus image count
-2. Routing: If the document is image-heavy (scanned), it delegates to VisionFactory
-3. Processing: The factory invokes the configured provider (LM Studio or Z.AI) to analyze the page and extract text
-4. Merging: OCR results are merged with any native text found to create a unified document representation
+To add a new feature, you would typically start by defining the tool schema in src/index.js. Then implement the handler function that processes the input and returns results. If your feature needs new services (like a different file format), you would add those to the services directory and potentially create a new parser in the parsers directory.
 
-### Styling Implementation
+### Following Code Conventions
 
-The styling system follows a centralized configuration pattern with three main components:
+The codebase uses ES modules and follows modern JavaScript patterns. Error handling is comprehensive, with detailed error information returned including stack traces when appropriate. Logging is structured and written to both console and log files for debugging in production environments.
 
-1. Styling Configuration Module (src/tools/styling.js)
-   - Core style definitions and presets
-   - Style application helper functions
-   - Cross-document type utilities
+### The Styling System Design
 
-2. Document Creation Tools
-   - create-doc.js: DOCX styling implementation
-   - create-excel.js: Excel styling implementation
+The styling module uses a configuration object pattern with merge capabilities. Presets are defined as complete configuration objects. Custom options override preset values using object spreading for simple properties and nullish coalescing for nested structures. This design allows presets to be complete defaults while still permitting fine-grained customization.
 
-3. Style Presets
-   - Pre-configured style combinations (minimal, professional, colorful)
-   - Mergeable with custom options for fine-grained control
+## Best Practices For Using The System
 
-## Testing
+Here are some recommendations based on how the system works and what tends to be effective.
 
-The project includes a comprehensive test suite to verify all functionality.
+### Always Provide Complete Information
 
-### Running Tests
+When using the document reading tools, provide absolute file paths and include all required parameters. For document creation, make sure to include the required fields (title for DOCX, sheets with name and data for Excel). Missing required fields will cause errors and stop the tool from working.
 
-To verify the system against real documents:
-```bash
-npm test
-```
+### Choose The Right Tool For Your Need
 
-### Test Coverage
+Use get-doc-summary when you want a quick overview without processing everything. Use get-doc-indepth when you need complete access to all document information for detailed analysis or programmatic processing. Use get-doc-focused when you have specific questions and want targeted answers rather than everything.
 
-The test suite covers:
+### Test Your Changes
 
-**Integration Tests** (test/integration.js)
-- Tests all document reading tools (get-doc-summary, get-doc-indepth, get-doc-focused)
-- Verifies file type detection
-- Confirms parsers (PDF, DOCX, XLSX) are functioning
-- Validates OCR connectors (LM Studio/Z.AI) are reachable
-- Ensures all MCP tools return valid responses
+When modifying code or adding features, run the relevant test suites to ensure you have not broken anything. The integration tests cover the main workflows, and the specific test scripts focus on individual components.
 
-**Document Creation Tests** (test/create-tools.js)
-- Verifies DOCX creation with tables from JSON input
-- Validates Excel workbook generation with multiple sheets
-- Tests edge cases and programmatic usage
+### Handle Errors Gracefully
 
-**OCR Improvements Tests** (test-ocr-improvements.js)
-- Tests Document Layout Analyzer functionality
-- Validates OCR Post-Processor behavior
-- Confirms Table Extraction accuracy
-- Verifies integrated PDF parser with all improvements
+All tools return structured responses with a success flag. Always check this flag in your code and handle failure cases appropriately. The error messages are designed to be descriptive so you can understand what went wrong.
 
-**Styling Demonstration** (test-styling.js)
-- Demonstrates all available styling options and presets
-- Creates sample documents with different styling configurations
-- Validates style merging and overrides
+### Review Logs For Issues
 
-### Test Files
+When you encounter unexpected behavior, check the logs directory. The server writes detailed logs about its operations, including which tools are called, what files are being processed, and any errors that occur. This information is invaluable for troubleshooting complex issues.
 
-Place sample documents for testing in the `testfiles/` directory. The test runner will automatically process these files through all available tools.
+### Use Styling Consistently
 
-## Troubleshooting
+When creating multiple documents for the same purpose, use the same style preset or similar styling parameters. This creates visual consistency across your documents, which looks more professional and makes them easier for readers to navigate.
 
-### Server Management
+### Consider Performance
 
-Starting the server: The server starts automatically when your MCP client uses the command definition in `mcp.json`.
+Be aware that document processing takes time, especially for PDFs with OCR and complex documents. When processing many files or building workflows, consider the performance implications and possibly batch operations during off-peak times.
 
-Stopping/Restarting: To apply configuration changes (like switching vision providers), restart the server:
-- Mac/Linux: `pkill -f mcp-doc-processor` or restart your MCP client application
-- LM Studio: Go to Settings, then MCP Servers, and toggle Off/On
+## Current Capabilities And Limitations
 
-### Common Issues
+### What The System Does Well
 
-File not found errors: Ensure the filePath provided to tools is an absolute path on your local machine, not a relative path.
-
-OCR not working:
-- Check that VISION_PROVIDER is set correctly
-- For LM Studio, ensure a vision-capable model (VLM) is loaded in the Local Server tab
-- Check logs in logs/server.log for connection errors
-
-Images missing: Some formats (like legacy .doc or complex Excel sheets) might not support image extraction. Ensure files are .docx, .xlsx, or .pdf format.
-
-Styling not applied:
-- Verify the stylePreset is one of: "minimal", "professional", or "colorful"
-- Check that color values are 6-digit hex codes without the hash prefix (e.g., "FF0000" not "#FF0000")
-- Ensure custom style properties match the documented structure
-
-Tables not extracted from OCR'd PDFs: This issue has been fixed. If you experience it, ensure you have the latest version of the code.
-
-Processing seems slow: Enhanced processing adds overhead:
-- Layout Analysis: Approximately 5-10 seconds
-- OCR Post-processing: Approximately 3-5 seconds per document
-- Table Extraction: Approximately 5-15 seconds (depends on number of tables)
-
-## Performance Characteristics
-
-Document Reading Tools:
-- PDF with OCR: 30-60 seconds depending on document complexity
-- PDF without OCR: 5-10 seconds
-- DOCX files: 2-5 seconds
-- Excel files: 1-3 seconds
-
-Document Creation Tools:
-- create-doc: Typically less than 100ms for typical documents, styling adds approximately 10-20ms
-- create-excel: Approximately 200ms with styling for typical workbooks
-
-Performance scales linearly with data size. No memory leaks have been observed in testing, making the system suitable for real-time generation.
-
-## Current Capabilities and Limitations
-
-### Document Reading Capabilities
-
-PDF Processing:
-- Text extraction from native PDF text
-- OCR for image-based PDFs with two provider options
-- Embedded image extraction
-- Layout analysis and structure understanding
-- Table detection and extraction
-- OCR post-processing for accuracy improvement
-
-DOCX Processing:
-- Rich text extraction
-- Media (image) extraction from embedded content
-- Basic formatting preservation
-
-Excel Processing:
-- Multi-sheet text and data extraction
-- Cell-level data access
-- Basic structure preservation
-
-### Document Generation Capabilities
-
-DOCX Generation:
-- Font properties: size, color, bold, italics, underline, fontFamily
-- Paragraph formatting: alignment, spacingBefore, spacingAfter, lineSpacing
-- Table styling: borderColor, borderStyle, borderWidth
-- Three pre-configured presets: minimal, professional, colorful
-- Custom style merging with preset overrides
-
-Excel Generation:
-- Font properties: size, color, bold, italics, underline
-- Column and row dimensions: columnWidths, rowHeights
-- Header bold formatting
-- Three pre-configured presets: minimal, professional, colorful
-- Per-sheet and global styling options
+The PDF processing with OCR enhancements can handle most common document types effectively. Table extraction works well for clearly formatted tables in various standard formats. Document generation produces professional-looking outputs with comprehensive styling options.
 
 ### Known Limitations
 
-DOCX Styling:
-- Cell-level borders are limited; table-level borders are preferred
-- Font size conversion is required internally (points to twips)
-- Style IDs must be predefined in docx.js
+DOCX cell-level borders are somewhat limited and table-level borders are preferred for the best results. Excel style preservation is more limited compared to DOCX styling and does not support font family specification. The OCR accuracy depends on the quality of the vision model and the clarity of the original document. Template systems are not implemented, so each document must be created from scratch or use the programmatic tools.
 
-Excel Styling:
-- Style preservation is limited compared to docx.js
-- No font family support in Excel styling
-- Style application modifies worksheet objects directly
-- Limited border customization
+### Potential Future Enhancements
 
-OCR and Analysis:
-- Processing time increases with enhanced features
-- Requires external vision service (LM Studio or Z.AI)
-- Layout analysis accuracy depends on document complexity
+There are opportunities to extend the system further. Advanced DOCX formatting could include page headers, footers, watermarks, or backgrounds. Image embedding in generated documents would allow including graphics in reports. Charts and graphs could be added to Excel generation for visual data presentation. Style caching could improve performance when generating many documents with the same styling.
 
-## Project Files
+## Conclusion
 
-This section provides an overview of key project files and their purposes.
-
-### Core Application Files
-
-- src/index.js: Main MCP server entry point with tool registration
-- src/tools/: MCP tool handlers for document operations
-- src/parsers/: File-type specific parsing implementations
-- src/services/: Supporting services for vision, styling, and analysis
-
-### Documentation Files
-
-- README.md: This comprehensive documentation
-- BUG_FIXES_SUMMARY.md: Historical record of bugs fixed
-
-### Configuration Files
-
-- package.json: Project dependencies and scripts
-- mcp.json: MCP server configuration (example)
-
-### Test Files
-
-- test/integration.js: Comprehensive integration test suite
-- test/create-tools.js: Document creation tool tests
-- test/test-doc-input.json: Sample DOCX structure for testing
-- test/test-excel-input.json: Sample Excel structure for testing
-- test-ocr-improvements.js: OCR enhancement validation script
-- test-styling.js: Styling demonstration script
-
-## Best Practices
-
-### For Document Reading
-
-Always provide absolute file paths to tools. Relative paths may cause file not found errors.
-
-Choose the appropriate tool for your use case:
-- get-doc-summary for quick overviews
-- get-doc-indepth for complete access
-- get-doc-focused for targeted queries
-
-Check the success flag in responses and handle errors gracefully. All tools return structured success/failure indicators.
-
-### For Document Creation
-
-Specify all required fields in your input. For create-doc, the title is required. For create-excel, sheets with name and data are required.
-
-Use absolute paths for output when possible to avoid confusion about file locations.
-
-Validate data structures before calling tools, particularly for arrays and nested objects.
-
-Start with a style preset that matches your requirements, then customize only specific properties you need:
-```javascript
-{
-  "stylePreset": "professional",
-  "style": {
-    "font": { size: 14 }  // Only override what you need
-  }
-}
-```
-
-Check the success flag in responses to verify file creation succeeded.
-
-### For Styling
-
-Use 6-digit hex color codes without the hash prefix: "FF0000" not "#FF0000".
-
-Test styling changes with sample data before using them in production.
-
-Use the same style preset across related documents for consistency.
-
-For DOCX, remember that font sizes are automatically converted from points to twips (multiplied by 20 internally).
-
-### For OCR and Analysis
-
-Consider using LM Studio for privacy-critical documents, as processing stays local.
-
-Use Z.AI for highest OCR accuracy when internet access is available.
-
-Allow sufficient time for processing, especially with layout analysis and table extraction enabled.
-
-Review confidence scores in ocrPostProcessing metadata to assess text quality.
-
-## Recent Improvements
-
-The following bugs have been identified and fixed in recent versions:
-
-### Table Extraction Inconsistency (Fixed)
-Issue: Table extraction only occurred in the non-OCR path, causing image-based PDFs to return empty table arrays.
-
-Resolution: Moved table extraction and parser cleanup outside the OCR conditional block, ensuring tables are extracted for all PDF types.
-
-Impact: Tables are now properly extracted from both OCR'd and native text PDFs, providing consistent behavior across document types.
-
-### Missing Styling Parameters in MCP Schemas (Fixed)
-Issue: The styling system was fully implemented but not exposed in the MCP tool schemas, making it inaccessible to users.
-
-Resolution: Added comprehensive styling parameters (stylePreset and full style object) to both create-doc and create-excel tool schemas.
-
-Impact: Users can now specify presets and custom options for document creation, enabling the full range of styling capabilities through the MCP interface.
-
-### Documentation Inconsistency (Fixed)
-Issue: Documentation significantly understated the styling capabilities of the document generation tools.
-
-Resolution: Rewrote the capabilities section to accurately reflect the full feature set available in the code.
-
-Impact: Users can now see the complete range of styling options available, improving understanding and adoption of these features.
-
-## License
-
-MIT
+The MCP Document Processor provides a comprehensive solution for working with documents in an intelligent way. It combines robust reading capabilities with flexible document creation, enhanced by OCR improvements and a sophisticated styling system. The modular architecture makes it maintainable and extensible, while the thorough test coverage ensures reliability. Whether you need to analyze existing documents or generate new ones, this system gives you the tools to do it effectively and with professional results.
