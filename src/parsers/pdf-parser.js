@@ -24,6 +24,9 @@ export class PdfParser {
 
     // Initialize table extractor
     this.tableExtractor = new TableExtractor();
+
+    // Option to skip table extraction (to prevent hangs)
+    this.skipTableExtraction = process.env.SKIP_TABLE_EXTRACTION !== "false";
   }
 
   /**
@@ -179,36 +182,50 @@ export class PdfParser {
         console.error(`[PdfParser] ===== SKIPPING OCR BLOCK =====`);
         console.error(`[PdfParser] Reason: isImageBased=${isImageBased}`);
 
-        // Still apply basic post-processing to improve text quality
-        console.error(
-          `[PdfParser] ===== ENTERING TEXT POST-PROCESSING BLOCK =====`,
-        );
+        // For text-based PDFs, only apply basic text cleaning (no AI/Vision needed)
+        console.error(`[PdfParser] ===== ENTERING TEXT CLEANING BLOCK =====`);
         const postProcessingResult = await this.ocrPostProcessor.processOcrText(
           finalText,
           layoutAnalysis,
+          false, // Skip AI processing for text-based PDFs
         );
         if (postProcessingResult.success) {
           finalText = postProcessingResult.processedText;
           console.error(
-            `[PdfParser] Text post-processing completed successfully with ${postProcessingResult.improvements.length} improvements`,
+            `[PdfParser] Text cleaning completed successfully with ${postProcessingResult.improvements.length} improvements`,
           );
 
           // Store post-processing metadata
           ocrResult = {
             success: false,
             postProcessing: postProcessingResult,
-            source: "text-postprocessing",
+            source: "text-cleaning",
           };
         }
       }
 
       // Extract tables from the document (runs for both OCR and non-OCR paths)
       console.error(`[PdfParser] ===== ENTERING TABLE EXTRACTION BLOCK =====`);
-      extractedTables =
-        await this.tableExtractor.extractTablesFromPdf(filePath);
-      console.error(
-        `[PdfParser] Table extraction completed: ${extractedTables.length} tables found`,
-      );
+
+      if (this.skipTableExtraction) {
+        console.warn(
+          `[PdfParser] Table extraction SKIPPED (SKIP_TABLE_EXTRACTION=true)`,
+        );
+        extractedTables = [];
+      } else {
+        try {
+          extractedTables =
+            await this.tableExtractor.extractTablesFromPdf(filePath);
+          console.error(
+            `[PdfParser] Table extraction completed: ${extractedTables.length} tables found`,
+          );
+        } catch (error) {
+          console.error(
+            `[PdfParser] Table extraction FAILED (continuing without tables): ${error.message}`,
+          );
+          extractedTables = [];
+        }
+      }
 
       // Clean up parser after processing is done
       console.error(`[PdfParser] ===== CLEANING UP PARSER =====`);

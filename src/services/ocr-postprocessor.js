@@ -15,8 +15,10 @@ export class OcrPostProcessor {
    * @param {Object} layoutAnalysis - Layout analysis results from DocumentLayoutAnalyzer
    * @returns {Promise<Object>} Processed text with improvements and metadata
    */
-  async processOcrText(ocrText, layoutAnalysis = null) {
-    console.error(`[OcrPostProcessor] Processing OCR output with AI...`);
+  async processOcrText(ocrText, layoutAnalysis = null, useAI = true) {
+    console.error(
+      `[OcrPostProcessor] Processing OCR output ${useAI ? "with AI" : "with basic cleaning"}...`,
+    );
 
     if (!ocrText || ocrText.length === 0) {
       return {
@@ -24,7 +26,23 @@ export class OcrPostProcessor {
         processedText: "",
         improvements: [],
         confidence: 0.85,
-        processingSteps: []
+        processingSteps: [],
+      };
+    }
+
+    // For text-based documents, skip AI processing and just do basic cleaning
+    if (!useAI) {
+      console.error(
+        `[OcrPostProcessor] Skipping AI processing, using basic text cleaning only`,
+      );
+      const cleanedText = this.basicTextCleaning(ocrText);
+
+      return {
+        success: true,
+        processedText: cleanedText,
+        improvements: [],
+        confidence: 0.9,
+        processingSteps: ["Basic text cleaning"],
       };
     }
 
@@ -35,11 +53,11 @@ export class OcrPostProcessor {
     const prompt = this.generatePostProcessingPrompt(
       ocrText,
       detectedErrors,
-      layoutAnalysis
+      layoutAnalysis,
     );
 
     try {
-      // Use vision service (LM Studio or Z.AI) to process the text
+      // Use vision service (LM Studio or Z.AI) to process text
       const result = await visionService.extractText(ocrText, prompt);
 
       // Analyze the improvements made
@@ -53,13 +71,12 @@ export class OcrPostProcessor {
         processingSteps: [
           "Initial OCR extraction",
           "Common error detection",
-          "AI-based refinement"
-        ]
+          "AI-based refinement",
+        ],
       };
-
     } catch (error) {
       console.error(
-        `[OcrPostProcessor] AI processing failed: ${error.message}`
+        `[OcrPostProcessor] AI processing failed: ${error.message}`,
       );
 
       // Fallback to basic cleaning if AI processing fails
@@ -70,7 +87,7 @@ export class OcrPostProcessor {
         processedText: fallbackResult,
         improvements: [],
         confidence: 0.75,
-        processingSteps: ["Initial OCR extraction", "Basic text cleaning"]
+        processingSteps: ["Initial OCR extraction", "Basic text cleaning"],
       };
     }
   }
@@ -89,9 +106,8 @@ export class OcrPostProcessor {
     if (brokenWords && brokenWords.length > 0) {
       errors.push({
         type: "line-break",
-        description:
-          "Words broken across lines with hyphens",
-        count: brokenWords.length
+        description: "Words broken across lines with hyphens",
+        count: brokenWords.length,
       });
     }
 
@@ -102,7 +118,7 @@ export class OcrPostProcessor {
         type: "spacing-issue",
         description:
           "Multiple consecutive spaces indicating potential OCR spacing errors",
-        count: multipleSpaces.length
+        count: multipleSpaces.length,
       });
     }
 
@@ -110,7 +126,7 @@ export class OcrPostProcessor {
     const headerPatterns = [
       /^[A-Z][a-z]+\s+[A-Z][a-z]+$/, // Two words with capital first letters
       /^[A-Z][a-z]+\s+[A-Z][a-z]+\s+[A-Z][a-z]+$/, // Three words
-      /^[\d.]+\s+[A-Z][a-z]+/ // Numbered headings
+      /^[\d.]+\s+[A-Z][a-z]+/, // Numbered headings
     ];
 
     const lines = text.split("\n");
@@ -128,9 +144,8 @@ export class OcrPostProcessor {
     if (headersFound > 0) {
       errors.push({
         type: "header-formatting",
-        description:
-          "Potential headers with inconsistent capitalization",
-        count: headersFound
+        description: "Potential headers with inconsistent capitalization",
+        count: headersFound,
       });
     }
 
@@ -150,7 +165,8 @@ Detected OCR issues:
 ${
   detectedErrors.length > 0
     ? detectedErrors
-        .map((e) => `- ${e.description} (${e.count} occurrences)`).join("\n")
+        .map((e) => `- ${e.description} (${e.count} occurrences)`)
+        .join("\n")
     : "No specific errors detected"
 }
 `;
@@ -202,21 +218,17 @@ Do not add any commentary, explanations, or additional text beyond the processed
     if (original.includes("-\n") && !processed.includes("-\n")) {
       improvements.push({
         type: "word-reconstruction",
-        description:
-          "Reconstructed broken words across line breaks",
-        impact: "medium"
+        description: "Reconstructed broken words across line breaks",
+        impact: "medium",
       });
     }
 
     // Check for spacing improvements
-    if (
-      original.includes("  ") &&
-      !processed.includes("  ")
-    ) {
+    if (original.includes("  ") && !processed.includes("  ")) {
       improvements.push({
         type: "spacing",
         description: "Fixed multiple spaces",
-        impact: "low"
+        impact: "low",
       });
     }
 
@@ -224,14 +236,11 @@ Do not add any commentary, explanations, or additional text beyond the processed
     const originalLineCount = (original.match(/\n/g) || []).length;
     const processedLineCount = (processed.match(/\n/g) || []).length;
 
-    if (
-      Math.abs(originalLineCount - processedLineCount) <= 2
-    ) {
+    if (Math.abs(originalLineCount - processedLineCount) <= 2) {
       improvements.push({
         type: "structure",
-        description:
-          `Preserved structure (${originalLineCount} → ${processedLineCount} lines)`,
-        impact: "high"
+        description: `Preserved structure (${originalLineCount} → ${processedLineCount} lines)`,
+        impact: "high",
       });
     }
 
@@ -252,10 +261,7 @@ Do not add any commentary, explanations, or additional text beyond the processed
     const processedLength = processed.length;
 
     // Length change should be minimal (within 20%)
-    if (
-      Math.abs(originalLength - processedLength) <
-      originalLength * 0.2
-    ) {
+    if (Math.abs(originalLength - processedLength) < originalLength * 0.2) {
       confidence += 0.05;
     }
 

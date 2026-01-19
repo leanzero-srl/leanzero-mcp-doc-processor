@@ -9,6 +9,7 @@ import { visionService } from "./vision-factory.js";
 export class TableExtractor {
   constructor() {
     this.name = "TableExtractor";
+    this.timeout = parseInt(process.env.TABLE_EXTRACTOR_TIMEOUT || "15000"); // 15 second default
   }
 
   /**
@@ -31,19 +32,34 @@ export class TableExtractor {
 
     for (const table of tables) {
       try {
-        // Use AI to extract and format the table
-        const extractedTable = await this.extractTableContent(
-          table.content,
-          table.type,
-        );
-
-        if (extractedTable) {
+        // Skip AI extraction for simple text-based tables
+        if (
+          ["markdown", "tab-separated", "header-separator"].includes(table.type)
+        ) {
+          console.log(
+            `[TableExtractor] Using direct extraction for ${table.type} table (skipping AI)`,
+          );
           extractedTables.push({
             ...table,
-            content: extractedTable.content,
-            formattedContent: extractedTable.formattedContent,
-            confidence: extractedTable.confidence,
+            formattedContent: table.content,
+            confidence: 0.95,
           });
+        } else {
+          // Use AI to extract and format the table with timeout protection
+          const extractedTable = await this.withTimeout(
+            this.extractTableContent(table.content, table.type),
+            this.timeout,
+            `Table extraction timeout (${this.timeout}ms)`,
+          );
+
+          if (extractedTable) {
+            extractedTables.push({
+              ...table,
+              content: extractedTable.content,
+              formattedContent: extractedTable.formattedContent,
+              confidence: extractedTable.confidence,
+            });
+          }
         }
       } catch (error) {
         console.error(
@@ -230,26 +246,46 @@ Return only the markdown table with no additional text.`;
       // Extract tables from images (if any)
       const imageTables = [];
       if (imageResult.pages && imageResult.pages.length > 0) {
+        let imagesProcessed = 0;
+        const maxImagesToProcess = 5; // Limit number of images to process to avoid timeouts
+
         for (let i = 0; i < imageResult.pages.length; i++) {
           const page = imageResult.pages[i];
           if (page.images && page.images.length > 0) {
             for (const image of page.images) {
+              if (imagesProcessed >= maxImagesToProcess) {
+                console.warn(
+                  `[TableExtractor] Reached max images to process (${maxImagesToProcess}), skipping remaining images`,
+                );
+                break;
+              }
+
               if (image.data && image.data.length > 1000) {
                 // Only process non-trivial images
-                const tablePrompt = `Extract any tables from this image. Use markdown format with | for columns and --- for header separator.
+                try {
+                  imagesProcessed++;
+                  const tablePrompt = `Extract any tables from this image. Use markdown format with | for columns and --- for header separator.
 Do NOT extract non-table content. Only return the table in markdown format.`;
 
-                const tableResult = await visionService.extractText(
-                  image.data,
-                  tablePrompt,
-                );
-                if (tableResult && tableResult.length > 10) {
-                  imageTables.push({
-                    type: "image-table",
-                    content: tableResult,
-                    page: i + 1,
-                    confidence: 0.85,
-                  });
+                  const tableResult = await this.withTimeout(
+                    visionService.extractText(image.data, tablePrompt),
+                    this.timeout,
+                    `Image table extraction timeout (${this.timeout}ms) - page ${i + 1}, image ${imagesProcessed}`,
+                  );
+
+                  if (tableResult && tableResult.length > 10) {
+                    imageTables.push({
+                      type: "image-table",
+                      content: tableResult,
+                      page: i + 1,
+                      confidence: 0.85,
+                    });
+                  }
+                } catch (error) {
+                  console.error(
+                    `[TableExtractor] Failed to extract table from image on page ${i + 1}: ${error.message}`,
+                  );
+                  // Continue with other images
                 }
               }
             }
@@ -260,19 +296,36 @@ Do NOT extract non-table content. Only return the table in markdown format.`;
       // Combine all tables
       const allTables = [];
 
-      // Add text-based tables
+      // Add text-based tables (skip AI extraction for simple text tables)
       for (const table of textTables) {
-        const extracted = await this.extractTableContent(
-          table.content,
-          table.type,
-        );
-        if (extracted) {
+        if (
+          ["markdown", "tab-separated", "header-separator"].includes(table.type)
+        ) {
+          // Simple text-based table - use direct content without AI extraction
+          console.log(
+            `[TableExtractor] Using direct extraction for ${table.type} table (skipping AI)`,
+          );
           allTables.push({
             ...table,
             source: "text",
-            extractedContent: extracted.formattedContent,
-            confidence: extracted.confidence,
+            extractedContent: table.content,
+            confidence: 0.95,
           });
+        } else {
+          // Complex table - use AI extraction
+          const extracted = await this.withTimeout(
+            this.extractTableContent(table.content, table.type),
+            this.timeout,
+            `Text table extraction timeout (${this.timeout}ms)`,
+          );
+          if (extracted) {
+            allTables.push({
+              ...table,
+              source: "text",
+              extractedContent: extracted.formattedContent,
+              confidence: extracted.confidence,
+            });
+          }
         }
       }
 
@@ -322,5 +375,34 @@ Do NOT extract non-table content. Only return the table in markdown format.`;
     });
 
     return output;
+  }
+
+  /**
+   * Wrap a promise with a timeout
+   * @param {Promise} promise - The promise to wrap
+   * @param {number} timeoutMs - Timeout in milliseconds
+   * @param {string} timeoutMessage - Error message on timeout
+   * @returns {Promise} Promise that rejects on timeout
+   */
+  async withTimeout(
+    promise,
+    timeoutMs,
+    timeoutMessage = "Operation timed out",
+  ) {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(timeoutMessage));
+      }, timeoutMs);
+    });
+
+    try {
+      const result = await Promise.race([promise, timeoutPromise]);
+      clearTimeout(timeoutId);
+      return result;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
   }
 }

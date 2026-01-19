@@ -87,6 +87,64 @@ export class FailoverVisionService {
   }
 
   /**
+   * Initialize the vision service with automatic failover
+   * Tries primary service first, then falls back to secondary if it fails
+   * @returns {Promise<Object>} Initialization result
+   */
+  async initialize() {
+    console.error(
+      "[Failover] Attempting to initialize primary service: ZaiVisionService",
+    );
+
+    try {
+      // Try to initialize primary service (Z.AI)
+      if (typeof this.primary.initialize === "function") {
+        await this.primary.initialize();
+        console.error("[Failover] Primary service initialized successfully");
+        this.useFallback = false;
+        return { success: true, service: "ZaiVisionService" };
+      } else {
+        // Primary service doesn't need initialization or doesn't have initialize method
+        console.error(
+          "[Failover] Primary service doesn't require initialization",
+        );
+        this.useFallback = false;
+        return { success: true, service: "ZaiVisionService" };
+      }
+    } catch (error) {
+      console.error(
+        `[Failover] Primary service initialization failed: ${error.message}`,
+      );
+
+      // Try to initialize fallback service (LM Studio)
+      try {
+        if (typeof this.fallback.initialize === "function") {
+          await this.fallback.initialize();
+          console.error("[Failover] Fallback service initialized successfully");
+          this.useFallback = true;
+          return { success: true, service: "LmStudioService (fallback)" };
+        } else {
+          // Fallback service doesn't need initialization
+          console.error(
+            "[Failover] Fallback service doesn't require initialization",
+          );
+          this.useFallback = true;
+          return { success: true, service: "LmStudioService (fallback)" };
+        }
+      } catch (fallbackError) {
+        console.error(
+          `[Failover] Fallback service initialization failed: ${fallbackError.message}`,
+        );
+        // Return error - both services failed to initialize
+        return {
+          success: false,
+          error: `Both primary and fallback services failed to initialize: ${error.message}`,
+        };
+      }
+    }
+  }
+
+  /**
    * Extract text with automatic failover
    * @param {string} imageData - Base64 data URL of image
    * @param {string} prompt - Optional prompt for extraction guidance

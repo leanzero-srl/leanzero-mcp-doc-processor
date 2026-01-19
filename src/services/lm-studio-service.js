@@ -10,7 +10,7 @@ export class LmStudioService {
     this.baseUrl =
       process.env.LM_STUDIO_BASE_URL || "http://localhost:1234/api/v0";
     this.apiKey = process.env.LM_STUDIO_API_KEY || "lm-studio";
-    this.timeout = parseInt(process.env.LM_STUDIO_TIMEOUT || "300000");
+    this.timeout = parseInt(process.env.LM_STUDIO_TIMEOUT || "30000");
     this.maxTokens = parseInt(process.env.LM_STUDIO_MAX_TOKENS || "32768");
     this.temperature = parseFloat(process.env.LM_STUDIO_TEMPERATURE || "0.8");
     this.topP = parseFloat(process.env.LM_STUDIO_TOP_P || "0.6");
