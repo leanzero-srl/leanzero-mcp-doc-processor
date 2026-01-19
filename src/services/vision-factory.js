@@ -4,14 +4,17 @@ import { lmStudioService } from "./lm-studio-service.js";
 /**
  * Vision Factory
  *
- * Selects the appropriate vision service (OCR/Image Analysis) based on configuration.
+ * Selects appropriate vision service (OCR/Image Analysis) based on configuration.
  *
  * Configuration:
  * - VISION_PROVIDER: "zai" or "lm-studio" (default: lm-studio)
  *
- * The service can be explicitly selected via the VISION_PROVIDER environment variable.
+ * The service can be explicitly selected via VISION_PROVIDER environment variable.
  * If not specified, it attempts to intelligently guess based on available credentials,
  * defaulting to LM Studio if ambiguous.
+ *
+ * Automatic failover is enabled by default - if primary service (Z.AI) fails with
+ * authentication errors, the system automatically retries with fallback service (LM Studio).
  */
 export class VisionFactory {
   constructor() {
@@ -68,8 +71,153 @@ export class VisionFactory {
   }
 }
 
-// Create factory instance
+/**
+ * Failover Vision Service
+ *
+ * Provides automatic failover between vision services.
+ * Tries primary service (Z.AI) first, then falls back to secondary (LM Studio)
+ * on authentication failures or errors that indicate service unavailability.
+ */
+export class FailoverVisionService {
+  constructor() {
+    this.name = "FailoverVisionService";
+    this.primary = zaiVisionService;
+    this.fallback = lmStudioService;
+    this.useFallback = false;
+  }
+
+  /**
+   * Extract text with automatic failover
+   * @param {string} imageData - Base64 data URL of image
+   * @param {string} prompt - Optional prompt for extraction guidance
+   * @returns {Promise<Object>} Extraction result from primary or fallback service
+   */
+  async extractText(
+    imageData,
+    prompt = "Extract all text from this image. Preserve original formatting and structure as much as possible.",
+  ) {
+    // Try primary service first (Z.AI)
+    console.error("[Failover] Attempting primary service: ZaiVisionService");
+    const primaryResult = await this.primary.extractText(imageData, prompt);
+
+    // If primary succeeds, return immediately
+    if (primaryResult.success) {
+      this.useFallback = false;
+      console.error("[Failover] Primary service succeeded");
+      return primaryResult;
+    }
+
+    // Check if error is authentication-related (might be recoverable)
+    if (this.isAuthError(primaryResult.error)) {
+      console.error(
+        "[Failover] Primary failed with auth error, attempting fallback service: LmStudioService",
+      );
+      this.useFallback = true;
+
+      // Try fallback service (LM Studio)
+      const fallbackResult = await this.fallback.extractText(imageData, prompt);
+      console.error(
+        "[Failover] Fallback service result:",
+        fallbackResult.success ? "SUCCESS" : "FAILED",
+      );
+      return fallbackResult;
+    }
+
+    // Return primary failure if not an auth error
+    console.error(
+      "[Failover] Primary failed with non-auth error, returning failure",
+    );
+    this.useFallback = false;
+    return primaryResult;
+  }
+
+  /**
+   * Analyze image with automatic failover
+   * @param {string} imageData - Base64 data URL of image
+   * @param {string} prompt - Analysis prompt
+   * @returns {Promise<Object>} Analysis result from primary or fallback service
+   */
+  async analyzeImage(imageData, prompt = "Describe this image in detail.") {
+    // Try primary service first (Z.AI)
+    console.error("[Failover] Attempting primary service: ZaiVisionService");
+    const primaryResult = await this.primary.analyzeImage(imageData, prompt);
+
+    // If primary succeeds, return immediately
+    if (primaryResult.success) {
+      this.useFallback = false;
+      console.error("[Failover] Primary service succeeded");
+      return primaryResult;
+    }
+
+    // Check if error is authentication-related (might be recoverable)
+    if (this.isAuthError(primaryResult.error)) {
+      console.error(
+        "[Failover] Primary failed with auth error, attempting fallback service: LmStudioService",
+      );
+      this.useFallback = true;
+
+      // Try fallback service (LM Studio)
+      const fallbackResult = await this.fallback.analyzeImage(
+        imageData,
+        prompt,
+      );
+      console.error(
+        "[Failover] Fallback service result:",
+        fallbackResult.success ? "SUCCESS" : "FAILED",
+      );
+      return fallbackResult;
+    }
+
+    // Return primary failure if not an auth error
+    console.error(
+      "[Failover] Primary failed with non-auth error, returning failure",
+    );
+    this.useFallback = false;
+    return primaryResult;
+  }
+
+  /**
+   * Check if error indicates authentication failure
+   * @param {string} error - Error message from service
+   * @returns {boolean} True if error is auth-related
+   */
+  isAuthError(error) {
+    if (!error || typeof error !== "string") {
+      return false;
+    }
+
+    const lowerError = error.toLowerCase();
+    const authErrorPatterns = [
+      "401 unauthorized",
+      "403 forbidden",
+      "api key",
+      "api-key",
+      "apikey",
+      "unauthorized",
+      "forbidden",
+      "expired",
+      "invalid token",
+      "authentication failed",
+      "auth failed",
+      "not authenticated",
+    ];
+
+    return authErrorPatterns.some((pattern) => lowerError.includes(pattern));
+  }
+
+  /**
+   * Get currently active service name
+   * @returns {string} Name of service being used (primary or fallback)
+   */
+  getActiveService() {
+    return this.useFallback
+      ? "LmStudioService (fallback)"
+      : "ZaiVisionService (primary)";
+  }
+}
+
+// Create factory instance for initial service detection
 export const visionFactory = new VisionFactory();
 
-// Export the selected service instance directly for transparent usage
-export const visionService = visionFactory.getService();
+// Create and export failover service with automatic retry logic
+export const visionService = new FailoverVisionService();
