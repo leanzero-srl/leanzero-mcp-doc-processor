@@ -100,7 +100,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "create-doc",
         description:
-          "Create a DOCX document with title, paragraphs, tables, headers, and footers. Supports custom styling including background colors.",
+          "Create a DOCX document with title, paragraphs, tables, headers, and footers. Supports 7 style presets (minimal, professional, technical, legal, business, casual, colorful) with comprehensive typography options including font selection, heading levels, text justification, and refined color schemes.",
         inputSchema: {
           type: "object",
           properties: {
@@ -123,8 +123,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             stylePreset: {
               type: "string",
-              enum: ["minimal", "professional", "colorful"],
-              description: "Name of style preset to use (default: minimal)",
+              enum: [
+                "minimal",
+                "professional",
+                "technical",
+                "legal",
+                "business",
+                "casual",
+                "colorful",
+              ],
+              description:
+                "Style preset name: minimal (clean/basic), professional (Garamond serif, full justification), technical (Arial, optimized readability), legal (Times New Roman, double-spaced), business (Calibri, modern blue palette), casual (Verdana, warm colors), colorful (vibrant, visual impact). Default: minimal. Choose based on document type and audience.",
             },
             header: {
               type: "object",
@@ -241,7 +250,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "create-excel",
         description:
-          "Create an Excel workbook with multiple sheets and data. Supports column widths, row heights, and comprehensive styling options.",
+          "Create an Excel workbook with multiple sheets and data. Supports column widths, row heights, and 7 style presets (minimal, professional, technical, legal, business, casual, colorful) with optimized header backgrounds and colors for each preset type.",
         inputSchema: {
           type: "object",
           properties: {
@@ -259,8 +268,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             stylePreset: {
               type: "string",
-              enum: ["minimal", "professional", "colorful"],
-              description: "Name of style preset to use (default: minimal)",
+              enum: [
+                "minimal",
+                "professional",
+                "technical",
+                "legal",
+                "business",
+                "casual",
+                "colorful",
+              ],
+              description:
+                "Style preset name: minimal (clean/basic), professional (Garamond serif, full justification), technical (Arial, optimized readability), legal (Times New Roman, double-spaced), business (Calibri, modern blue palette), casual (Verdana, warm colors), colorful (vibrant, visual impact). Default: minimal. Choose based on document type and audience.",
             },
             style: {
               type: "object",
