@@ -178,9 +178,11 @@ When you need everything in a document, the in-depth tool provides comprehensive
 
 This returns the complete document representation, which is useful when you are building applications that need to access or process all of the document information.
 
-### Creating DOCX Documents
+### Creating DOCX Files on Disk
 
-The create-doc tool lets you generate Word documents programmatically. You provide a title, any paragraphs you want, and optionally tables, headers, footers, and background colors, and the system creates a properly formatted DOCX file with professional styling.
+The create-doc tool writes an actual Word DOCX document to your filesystem. You provide a title, any paragraphs you want, and optionally tables, headers, footers, and background colors, and the system creates a properly formatted DOCX file at the specified path (or ./output/document.docx if not provided).
+
+**IMPORTANT:** This tool WRITES TO DISK - it doesn't just prepare content. The response contains the absolute filePath where the .docx file was created. AI models should use this returned filePath to reference the document and should NOT create any additional markdown or text files.
 
 The basic usage looks like this:
 
@@ -245,9 +247,11 @@ You can set a page background color for your documents using the `backgroundColo
 
 Use six-digit hex color codes (without the # symbol) for best results.
 
-### Creating Excel Files
+### Creating Excel Files on Disk
 
-The create-excel tool generates spreadsheets with multiple sheets. You define each sheet with a name and the data it should contain. This is particularly useful when you need to export data in a structured format or create reports that others can work with in Excel.
+The create-excel tool writes an actual Excel XLSX workbook to your filesystem with multiple sheets. You define each sheet with a name and the data it should contain, and the system creates a properly formatted .xlsx file at the specified path (or ./output/data.xlsx if not provided).
+
+**IMPORTANT:** This tool WRITES TO DISK - it doesn't just prepare content. The response contains the absolute filePath where the .xlsx file was created. AI models should use this returned filePath to reference the workbook and should NOT create any additional markdown or text files. This is particularly useful when you need to export data in a structured format or create reports that others can work with in Excel.
 
 Here is how to create a simple Excel file:
 

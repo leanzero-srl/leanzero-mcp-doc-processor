@@ -6,10 +6,24 @@ import {
   TableRow,
   Table as DocxTable,
   HeadingLevel,
+  RunFonts,
 } from "docx";
 
+/**
+ * Creates a font configuration using docx RunFonts class
+ * @param {string} fontFamily - Font family name
+ * @returns {RunFonts} Configured font object for docx
+ */
+export function createFontConfig(fontFamily) {
+  return new RunFonts({
+    ascii: fontFamily,
+    highAnsi: fontFamily,
+    eastAsia: fontFamily,
+  });
+}
+
 // Simple cell reference encoder for Excel (0,0 -> A1, 0,1 -> B1, etc.)
-function encodeCell(row, col) {
+export function encodeCell(row, col) {
   let result = "";
   while (col >= 0) {
     result = String.fromCharCode(65 + (col % 26)) + result;
@@ -37,6 +51,7 @@ const STYLE_PRESETS = {
       size: 16,
       color: "000000",
       bold: true,
+      underline: { type: "single", color: null },
       spacingBefore: 280,
       spacingAfter: 140,
     },
@@ -93,7 +108,7 @@ const STYLE_PRESETS = {
       size: 16,
       color: "1A1A1A",
       bold: true,
-      underline: true,
+      underline: { type: "single", color: null },
       spacingBefore: 360,
       spacingAfter: 200,
     },
@@ -112,12 +127,14 @@ const STYLE_PRESETS = {
       spacingBefore: 240,
       spacingAfter: 140,
     },
-    heading: {
+    heading2: {
       size: 14,
-      color: "1A1A1A",
+      color: "3A3A3A",
       bold: true,
+      italic: true,
+      underline: { type: "double", color: null },
       spacingBefore: 300,
-      spacingAfter: 180,
+      spacingAfter: 160,
     },
     title: {
       size: 22,
@@ -154,12 +171,13 @@ const STYLE_PRESETS = {
       spacingBefore: 280,
       spacingAfter: 140,
     },
-    heading2: {
+    heading: {
       size: 14,
-      color: "1A1A1A",
+      color: "3A3A3A",
       bold: true,
+      underline: { type: "single", color: null },
       spacingBefore: 240,
-      spacingAfter: 120,
+      spacingAfter: 160,
     },
     heading3: {
       size: 12,
@@ -213,18 +231,19 @@ const STYLE_PRESETS = {
     },
     heading2: {
       size: 14,
-      color: "1A1A1A",
+      color: "3A3A3A",
       bold: true,
-      underline: true,
-      spacingBefore: 300,
-      spacingAfter: 240,
+      underline: { type: "double", color: null },
+      spacingBefore: 240,
+      spacingAfter: 160,
     },
     heading3: {
-      size: 13,
-      color: "2C2C2C",
+      size: 12,
+      color: "4C4C4C",
       bold: true,
-      spacingBefore: 280,
-      spacingAfter: 200,
+      underline: { type: "single", color: null },
+      spacingBefore: 200,
+      spacingAfter: 120,
     },
     heading: {
       size: 14,
@@ -440,10 +459,27 @@ const STYLE_PRESETS = {
  */
 export function createStyledTextRun(text, styleOptions = {}) {
   const defaults = STYLE_PRESETS.minimal.font;
+
+  // Handle underline - convert boolean to object if needed
+  let underlineConfig;
+  if (styleOptions.underline) {
+    if (typeof styleOptions.underline === "boolean") {
+      underlineConfig = { style: "single" };
+    } else if (typeof styleOptions.underline === "object") {
+      // Map our type property to docx's expected format
+      underlineConfig = {
+        style: styleOptions.underline.type || "single",
+        ...(styleOptions.underline.color
+          ? { color: styleOptions.underline.color }
+          : {}),
+      };
+    }
+  }
+
   const style = {
     bold: styleOptions.bold ?? false,
     italics: styleOptions.italics ?? false,
-    underline: styleOptions.underline ? { style: "single" } : undefined,
+    underline: underlineConfig,
     color: styleOptions.color || defaults.color,
     size: (styleOptions.size || defaults.size) * 2, // Convert points to half-points (docx format)
     font: styleOptions.fontFamily || defaults.family,
@@ -553,6 +589,22 @@ export function createStyledHeading(
     heading3: HeadingLevel.HEADING_3,
   };
 
+  // Handle underline - convert boolean to object if needed
+  let underlineConfig;
+  if (headingConfig.underline) {
+    if (typeof headingConfig.underline === "boolean") {
+      underlineConfig = { style: "single" };
+    } else if (typeof headingConfig.underline === "object") {
+      // Map our type property to docx's expected format
+      underlineConfig = {
+        style: headingConfig.underline.type || "single",
+        ...(headingConfig.underline.color
+          ? { color: headingConfig.underline.color }
+          : {}),
+      };
+    }
+  }
+
   return new DocxParagraph({
     children: [
       new TextRun({
@@ -562,7 +614,7 @@ export function createStyledHeading(
         color: headingConfig.color,
         size: headingConfig.size * 2,
         font: config.font.family,
-        underline: headingConfig.underline ? { style: "single" } : undefined,
+        underline: underlineConfig,
       }),
     ],
     heading: headingLevelMap[level],

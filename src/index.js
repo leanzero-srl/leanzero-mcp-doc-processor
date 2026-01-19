@@ -100,7 +100,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "create-doc",
         description:
-          "Create a DOCX document with title, paragraphs, tables, headers, and footers. Supports 7 style presets (minimal, professional, technical, legal, business, casual, colorful) with comprehensive typography options including font selection, heading levels, text justification, and refined color schemes.",
+          "Creates a Word DOCX document on DISK with title, paragraphs, tables, headers, and footers. IMPORTANT: This tool WRITES TO FILESYSTEM - it creates an actual .docx file at the specified path (or ./output/document.docx if not provided). The response contains the absolute filePath where the file was created. AI models should NOT create additional markdown or text files - use this returned filePath to reference the created DOCX document. Supports 7 style presets (minimal, professional, technical, legal, business, casual, colorful) with comprehensive typography options including font selection, heading levels, text justification, and refined color schemes.",
         inputSchema: {
           type: "object",
           properties: {
@@ -241,7 +241,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             outputPath: {
               type: "string",
-              description: "Output file path (default: ./output/document.docx)",
+              description:
+                "Absolute or relative file path where the DOCX file will be written to disk. The directory will be created automatically if it doesn't exist. IMPORTANT: This is NOT a return value - this specifies WHERE to create the file. The actual created filePath is returned in the response.",
             },
           },
           required: ["title"],
@@ -250,7 +251,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "create-excel",
         description:
-          "Create an Excel workbook with multiple sheets and data. Supports column widths, row heights, and 7 style presets (minimal, professional, technical, legal, business, casual, colorful) with optimized header backgrounds and colors for each preset type.",
+          "Creates an Excel XLSX workbook on DISK with multiple sheets and data. IMPORTANT: This tool WRITES TO FILESYSTEM - it creates an actual .xlsx file at the specified path (or ./output/data.xlsx if not provided). The response contains the absolute filePath where the file was created. AI models should NOT create additional markdown or text files - use this returned filePath to reference the created Excel document. Supports column widths, row heights, and 7 style presets (minimal, professional, technical, legal, business, casual, colorful) with optimized header backgrounds and colors for each preset type.",
         inputSchema: {
           type: "object",
           properties: {
@@ -316,7 +317,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             outputPath: {
               type: "string",
-              description: "Output file path (default: ./output/data.xlsx)",
+              description:
+                "Absolute or relative file path where the XLSX file will be written to disk. The directory will be created automatically if it doesn't exist. IMPORTANT: This is NOT a return value - this specifies WHERE to create the file. The actual created filePath is returned in the response.",
             },
           },
           required: ["sheets"],
@@ -369,27 +371,63 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "create-doc":
         const docResult = await createDoc(params);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(docResult, null, 2),
-            },
-          ],
-          isError: !docResult.success,
-        };
+        if (docResult.success) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    ...docResult,
+                    message: `DOCX FILE WRITTEN TO DISK at: ${docResult.filePath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.`,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(docResult, null, 2),
+              },
+            ],
+            isError: true,
+          };
+        }
 
       case "create-excel":
         const excelResult = await createExcel(params);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(excelResult, null, 2),
-            },
-          ],
-          isError: !excelResult.success,
-        };
+        if (excelResult.success) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    ...excelResult,
+                    message: `EXCEL FILE WRITTEN TO DISK at: ${excelResult.filePath}\n\nIMPORTANT: This tool has created an actual .xlsx file on your filesystem. Do NOT create any additional markdown or text files. The workbook is available at the absolute path shown above.`,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(excelResult, null, 2),
+              },
+            ],
+            isError: true,
+          };
+        }
 
       default:
         log("error", "Unknown tool requested:", { toolName });

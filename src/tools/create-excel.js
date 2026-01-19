@@ -8,6 +8,7 @@ import {
   createExcelRowHeights,
   getAvailablePresets,
   getPresetDescription,
+  encodeCell,
 } from "./styling.js";
 
 /**
@@ -114,21 +115,6 @@ function applyExcelStyling(ws, data, styleConfig, preset) {
       }
     }
   }
-}
-
-/**
- * Simple cell reference encoder for Excel (0,0 -> A1, 0,1 -> B1, etc.)
- * @param {number} row - Row index (0-based)
- * @param {number} col - Column index (0-based)
- * @returns {string} Cell reference like "A1"
- */
-function encodeCell(row, col) {
-  let result = "";
-  while (col >= 0) {
-    result = String.fromCharCode(65 + (col % 26)) + result;
-    col = Math.floor(col / 26) - 1;
-  }
-  return result + (row + 1);
 }
 
 /**
