@@ -30,11 +30,13 @@ Excel files are handled by reading data across multiple sheets. The system extra
 
 ### Creating New Documents
 
-Beyond just reading documents, you can also create them. The system provides two tools for document generation:
+Beyond just reading documents, you can also create them. The system provides two tools for document generation with comprehensive styling capabilities:
 
-The DOCX creation tool lets you build Word documents with titles, paragraphs, tables, headers, and footers. You can apply different styling presets or customize the formatting to match your needs. This is useful for generating reports, creating templates, or producing consistent documentation.
+The DOCX creation tool lets you build Word documents with titles, paragraphs, tables, headers, and footers. You can apply seven different styling presets or customize the formatting to match your needs. The system supports three heading levels (heading1, heading2, heading3) with distinct styling for better visual hierarchy. This is useful for generating executive summaries, strategic documents, legal agreements, technical documentation, or producing consistent documentation with professional typography.
 
-The Excel creation tool allows you to build spreadsheets with multiple sheets. You can control column widths, row heights, font styling, and header formatting. This helps when you need to generate data exports, create standardized report formats, or produce structured outputs from your applications.
+The Excel creation tool allows you to build spreadsheets with multiple sheets. You can control column widths, row heights, font styling, and header formatting with background colors. All seven styling presets include optimized Excel header backgrounds and colors. This helps when you need to generate data exports, create standardized report formats, or produce structured outputs from your applications with professional spreadsheet styling.
+
+The enhanced styling system provides sophisticated typography options. The professional preset uses Garamond serif font with full justification for formal, established documents. The business preset uses modern Calibri with refined blue color palette for contemporary communications. The legal preset follows traditional legal standards with Times New Roman, double spacing, and underlined headings. Each preset includes optimized spacing, color schemes, and heading hierarchies designed for specific document types.
 
 ## Getting Started With The System
 
@@ -287,34 +289,57 @@ The document generation tools include a comprehensive styling system that makes 
 
 ### Understanding Style Presets
 
-There are three built-in style presets that you can use as starting points. These are designed to cover common document needs without requiring you to specify every formatting detail:
+There are seven built-in style presets that you can use as starting points. These are designed to cover common document needs without requiring you to specify every formatting detail:
 
 The minimal preset provides clean, simple formatting with black text at 11 points, left alignment, and basic spacing. This is useful for everyday documents where clarity is more important than decoration.
 
-The professional preset uses enhanced formatting with blueish text at 12 points and improved spacing (1.15 line height). This creates documents that look more formal and suitable for business reports or official documentation.
+The professional preset uses sophisticated traditional formatting with Garamond serif font at 11 points, full justification for polished appearance, and enhanced spacing (1.25 line height). This creates documents that look formal and established, suitable for executive summaries, strategic documents, and formal reports.
 
-The colorful preset makes documents visually striking with red text at 11 points and center alignment. This can be useful for highlighting important information or creating attention-grabbing materials.
+The technical preset uses clean formatting with Arial font at 11 points, left alignment, and optimized spacing (1.15 line height). This creates documents ideal for technical documentation, API documentation, and user manuals where clarity and readability are paramount.
+
+The legal preset uses traditional legal formatting with Times New Roman serif font at 12 points, full justification, double spacing, and underlined headings. This meets legal document standards for contracts, agreements, and legal briefs.
+
+The business preset uses modern polished formatting with Calibri font at 11 points, refined blue color palette, and enhanced spacing (1.2 line height). This creates contemporary documents suitable for product launches, business proposals, and go-to-market plans.
+
+The casual preset uses friendly formatting with Verdana font at 12 points, warm orange colors, and comfortable spacing (1.15 line height). This creates approachable documents for internal communications, team updates, and friendly materials.
+
+The colorful preset makes documents visually striking with Arial font at 12 points, vibrant purple colors, and center alignment. This can be useful for presentations, marketing materials, and documents requiring visual impact.
 
 ### Customizing Document Appearance
 
-When the presets do not quite match what you need, you can override specific properties while keeping the rest of the preset. This gives you control over individual aspects without having to configure everything from scratch.
+When presets do not quite match what you need, you can override specific properties while keeping the rest of the preset. This gives you control over individual aspects without having to configure everything from scratch.
 
-For DOCX documents, you can control font properties like size, color, bold, italic, underline, and font family. You can also adjust paragraph formatting including alignment, spacing before and after paragraphs, and line spacing. Tables can be customized with border color, border style, and border width.
+For DOCX documents, you can control font properties like size, color, bold, italic, underline, and font family. You can also adjust paragraph formatting including alignment (left, center, right, or full justification), spacing before and after paragraphs, and line spacing. Tables can be customized with border color, border style, and border width. You can also use three heading levels (heading1, heading2, heading3) with distinct styling for visual hierarchy.
 
-For Excel documents, you can control font properties including size, color, bold, italic, and underline. You can set specific column widths and row heights to control the layout of your spreadsheet. The header bold option makes the first row stand out, which is useful for data tables.
+For Excel documents, you can control font properties including size, color, bold, italic, and underline. You can set specific column widths and row heights to control the layout of your spreadsheet. The header bold option makes the first row stand out, which is useful for data tables. You can also customize header background colors for different preset styles.
 
 Here is an example of combining a preset with custom overrides:
 
 ```javascript
 {
   "title": "Quarterly Report",
-  "paragraphs": ["Executive Summary"],
+  "paragraphs": [
+    {
+      "text": "Executive Summary",
+      "headingLevel": "heading1"
+    },
+    "This comprehensive analysis examines..."
+  ],
+  "tables": [
+    ["Metric", "Current", "Target"],
+    ["Revenue", "$2.4M", "$3.5M"],
+    ["Growth", "15%", "25%"]
+  ],
   "stylePreset": "professional",
   "header": {
-    "text": "Q4 Financial Results"
+    "text": "Q4 Financial Results - Confidential",
+    "alignment": "left",
+    "color": "666666"
   },
   "footer": {
-    "text": "Confidential - Page {{page}}"
+    "text": "Page {{page}} | Document Ref: QR-2025-001",
+    "alignment": "center",
+    "color": "666666"
   },
   "backgroundColor": "FFFFFFEF",
   "style": {
@@ -330,11 +355,88 @@ Here is an example of combining a preset with custom overrides:
 }
 ```
 
-This example starts with the professional preset but then increases the font size and changes the table styling. Only the properties you specify will override the preset values.
+This example starts with the professional preset but then increases the font size, adds heading levels with proper styling, includes headers and footers with alignment and colors, and changes the table styling. Only the properties you specify will override the preset values.
 
 ### Working With Colors
 
-The system uses hexadecimal color codes without the hash prefix. When you specify colors, use six-digit codes like "FF0000" for red or "336699" for blue. Do not include the hash symbol at the beginning.
+The system uses hexadecimal color codes without the hash symbol. When you specify colors, use six-digit codes like "FF0000" for red or "336699" for blue. Do not include the hash symbol at the beginning.
+
+### Using Heading Levels
+
+All style presets support three heading levels (heading1, heading2, heading3) with distinct styling for better visual hierarchy. H1 headings use the largest font size and substantial spacing, making them stand out as main document sections. H2 headings are smaller than H1 with medium spacing, suitable for subsections within main sections. H3 headings are the smallest with refined spacing, appropriate for detailed breakdowns within subsections.
+
+Each preset applies unique styling to heading levels. The professional preset uses underlined H1 headings and italic H2 headings with Garamond serif font. The legal preset underlines both H1 and H2 headings following traditional legal conventions. The business preset uses refined blue color gradient across heading levels with modern Calibri font. The casual preset uses warm orange colors that progress from dark to light across heading levels. The colorful preset uses vibrant purple colors with the largest heading sizes.
+
+Here is an example of using heading levels in your document:
+
+```javascript
+{
+  "title": "Project Plan",
+  "paragraphs": [
+    {
+      "text": "Executive Overview",
+      "headingLevel": "heading1"
+    },
+    "This document outlines the strategic approach...",
+    {
+      "text": "Market Analysis",
+      "headingLevel": "heading1"
+    },
+    {
+      "text": "Target Market",
+      "headingLevel": "heading2"
+    },
+    "Our research indicates...",
+    {
+      "text": "Competitive Landscape",
+      "headingLevel": "heading2"
+    },
+    "Key competitors include...",
+    {
+      "text": "Market Size",
+      "headingLevel": "heading3"
+    },
+    "The total addressable market..."
+  ],
+  "stylePreset": "business"
+}
+```
+
+### Style Preset Comparison
+
+Here is a comprehensive comparison of all seven style presets to help you choose the right one for your needs:
+
+| Feature | Minimal | Professional | Technical | Legal | Business | Casual | Colorful |
+|---------|---------|--------------|-----------|-------|----------|--------|----------|
+| Font | Arial | Garamond | Arial | Times New Roman | Calibri | Verdana | Arial |
+| Body Size | 11pt | 11pt | 11pt | 12pt | 11pt | 12pt | 12pt |
+| H1 Size | 16pt | 16pt | 16pt | 16pt | 18pt | 18pt | 20pt |
+| H2 Size | 14pt | 14pt | 14pt | 14pt | 15pt | 16pt | 17pt |
+| H3 Size | 12pt | 12pt | 12pt | 13pt | 13pt | 14pt | 15pt |
+| Justification | Left | Full | Left | Full | Left | Left | Center |
+| Line Spacing | 1.0 | 1.25 | 1.15 | 2.0 | 1.2 | 1.15 | 1.0 |
+| Paragraph Spacing | 120 | 180 | 120 | 240 | 140 | 120 | 120 |
+| Excel Header BG | #4472C4 | #3A3A3A | #000000 | #FFFFFF | #1F4E79 | #FF9800 | #7B1FA2 |
+
+Choose the minimal preset for clean, uncluttered everyday documents. Choose the professional preset for formal, established documents with traditional serif typography. Choose the technical preset for documentation requiring maximum readability and clarity. Choose the legal preset for contracts and agreements that must meet traditional legal standards. Choose the business preset for modern corporate communications and go-to-market materials. Choose the casual preset for friendly, approachable internal communications. Choose the colorful preset for presentations and materials requiring visual impact.
+
+### Choosing The Right Preset
+
+Different documents require different approaches to styling and presentation. Here are detailed guidelines for selecting the appropriate style preset based on your specific use case and audience.
+
+For executive summaries and strategic documents targeting senior leadership, use the professional preset. The Garamond serif font with full justification creates an established, refined aesthetic that conveys authority and careful attention to detail. This preset is particularly effective for board presentations, quarterly reports, and strategic planning documents where traditional professionalism is valued.
+
+For product launches and business proposals, use the business preset. The modern Calibri font with refined blue color palette creates a contemporary feel that suggests innovation and forward-thinking. This preset works well for go-to-market plans, investor presentations, and marketing materials where you want to appear modern and dynamic while maintaining professional credibility.
+
+For contracts and legal agreements, use the legal preset. The Times New Roman font at 12 points with double spacing meets traditional legal document standards. This preset is essential for service agreements, non-disclosure agreements, and any document that may be subject to legal review or must comply with established legal formatting conventions.
+
+For technical documentation and user manuals, use the technical preset. The Arial font with left alignment and optimized spacing ensures maximum readability. This preset is ideal for API documentation, software guides, and technical specifications where clarity and easy scanning of information are the primary requirements.
+
+For internal communications and team updates, use the casual preset. The Verdana font with warm orange colors creates an approachable, friendly tone. This preset works well for project updates, team newsletters, and internal announcements where you want to maintain a welcoming atmosphere while still providing clear information.
+
+For presentations and marketing materials, use the colorful preset. The vibrant purple colors with larger heading sizes create visual impact that captures attention. This preset is appropriate for conference presentations, marketing brochures, and materials where visual appeal and standing out are more important than traditional formality.
+
+For simple internal documents and basic reports, use the minimal preset. The clean Arial font with neutral styling provides clarity without distraction. This preset is suitable for meeting notes, basic memos, and documents where the content itself is the focus and decorative styling might be unnecessary.
 
 ## How The System Works Internally
 
@@ -426,7 +528,7 @@ Some document formats do not support image extraction as well. Legacy .doc files
 
 ### Styling Is Not Applied
 
-If you specify styling options but do not see them applied in the generated document, check that the stylePreset value is one of the valid options: minimal, professional, or colorful. Verify that color codes are six-digit hex numbers without the hash symbol. Make sure that your custom style object structure matches what is documented.
+If you specify styling options but do not see them applied in the generated document, check that stylePreset value is one of the valid options: minimal, professional, technical, legal, business, casual, or colorful. Verify that color codes are six-digit hex numbers without hash symbol. Make sure that your custom style object structure matches what is documented.
 
 ### Tables Are Not Extracted
 
@@ -454,7 +556,9 @@ The codebase uses ES modules and follows modern JavaScript patterns. Error handl
 
 ### The Styling System Design
 
-The styling module uses a configuration object pattern with merge capabilities. Presets are defined as complete configuration objects. Custom options override preset values using object spreading for simple properties and nullish coalescing for nested structures. This design allows presets to be complete defaults while still permitting fine-grained customization including headers, footers, and background colors.
+The styling module uses a configuration object pattern with merge capabilities. Presets are defined as complete configuration objects that include distinct styling for H1, H2, and H3 heading levels. Custom options override preset values using object spreading for simple properties and nullish coalescing for nested structures. This design allows presets to be complete defaults while still permitting fine-grained customization including headers, footers, background colors, and specific heading level styling.
+
+Each preset includes font family, size, color, paragraph alignment, line spacing, and spacing values that are optimized for that document type. The professional preset uses Garamond serif font with full justification for traditional documents, while business preset uses modern Calibri with refined blue color palette for contemporary materials. Legal preset follows traditional legal formatting with Times New Roman, double spacing, and underlined headings.
 
 ## Best Practices For Using The System
 
