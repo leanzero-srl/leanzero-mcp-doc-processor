@@ -4,6 +4,10 @@ Welcome to the MCP Document Processor. This is a Model Context Protocol server t
 
 The system also includes the ability to generate documents, not just read them. This means you can create DOCX reports and Excel spreadsheets with customizable styling options to match your needs.
 
+## About LeanZero
+
+This project is part of the LeanZero ecosystem, focused on building tools that help developers work more efficiently with AI and document processing. For more information about our work, additional resources, tutorials, and community discussions, visit [leanzero.atlascrafted.com](https://leanzero.atlascrafted.com). You can also join our Discord community directly from the website for conversations with other developers working on similar projects.
+
 ## What This Project Can Do For You
 
 Think of this as having a smart assistant for your documents. Here is what it handles across different file types:
