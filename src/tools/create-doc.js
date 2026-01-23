@@ -20,6 +20,12 @@ import {
   getAvailablePresets,
   getPresetDescription,
 } from "./styling.js";
+import {
+  validateAndNormalizeInput,
+  ensureDirectory,
+  enforceDocsFolder,
+  preventDuplicateFiles,
+} from "./utils.js";
 
 /**
  * Creates a styled text run for paragraphs
@@ -203,6 +209,48 @@ export async function createDoc(input) {
     const paragraphs = Array.isArray(input.paragraphs) ? input.paragraphs : [];
     const tables = Array.isArray(input.tables) ? input.tables : [];
 
+    // Normalize input with extension handling FIRST (fixes .md → .docx before docs folder check)
+    const normalized = validateAndNormalizeInput(input, [], "docx");
+    let outputPath = normalized.outputPath;
+    if (!path.isAbsolute(outputPath)) {
+      outputPath = path.resolve(process.cwd(), outputPath);
+    }
+
+    // Enforce docs/ folder FIRST so duplicate prevention checks the final location
+    const enforceDocs = input.enforceDocsFolder !== false;
+    const { outputPath: docsPath, wasEnforced: docsEnforced } =
+      enforceDocsFolder(outputPath, enforceDocs);
+
+    if (docsEnforced) {
+      outputPath = docsPath;
+    }
+
+    // THEN prevent duplicate files (checks the final docs/ location)
+    const preventDupes = input.preventDuplicates !== false;
+    const uniquePath = await preventDuplicateFiles(outputPath, preventDupes);
+    const wasDuplicatePrevented = uniquePath !== outputPath;
+    outputPath = uniquePath;
+
+    // Ensure output directory exists
+    await ensureDirectory(path.dirname(outputPath));
+
+    // Log enforcement actions to teach AI models
+    if (docsEnforced) {
+      console.log(
+        `[create-doc] Enforced docs/ folder structure. File placed in: ${path.relative(
+          process.cwd(),
+          outputPath,
+        )}`,
+      );
+    }
+    if (wasDuplicatePrevented) {
+      console.log(
+        `[create-doc] Prevented duplicate file. Created: ${path.basename(
+          outputPath,
+        )}`,
+      );
+    }
+
     // Validate and apply style preset
     const stylePreset = input.stylePreset || "minimal";
     if (!getAvailablePresets().includes(stylePreset)) {
@@ -214,13 +262,6 @@ export async function createDoc(input) {
 
     // Get merged style configuration
     const styleConfig = getStyleConfig(stylePreset, input.style || {});
-
-    // Ensure output directory exists
-    let outputPath = input.outputPath || "./output/document.docx";
-    if (!path.isAbsolute(outputPath)) {
-      outputPath = path.resolve(process.cwd(), outputPath);
-    }
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
     // Build section properties with proper headers/footers
     const sectionProps = {};
@@ -402,6 +443,17 @@ export async function createDoc(input) {
     const buffer = await Packer.toBuffer(doc);
     await fs.writeFile(outputPath, buffer);
 
+    // Build message with enforcement information
+    let enforcementMessage = "";
+    if (docsEnforced) {
+      enforcementMessage += `NOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\n`;
+    }
+    if (wasDuplicatePrevented) {
+      enforcementMessage += `NOTE: Duplicate file detected and prevented. Used unique filename: ${path.basename(
+        outputPath,
+      )}. To allow duplicates, set preventDuplicates: false.\n`;
+    }
+
     return {
       success: true,
       filePath: outputPath,
@@ -415,7 +467,11 @@ export async function createDoc(input) {
       },
       header: hasHeader ? input.header : null,
       footer: hasFooter ? input.footer : null,
-      message: `Document created successfully with "${stylePreset}" style preset - ${paragraphs.length} paragraphs, ${tables.length} tables${hasHeader ? ", with header" : ""}${hasFooter ? ", with footer" : ""}`,
+      enforcement: {
+        docsFolderEnforced: docsEnforced,
+        duplicatePrevented: wasDuplicatePrevented,
+      },
+      message: `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}`,
     };
   } catch (err) {
     return {

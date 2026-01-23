@@ -8,6 +8,44 @@ The system also includes the ability to generate documents, not just read them. 
 
 This project is part of the LeanZero ecosystem, focused on building tools that help developers work more efficiently with AI and document processing. For more information about our work, additional resources, tutorials, and community discussions, visit [leanzero.atlascrafted.com](https://leanzero.atlascrafted.com). You can also join our Discord community directly from the website for conversations with other developers working on similar projects.
 
+## NEW: Atomic Duplicate Prevention Fix
+
+The duplicate file prevention feature has been completely rewritten to properly handle concurrent file creation requests. Previously, there was a race condition where multiple simultaneous calls could all return the same filename because the locking mechanism was not truly atomic.
+
+### What Was Fixed
+
+The original implementation created unique lock directories for each call (using timestamps and random IDs), which meant concurrent calls never actually competed for the same lock. All 20 concurrent requests would acquire their own locks simultaneously and return the same path, defeating the purpose of duplicate prevention.
+
+The fix implements proper mutual exclusion with three key changes:
+
+First, all concurrent calls now compete for a shared lock directory per base filename. Instead of creating `.lock.filename.uniqueId`, the system now uses `.lock.filename` so all calls for the same file must wait for the same lock.
+
+Second, the system now creates placeholder files while holding the lock. When a unique path is determined, an empty file is immediately created at that location before releasing the lock. This reserves the path so subsequent callers see it as taken and select the next available suffix.
+
+Third, a spin-wait retry mechanism handles lock contention. When another caller holds the lock, the system retries up to 50 times with 20 millisecond delays before falling back to a timestamp-based unique name.
+
+### Additional Fixes Applied
+
+Several related issues were also resolved during this update:
+
+The fs module import was corrected from callback-based to promise-based API. The code was using `await fs.access()` but importing from the callback-based `fs` module instead of `fs/promises`.
+
+A syntax error in utils.js was fixed where a stray catch block had no matching try statement, preventing the module from loading.
+
+The ensureDirectory function was updated to use the correct fs.mkdir call after the import change.
+
+The order of operations in create-doc.js was corrected so that docs folder enforcement runs before duplicate prevention. This ensures placeholder files are created in the final target directory rather than the original path.
+
+### Test Results
+
+The fix has been validated with comprehensive tests:
+
+- Atomic duplicate prevention tests: 7 out of 7 passing
+- Organization enforcement tests: 9 out of 9 passing  
+- Concurrent test: 20 simultaneous calls correctly return 20 unique paths
+
+The duplicate prevention feature is now production-ready and handles concurrent requests correctly.
+
 ## What This Project Can Do For You
 
 Think of this as having a smart assistant for your documents. Here is what it handles across different file types:

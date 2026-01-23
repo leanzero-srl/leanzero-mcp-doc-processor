@@ -1,7 +1,12 @@
 import XLSX from "xlsx-js-style";
 import fs from "fs";
 import path from "path";
-import { validateAndNormalizeInput, ensureDirectory } from "./utils.js";
+import {
+  validateAndNormalizeInput,
+  ensureDirectory,
+  enforceDocsFolder,
+  preventDuplicateFiles,
+} from "./utils.js";
 import {
   getStyleConfig,
   createExcelColumnWidths,
@@ -134,7 +139,7 @@ function applyExcelStyling(ws, data, styleConfig, preset) {
 export async function createExcel(input) {
   try {
     // Step 1: Validate and normalize input
-    const normalized = validateAndNormalizeInput(input, ["sheets"]);
+    const normalized = validateAndNormalizeInput(input, ["sheets"], "xlsx");
 
     // Ensure sheets is array of objects with name and data
     if (!Array.isArray(normalized.sheets)) {
@@ -150,8 +155,42 @@ export async function createExcel(input) {
       }
     }
 
+    // Enforce docs/ folder for organization (default: true, can be disabled with enforceDocsFolder: false)
+    const enforceDocs = input.enforceDocsFolder !== false;
+    const { outputPath: docsPath, wasEnforced: docsEnforced } =
+      enforceDocsFolder(normalized.outputPath, enforceDocs);
+
+    // Apply docs folder enforcement
+    let outputPath = normalized.outputPath;
+    if (docsEnforced) {
+      outputPath = docsPath;
+    }
+
+    // Prevent duplicate files (default: true, can be disabled with preventDuplicates: false)
+    const preventDupes = input.preventDuplicates !== false;
+    const finalPath = await preventDuplicateFiles(outputPath, preventDupes);
+    const wasDuplicatePrevented = finalPath !== outputPath;
+    outputPath = finalPath;
+
     // Step 2: Ensure output directory exists
-    await ensureDirectory(path.dirname(normalized.outputPath));
+    await ensureDirectory(path.dirname(outputPath));
+
+    // Log enforcement actions to teach AI models
+    if (docsEnforced) {
+      console.log(
+        `[create-excel] Enforced docs/ folder structure. File placed in: ${path.relative(
+          process.cwd(),
+          outputPath,
+        )}`,
+      );
+    }
+    if (wasDuplicatePrevented) {
+      console.log(
+        `[create-excel] Prevented duplicate file. Created: ${path.basename(
+          outputPath,
+        )}`,
+      );
+    }
 
     // Step 3: Validate and apply style preset
     const stylePreset = input.stylePreset || "minimal";
@@ -216,13 +255,24 @@ export async function createExcel(input) {
     }
 
     // Step 7: Write workbook to file
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
-    await fs.promises.writeFile(normalized.outputPath, wbout);
-
     // Step 8: Return success
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
+    await fs.promises.writeFile(outputPath, wbout);
+
+    // Build message with enforcement information
+    let enforcementMessage = "";
+    if (docsEnforced) {
+      enforcementMessage += `NOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\n`;
+    }
+    if (wasDuplicatePrevented) {
+      enforcementMessage += `NOTE: Duplicate file detected and prevented. Used unique filename: ${path.basename(
+        outputPath,
+      )}. To allow duplicates, set preventDuplicates: false.\n`;
+    }
+
     return {
       success: true,
-      filePath: path.resolve(normalized.outputPath),
+      filePath: path.resolve(outputPath),
       stylePreset: input.stylePreset,
       styleConfig: {
         preset: input.stylePreset,
@@ -240,7 +290,11 @@ export async function createExcel(input) {
         },
         zebraColor: styleConfig.zebraColor,
       },
-      message: `Excel workbook created successfully with "${input.stylePreset}" style preset - ${normalized.sheets.length} sheets.`,
+      enforcement: {
+        docsFolderEnforced: docsEnforced,
+        duplicatePrevented: wasDuplicatePrevented,
+      },
+      message: `XLSX FILE WRITTEN TO DISK at: ${path.resolve(outputPath)}\n\nIMPORTANT: This tool has created an actual .xlsx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}`,
     };
   } catch (err) {
     console.error("Excel creation error:", err);

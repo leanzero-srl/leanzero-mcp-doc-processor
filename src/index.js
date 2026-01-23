@@ -100,7 +100,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "create-doc",
         description:
-          "Creates a Word DOCX document on DISK with title, paragraphs, tables, headers, and footers. IMPORTANT: This tool WRITES TO FILESYSTEM - it creates an actual .docx file at the specified path (or ./output/document.docx if not provided). The response contains the absolute filePath where the file was created. AI models should NOT create additional markdown or text files - use this returned filePath to reference the created DOCX document. Supports 7 style presets (minimal, professional, technical, legal, business, casual, colorful) with comprehensive typography options including font selection, heading levels, text justification, and refined color schemes.",
+          "Creates a Word DOCX document on DISK with title, paragraphs, tables, headers, and footers. IMPORTANT: This tool WRITES TO FILESYSTEM - it creates an actual .docx file at the specified path (or ./output/document.docx if not provided). The response contains the absolute filePath where the file was created. AI models should NOT create additional markdown or text files - use this returned filePath to reference the created DOCX document. ORGANIZATION: The tool enforces docs/ folder by default (files are automatically placed in project-root/docs/ unless you explicitly specify a different location or set enforceDocsFolder: false). The tool also prevents duplicate files by default (if file exists, it creates file_1.docx, file_2.docx, etc.; set preventDuplicates: false to allow overwrites). EXTENSION: The tool enforces .docx extension regardless of what extension is specified in outputPath (e.g., if you specify file.md, it will create file.docx). Supports 7 style presets (minimal, professional, technical, legal, business, casual, colorful) with comprehensive typography options including font selection, heading levels, text justification, and refined color schemes. Default: minimal.",
         inputSchema: {
           type: "object",
           properties: {
@@ -244,6 +244,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description:
                 "Absolute or relative file path where the DOCX file will be written to disk. The directory will be created automatically if it doesn't exist. IMPORTANT: This is NOT a return value - this specifies WHERE to create the file. The actual created filePath is returned in the response.",
             },
+            enforceDocsFolder: {
+              type: "boolean",
+              description:
+                "Whether to enforce docs/ folder for organized file structure (default: true). When true, files are automatically placed in project-root/docs/ directory for better organization. Set to false if you need to place files in a specific location outside docs/. The tool will log when this enforcement is applied.",
+            },
+            preventDuplicates: {
+              type: "boolean",
+              description:
+                "Whether to prevent duplicate file creation (default: true). When true and a file with the same name already exists, the tool automatically appends _1, _2, etc. to the filename (e.g., report.docx becomes report_1.docx). Set to false to allow overwriting existing files. The tool will log when duplicate prevention is triggered.",
+            },
           },
           required: ["title"],
         },
@@ -251,7 +261,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "create-excel",
         description:
-          "Creates an Excel XLSX workbook on DISK with multiple sheets and data. IMPORTANT: This tool WRITES TO FILESYSTEM - it creates an actual .xlsx file at the specified path (or ./output/data.xlsx if not provided). The response contains the absolute filePath where the file was created. AI models should NOT create additional markdown or text files - use this returned filePath to reference the created Excel document. Supports column widths, row heights, and 7 style presets (minimal, professional, technical, legal, business, casual, colorful) with optimized header backgrounds and colors for each preset type.",
+          "Creates an Excel XLSX workbook on DISK with multiple sheets and data. IMPORTANT: This tool WRITES TO FILESYSTEM - it creates an actual .xlsx file at the specified path (or ./output/data.xlsx if not provided). The response contains the absolute filePath where the file was created. AI models should NOT create additional markdown or text files - use this returned filePath to reference the created Excel document. ORGANIZATION: The tool enforces docs/ folder by default (files are automatically placed in project-root/docs/ unless you explicitly specify a different location or set enforceDocsFolder: false). The tool also prevents duplicate files by default (if file exists, it creates file_1.xlsx, file_2.xlsx, etc.; set preventDuplicates: false to allow overwrites). EXTENSION: The tool enforces .xlsx extension regardless of what extension is specified in outputPath (e.g., if you specify file.txt, it will create file.xlsx). Supports column widths, row heights, and 7 style presets (minimal, professional, technical, legal, business, casual, colorful) with optimized header backgrounds and colors for each preset type.",
         inputSchema: {
           type: "object",
           properties: {
@@ -319,6 +329,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description:
                 "Absolute or relative file path where the XLSX file will be written to disk. The directory will be created automatically if it doesn't exist. IMPORTANT: This is NOT a return value - this specifies WHERE to create the file. The actual created filePath is returned in the response.",
+            },
+            enforceDocsFolder: {
+              type: "boolean",
+              description:
+                "Whether to enforce docs/ folder for organized file structure (default: true). When true, files are automatically placed in project-root/docs/ directory for better organization. Set to false if you need to place files in a specific location outside docs/. The tool will log when this enforcement is applied.",
+            },
+            preventDuplicates: {
+              type: "boolean",
+              description:
+                "Whether to prevent duplicate file creation (default: true). When true and a file with the same name already exists, the tool automatically appends _1, _2, etc. to the filename (e.g., report.xlsx becomes report_1.xlsx). Set to false to allow overwriting existing files. The tool will log when duplicate prevention is triggered.",
             },
           },
           required: ["sheets"],
