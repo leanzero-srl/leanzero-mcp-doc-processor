@@ -9,13 +9,15 @@
     "test": "node test/integration.js",
     "test:ocr": "node test/test-ocr-improvements.js",
     "test:styling": "node test/test-styling.js",
-    "test:create": "node test/create-tools.js"
+    "test:create": "node test/create-tools.js",
+    "test:patch": "node test/test-docx-patch.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
     "docx": "^9.5.1",
     "jszip": "^3.10.1",
     "mammoth": "^1.5.4",
+    "marked": "^17.0.2",
     "pdf-parse": "^2.4.5",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0"

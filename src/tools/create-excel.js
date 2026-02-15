@@ -13,114 +13,17 @@ import {
   createExcelRowHeights,
   getAvailablePresets,
   getPresetDescription,
-  encodeCell,
 } from "./styling.js";
+// Import shared utilities (eliminates code duplication)
+import { stripMarkdownPlain } from "./doc-utils.js";
+import {
+  hexToRgb,
+  applyExcelStyling,
+  cleanSheetData,
+  getZebraColor,
+} from "./excel-utils.js";
 
-/**
- * Helper function to convert hex color to RGB format for Excel
- * @param {string} hexColor - Hex color (e.g., "FF0000")
- * @returns {Object} RGB object { r, g, b }
- */
-function hexToRgb(hexColor) {
-  const cleanHex = hexColor.replace(/[^0-9A-Fa-f]/g, "");
-  if (cleanHex.length !== 6) {
-    return { rgb: "000000" };
-  }
-  return { rgb: cleanHex.toUpperCase() };
-}
-
-/**
- * Apply comprehensive styling to Excel worksheet using xlsx-js-style
- * @param {Object} ws - Worksheet object from xlsx-js-style
- * @param {Array<Array<any>>} data - Original data array for reference
- * @param {Object} styleConfig - Style configuration
- * @param {string} preset - Style preset name
- */
-function applyExcelStyling(ws, data, styleConfig, preset) {
-  if (!ws || !data) return;
-
-  const config = styleConfig;
-
-  // Apply styling to all cells
-  for (let row = 0; row < data.length; row++) {
-    for (let col = 0; col < data[row].length; col++) {
-      const cellRef = encodeCell(row, col);
-      if (!ws[cellRef]) continue;
-
-      const isHeader = row === 0;
-
-      // Initialize cell style object
-      ws[cellRef].s = ws[cellRef].s || {};
-
-      // Font styling
-      ws[cellRef].s.font = ws[cellRef].s.font || {};
-
-      if (isHeader) {
-        // Header row styling
-        ws[cellRef].s.font = {
-          name: config.font.family || "Arial",
-          sz: config.headerSize || 11,
-          bold: config.headerBold !== false,
-          color: hexToRgb(config.headerColor || "000000"),
-        };
-
-        // Header background color
-        if (config.headerBackground && config.headerBackground !== "FFFFFF") {
-          ws[cellRef].s.fill = {
-            patternType: "solid",
-            fgColor: hexToRgb(config.headerBackground),
-          };
-        }
-
-        // Header border
-        ws[cellRef].s.border = {
-          top: { style: "thin", color: { auto: 1 } },
-          bottom: { style: "thin", color: { auto: 1 } },
-          left: { style: "thin", color: { auto: 1 } },
-          right: { style: "thin", color: { auto: 1 } },
-        };
-
-        // Header alignment
-        ws[cellRef].s.alignment = {
-          horizontal: "center",
-          vertical: "center",
-          wrapText: true,
-        };
-      } else {
-        // Body cell styling
-        ws[cellRef].s.font = {
-          name: config.font.family || "Arial",
-          sz: config.font.size || 11,
-          bold: false,
-          color: hexToRgb(config.font.color || "000000"),
-        };
-
-        // Optional cell background for alternate rows (zebra striping)
-        if (row % 2 === 0 && config.zebraColor) {
-          ws[cellRef].s.fill = {
-            patternType: "solid",
-            fgColor: hexToRgb(config.zebraColor),
-          };
-        }
-
-        // Body border (lighter than header)
-        ws[cellRef].s.border = {
-          top: { style: "thin", color: { auto: 1 } },
-          bottom: { style: "thin", color: { auto: 1 } },
-          left: { style: "thin", color: { auto: 1 } },
-          right: { style: "thin", color: { auto: 1 } },
-        };
-
-        // Body alignment
-        ws[cellRef].s.alignment = {
-          horizontal: "left",
-          vertical: "center",
-          wrapText: true,
-        };
-      }
-    }
-  }
-}
+// hexToRgb and applyExcelStyling are now imported from excel-utils.js
 
 /**
  * Creates an Excel workbook from structured data using xlsx-js-style with full styling support
@@ -166,6 +69,36 @@ export async function createExcel(input) {
       outputPath = docsPath;
     }
 
+    // Strip markdown from all cell values in sheet data using shared utility
+    for (const sheet of normalized.sheets) {
+      sheet.data = cleanSheetData(sheet.data);
+    }
+
+    // Dry run mode: return a preview without writing to disk
+    // Must be checked BEFORE preventDuplicateFiles which creates placeholder files
+    if (input.dryRun) {
+      const sheetSummaries = normalized.sheets.map((s) => ({
+        name: s.name,
+        rows: s.data.length,
+        columns: s.data[0] ? s.data[0].length : 0,
+      }));
+
+      return {
+        success: true,
+        dryRun: true,
+        preview: {
+          outputPath: outputPath,
+          sheets: sheetSummaries,
+          totalSheets: normalized.sheets.length,
+          stylePreset: input.stylePreset || "minimal",
+        },
+        enforcement: {
+          docsFolderEnforced: docsEnforced,
+        },
+        message: `DRY RUN - No file written. Preview of workbook that would be created:\n\nPath: ${outputPath}\nSheets: ${sheetSummaries.map((s) => `${s.name} (${s.rows} rows x ${s.columns} cols)`).join(", ")}\nStyle: ${input.stylePreset || "minimal"}\n\nCall this tool again without dryRun (or with dryRun: false) to create the file.`,
+      };
+    }
+
     // Prevent duplicate files (default: true, can be disabled with preventDuplicates: false)
     const preventDupes = input.preventDuplicates !== false;
     const finalPath = await preventDuplicateFiles(outputPath, preventDupes);
@@ -204,21 +137,11 @@ export async function createExcel(input) {
     // Step 4: Get style configuration (merge preset with custom options)
     const styleConfig = getStyleConfig(input.stylePreset, input.style || {});
 
-    // Add zebra striping option
+    // Add zebra striping option using shared utility
     if (input.style && input.style.zebraColor) {
       styleConfig.zebraColor = input.style.zebraColor;
     } else {
-      // Default zebra colors for different presets
-      const zebraColors = {
-        minimal: "F9F9F9",
-        professional: "F2F2F2",
-        technical: "E8E8E8",
-        legal: "F5F5F5",
-        business: "F0F0F0",
-        casual: "FFF3E0",
-        colorful: "F3E5F5",
-      };
-      styleConfig.zebraColor = zebraColors[input.stylePreset] || "F9F9F9";
+      styleConfig.zebraColor = getZebraColor(input.stylePreset);
     }
 
     // Step 5: Create new workbook

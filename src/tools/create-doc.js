@@ -3,15 +3,10 @@ import {
   Packer,
   Paragraph,
   TextRun,
-  Table,
-  TableCell,
-  TableRow,
   Header,
   Footer,
   AlignmentType,
   HeadingLevel,
-  PageBreak,
-  BorderStyle,
 } from "docx";
 import fs from "fs/promises";
 import path from "path";
@@ -26,98 +21,18 @@ import {
   enforceDocsFolder,
   preventDuplicateFiles,
 } from "./utils.js";
+// Import shared utilities from doc-utils.js
+import {
+  stripMarkdownLinePrefixes,
+  parseInlineMarkdown,
+  stripMarkdownPlain,
+  createText,
+  createParagraph,
+  createTableFromData,
+} from "./doc-utils.js";
 
-/**
- * Creates a styled text run for paragraphs
- */
-function createText(text, options = {}) {
-  return new TextRun({
-    text: String(text || ""),
-    bold: options.bold ?? false,
-    italics: options.italics ?? false,
-    underline: options.underline ? { style: "single" } : undefined,
-    size: (options.size || 12) * 2, // Convert points to half-points
-    color: options.color || "000000",
-    font: options.fontFamily || "Arial",
-  });
-}
-
-/**
- * Creates a styled paragraph with proper formatting
- */
-function createParagraph(textOrRuns, options = {}) {
-  const alignmentMap = {
-    left: AlignmentType.LEFT,
-    right: AlignmentType.RIGHT,
-    center: AlignmentType.CENTER,
-    both: AlignmentType.BOTH,
-  };
-
-  return new Paragraph({
-    children: Array.isArray(textOrRuns)
-      ? textOrRuns
-      : [createText(textOrRuns, options)],
-    heading: options.heading || undefined,
-    alignment: alignmentMap[options.alignment || "left"] || AlignmentType.LEFT,
-    spacing: {
-      before: options.spacingBefore ?? 0, // Already in twips
-      after: options.spacingAfter ?? 120, // Default 120 twips (6pt)
-      line: options.lineSpacing
-        ? Math.round(options.lineSpacing * 240)
-        : undefined,
-    },
-  });
-}
-
-/**
- * Creates a table with proper borders and column widths
- */
-function createTableFromData(data, options = {}) {
-  const borderColor = options.borderColor || "D9D9D9";
-  const borderStyle = options.borderStyle || "single";
-  const borderWidth = options.borderWidth ?? 4;
-
-  return new Table({
-    rows: data.map((row, rowIndex) => {
-      return new TableRow({
-        children: row.map(
-          (cell) =>
-            new TableCell({
-              children: [
-                typeof cell === "string"
-                  ? createParagraph(cell, { size: options.cellSize || 11 })
-                  : createParagraph(String(cell), options),
-              ],
-              shading: {
-                fill:
-                  rowIndex === 0 && options.headerFill
-                    ? options.headerFill
-                    : undefined,
-              },
-            }),
-        ),
-        tableHeader: rowIndex === 0,
-      });
-    }),
-    width: { size: 100, type: "pct" },
-    borders: {
-      top: { style: borderStyle, size: borderWidth, color: borderColor },
-      bottom: { style: borderStyle, size: borderWidth, color: borderColor },
-      left: { style: borderStyle, size: borderWidth, color: borderColor },
-      right: { style: borderStyle, size: borderWidth, color: borderColor },
-      insideHorizontal: {
-        style: borderStyle,
-        size: borderWidth,
-        color: borderColor,
-      },
-      insideVertical: {
-        style: borderStyle,
-        size: borderWidth,
-        color: borderColor,
-      },
-    },
-  });
-}
+// Re-export for backwards compatibility (other modules import from create-doc.js)
+export { stripMarkdownLinePrefixes, parseInlineMarkdown, stripMarkdownPlain };
 
 /**
  * Creates a header with optional alignment
@@ -223,6 +138,36 @@ export async function createDoc(input) {
 
     if (docsEnforced) {
       outputPath = docsPath;
+    }
+
+    // Dry run mode: return a preview without writing to disk
+    // Must be checked BEFORE preventDuplicateFiles which creates placeholder files
+    if (input.dryRun) {
+      const paraCount = paragraphs.length;
+      const tableCount = tables.length;
+      const totalParaChars = paragraphs.reduce((sum, p) => {
+        const text = typeof p === "string" ? p : (p && p.text) || "";
+        return sum + text.length;
+      }, 0);
+
+      return {
+        success: true,
+        dryRun: true,
+        preview: {
+          title: title,
+          outputPath: outputPath,
+          paragraphCount: paraCount,
+          tableCount: tableCount,
+          approximateContentLength: totalParaChars,
+          stylePreset: input.stylePreset || "minimal",
+          hasHeader: !!(input.header && input.header.text),
+          hasFooter: !!(input.footer && input.footer.text),
+        },
+        enforcement: {
+          docsFolderEnforced: docsEnforced,
+        },
+        message: `DRY RUN - No file written. Preview of document that would be created:\n\nTitle: "${title}"\nPath: ${outputPath}\nParagraphs: ${paraCount}\nTables: ${tableCount}\nStyle: ${input.stylePreset || "minimal"}\n\nCall this tool again without dryRun (or with dryRun: false) to create the file.`,
+      };
     }
 
     // THEN prevent duplicate files (checks the final docs/ location)
@@ -336,20 +281,25 @@ export async function createDoc(input) {
       );
     }
 
-    // Add paragraphs with proper styling
+    // Add paragraphs with proper styling (markdown ornaments are parsed into formatting)
     for (const para of paragraphs) {
       if (!para) continue;
 
       if (typeof para === "string") {
+        // Parse inline markdown into styled TextRun array
+        const baseStyle = {
+          size: styleConfig.font.size,
+          fontFamily: styleConfig.font.family,
+          color: styleConfig.font.color,
+        };
+        const textRuns = parseInlineMarkdown(para, baseStyle);
+
         children.push(
-          createParagraph(para, {
+          createParagraph(textRuns, {
             alignment: styleConfig.paragraph.alignment,
             spacingBefore: styleConfig.paragraph.spacingBefore,
             spacingAfter: styleConfig.paragraph.spacingAfter,
             lineSpacing: styleConfig.paragraph.lineSpacing,
-            size: styleConfig.font.size,
-            fontFamily: styleConfig.font.family,
-            color: styleConfig.font.color,
           }),
         );
       } else if (para && typeof para === "object" && para.text) {
@@ -368,8 +318,25 @@ export async function createDoc(input) {
           paragraphStyle = styleConfig.font;
         }
 
+        // Parse inline markdown from para.text, using the paragraph's explicit style as base
+        const objBaseStyle = {
+          size: para.size || paragraphStyle.size,
+          bold: para.bold ?? (isHeading ? paragraphStyle.bold : false),
+          italics: para.italics ?? (isHeading ? paragraphStyle.italic : false),
+          underline: para.underline
+            ? isHeading
+              ? paragraphStyle.underline
+              : false
+            : false,
+          fontFamily: styleConfig.font.family,
+          color:
+            para.color ||
+            (isHeading ? paragraphStyle.color : styleConfig.font.color),
+        };
+        const objTextRuns = parseInlineMarkdown(para.text, objBaseStyle);
+
         children.push(
-          createParagraph(para.text, {
+          createParagraph(objTextRuns, {
             heading:
               para.headingLevel === "heading1"
                 ? HeadingLevel.HEADING_1
@@ -386,19 +353,6 @@ export async function createDoc(input) {
               ? paragraphStyle.spacingAfter
               : styleConfig.paragraph.spacingAfter,
             lineSpacing: styleConfig.paragraph.lineSpacing,
-            size: para.size || paragraphStyle.size,
-            bold: para.bold ?? (isHeading ? paragraphStyle.bold : false),
-            italics:
-              para.italics ?? (isHeading ? paragraphStyle.italic : false),
-            underline: para.underline
-              ? isHeading
-                ? paragraphStyle.underline
-                : false
-              : false,
-            fontFamily: styleConfig.font.family,
-            color:
-              para.color ||
-              (isHeading ? paragraphStyle.color : styleConfig.font.color),
           }),
         );
       }
