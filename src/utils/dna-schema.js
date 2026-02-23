@@ -99,6 +99,16 @@ export const DNA_SCHEMA = {
       },
     },
   },
+  memories: {
+    type: "object",
+    required: false,
+    description: "Key-value store for document creation preferences and personality. Each memory has a text and createdAt timestamp.",
+  },
+  usage: {
+    type: "object",
+    required: false,
+    description: "Auto-tracked usage statistics. Categories and styles used, total document count. Updated automatically by create-doc.",
+  },
 };
 
 // Migration system for version upgrades
@@ -252,6 +262,20 @@ export function validateDNA(dna) {
           `footer.alignment must be one of: ${DNA_SCHEMA.footer.properties.alignment.validValues.join(", ")}`
         );
       }
+    }
+  }
+
+  // Validate memories (optional, object with string keys)
+  if (dna.memories !== undefined) {
+    if (typeof dna.memories !== "object" || dna.memories === null || Array.isArray(dna.memories)) {
+      errors.push("memories must be an object if provided");
+    }
+  }
+
+  // Validate usage (optional, auto-tracked)
+  if (dna.usage !== undefined) {
+    if (typeof dna.usage !== "object" || dna.usage === null || Array.isArray(dna.usage)) {
+      errors.push("usage must be an object if provided");
     }
   }
 
@@ -411,6 +435,16 @@ export function createDNAFile(config = {}, projectRoot) {
       ...stripUndefined(config.footer || {}),
     },
   };
+
+  // Preserve memories if provided (not part of defaults, user-managed)
+  if (config.memories && typeof config.memories === "object") {
+    merged.memories = config.memories;
+  }
+
+  // Preserve usage stats if provided (auto-tracked, not user-managed)
+  if (config.usage && typeof config.usage === "object") {
+    merged.usage = config.usage;
+  }
 
   // Validate merged DNA
   const validation = validateDNA(merged);

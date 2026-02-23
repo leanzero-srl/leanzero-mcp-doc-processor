@@ -5,6 +5,7 @@ import {
   createParagraph,
   createTableFromData,
   createText,
+  createCodeBlock,
 } from "./doc-utils.js";
 import { getStyleConfig, buildDocumentStyles } from "./styling.js";
 import fs from "fs/promises";
@@ -210,7 +211,18 @@ async function generateParagraphsXML(paragraphs, styleConfig) {
     if (!para) continue;
 
     if (typeof para === "string") {
-      const textRuns = parseInlineMarkdown(para, baseStyle);
+      // Detect fenced code blocks (```...```)
+      if (para.trimStart().startsWith("```")) {
+        children.push(...createCodeBlock(para, styleConfig.code));
+        continue;
+      }
+
+      const patchBaseStyle = {
+        ...baseStyle,
+        codeColor: styleConfig.code?.color,
+        codeBackground: styleConfig.code?.backgroundColor,
+      };
+      const textRuns = parseInlineMarkdown(para, patchBaseStyle);
       children.push(
         createParagraph(textRuns, {
           alignment: styleConfig.paragraph.alignment,
@@ -265,7 +277,16 @@ async function generateTablesXML(tables, styleConfig) {
         borderColor: styleConfig.table.borderColor,
         borderStyle: styleConfig.table.borderStyle,
         borderWidth: styleConfig.table.borderWidth,
+        headerFill: styleConfig.table.headerFill,
+        headerFontColor: styleConfig.table.headerFontColor,
+        zebraFill: styleConfig.table.zebraFill,
+        zebraInterval: styleConfig.table.zebraInterval,
+        insideBorderColor: styleConfig.table.insideBorderColor,
+        insideBorderWidth: styleConfig.table.insideBorderWidth,
+        outsideBorderWidth: styleConfig.table.outsideBorderWidth,
         cellSize: styleConfig.font.size,
+        fontFamily: styleConfig.font.family,
+        color: styleConfig.font.color,
       }),
     );
   }

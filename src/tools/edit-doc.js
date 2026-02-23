@@ -23,6 +23,7 @@ import {
   createTableFromData,
   createDocHeader,
   createDocFooter,
+  createCodeBlock,
 } from "./doc-utils.js";
 
 /**
@@ -298,10 +299,19 @@ export async function editDoc(input) {
       }
 
       // Add new paragraphs with markdown parsing
+      const editBaseStyle1 = {
+        ...baseStyle,
+        codeColor: styleConfig.code?.color,
+        codeBackground: styleConfig.code?.backgroundColor,
+      };
       for (const para of newParagraphs) {
         if (!para) continue;
         if (typeof para === "string") {
-          const textRuns = parseInlineMarkdown(para, baseStyle);
+          if (para.trimStart().startsWith("```")) {
+            children.push(...createCodeBlock(para, styleConfig.code));
+            continue;
+          }
+          const textRuns = parseInlineMarkdown(para, editBaseStyle1);
           children.push(
             createParagraph(textRuns, {
               alignment: styleConfig.paragraph.alignment,
@@ -311,7 +321,7 @@ export async function editDoc(input) {
             }),
           );
         } else if (para && typeof para === "object" && para.text) {
-          const textRuns = parseInlineMarkdown(para.text, baseStyle);
+          const textRuns = parseInlineMarkdown(para.text, editBaseStyle1);
           children.push(
             createParagraph(textRuns, {
               alignment: para.alignment || styleConfig.paragraph.alignment,
@@ -331,7 +341,16 @@ export async function editDoc(input) {
             borderColor: styleConfig.table.borderColor,
             borderStyle: styleConfig.table.borderStyle,
             borderWidth: styleConfig.table.borderWidth,
+            headerFill: styleConfig.table.headerFill,
+            headerFontColor: styleConfig.table.headerFontColor,
+            zebraFill: styleConfig.table.zebraFill,
+            zebraInterval: styleConfig.table.zebraInterval,
+            insideBorderColor: styleConfig.table.insideBorderColor,
+            insideBorderWidth: styleConfig.table.insideBorderWidth,
+            outsideBorderWidth: styleConfig.table.outsideBorderWidth,
             cellSize: styleConfig.font.size,
+            fontFamily: styleConfig.font.family,
+            color: styleConfig.font.color,
           }),
         );
       }
@@ -395,10 +414,19 @@ export async function editDoc(input) {
     children.push(new Paragraph({ text: "" }));
 
     // Add new paragraphs with markdown parsing
+    const editBaseStyle2 = {
+      ...baseStyle,
+      codeColor: styleConfig.code?.color,
+      codeBackground: styleConfig.code?.backgroundColor,
+    };
     for (const para of newParagraphs) {
       if (!para) continue;
       if (typeof para === "string") {
-        const textRuns = parseInlineMarkdown(para, baseStyle);
+        if (para.trimStart().startsWith("```")) {
+          children.push(...createCodeBlock(para, styleConfig.code));
+          continue;
+        }
+        const textRuns = parseInlineMarkdown(para, editBaseStyle2);
         children.push(
           createParagraph(textRuns, {
             alignment: styleConfig.paragraph.alignment,
@@ -408,7 +436,7 @@ export async function editDoc(input) {
           }),
         );
       } else if (para && typeof para === "object" && para.text) {
-        const textRuns = parseInlineMarkdown(para.text, baseStyle);
+        const textRuns = parseInlineMarkdown(para.text, editBaseStyle2);
         children.push(
           createParagraph(textRuns, {
             alignment: para.alignment || styleConfig.paragraph.alignment,
@@ -428,7 +456,16 @@ export async function editDoc(input) {
           borderColor: styleConfig.table.borderColor,
           borderStyle: styleConfig.table.borderStyle,
           borderWidth: styleConfig.table.borderWidth,
+          headerFill: styleConfig.table.headerFill,
+          headerFontColor: styleConfig.table.headerFontColor,
+          zebraFill: styleConfig.table.zebraFill,
+          zebraInterval: styleConfig.table.zebraInterval,
+          insideBorderColor: styleConfig.table.insideBorderColor,
+          insideBorderWidth: styleConfig.table.insideBorderWidth,
+          outsideBorderWidth: styleConfig.table.outsideBorderWidth,
           cellSize: styleConfig.font.size,
+          fontFamily: styleConfig.font.family,
+          color: styleConfig.font.color,
         }),
       );
     }

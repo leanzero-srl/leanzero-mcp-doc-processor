@@ -7,6 +7,9 @@ import path from "path";
 
 /**
  * Test script for document creation tools
+ *
+ * NOTE: Tests use preventDuplicates: false to ensure clean runs.
+ * The duplicate detection system is tested separately.
  */
 
 const TEST_DIR = path.join(process.cwd(), "test");
@@ -132,7 +135,8 @@ async function testCustomInputs() {
       "Another paragraph with multiple lines."
     ],
     tables: [],
-    outputPath: "./output/custom.docx"
+    outputPath: "./output/custom.docx",
+    preventDuplicates: false
   };
 
   console.log("\nTesting create-doc with custom input...");
