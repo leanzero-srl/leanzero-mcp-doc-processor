@@ -11,5 +11,6 @@
       ["UI Design", "In Progress", "2025-05-10"]
     ]
   ],
-  "outputPath": "./output/report.docx"
+  "outputPath": "./output/report.docx",
+  "preventDuplicates": false
 }

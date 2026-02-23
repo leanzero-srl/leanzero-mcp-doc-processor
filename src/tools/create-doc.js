@@ -25,7 +25,8 @@ import {
   getCategoryPath,
   classifyDocumentContent,
 } from "./utils.js";
-import { applyDNAToInput, loadDNA } from "../utils/dna-manager.js";
+import { applyDNAToInput, loadDNA, recordUsage } from "../utils/dna-manager.js";
+import { checkForExistingDocument, cleanupExcessVersions, buildGuidanceMessage } from "../services/ai-guidance-system.js";
 // Import shared utilities from doc-utils.js
 import {
   stripMarkdownLinePrefixes,
@@ -37,6 +38,7 @@ import {
   createTableFromData,
   createDocHeader,
   createDocFooter,
+  createCodeBlock,
 } from "./doc-utils.js";
 
 // Re-export for backwards compatibility (other modules import from create-doc.js)
@@ -66,9 +68,16 @@ export async function createDoc(input) {
     // Parse input if it's a JSON string (for MCP compatibility)
     const parsedInput = typeof input === "string" ? JSON.parse(input) : input;
 
+    // Track whether user explicitly provided a stylePreset BEFORE DNA injects one
+    const userExplicitlySetStyle = !!parsedInput.stylePreset;
+
     // Apply Document DNA defaults (header, footer, stylePreset) if not explicitly provided
-    const hasDNA = loadDNA() !== null;
+    const dnaConfig = loadDNA();
+    const hasDNA = dnaConfig !== null;
     applyDNAToInput(parsedInput);
+
+    // Load document memories from DNA to include in response
+    const memories = (dnaConfig && dnaConfig.memories) ? dnaConfig.memories : null;
 
     const title = parsedInput.title || "Untitled Document";
     let paragraphs = Array.isArray(parsedInput.paragraphs)
@@ -108,6 +117,45 @@ export async function createDoc(input) {
         console.log(
           `[create-doc] Auto-classified document as "${category}" (confidence: ${classification.confidence})`,
         );
+      }
+    }
+
+    // Check for existing documents with the same title/category BEFORE creating
+    // This prevents the model from creating duplicates
+    if (!input.dryRun && input.preventDuplicates !== false) {
+      const duplicateCheck = await checkForExistingDocument(title, category);
+
+      if (duplicateCheck.action === "augment") {
+        // Document exists - tell the model to use edit-doc instead
+        const guidance = buildGuidanceMessage(duplicateCheck);
+        return {
+          success: false,
+          duplicate: true,
+          existingPath: duplicateCheck.existing.filePath,
+          existingTitle: duplicateCheck.existing.title,
+          message: `DOCUMENT ALREADY EXISTS: "${duplicateCheck.existing.title}" at ${duplicateCheck.existing.filePath}.\n\n` +
+            `Use edit-doc with filePath "${duplicateCheck.existing.filePath}" and action "append" to add content to the existing document.\n` +
+            `If you want to replace its content entirely, use edit-doc with action "replace".\n` +
+            `To force creating a new file anyway, set preventDuplicates to false.` + guidance,
+        };
+      }
+
+      if (duplicateCheck.action === "replace") {
+        // Too many versions - clean up and tell model to use edit-doc
+        if (duplicateCheck.allVersions) {
+          await cleanupExcessVersions(duplicateCheck.allVersions, 1);
+        }
+        const guidance = buildGuidanceMessage(duplicateCheck);
+        return {
+          success: false,
+          duplicate: true,
+          tooManyVersions: true,
+          existingPath: duplicateCheck.existing.filePath,
+          existingTitle: duplicateCheck.existing.title,
+          message: `TOO MANY VERSIONS of "${title}" detected. Old versions have been cleaned up.\n\n` +
+            `Use edit-doc with filePath "${duplicateCheck.existing.filePath}" and action "replace" to write the correct content.\n` +
+            `DO NOT create another version.` + guidance,
+        };
       }
     }
 
@@ -197,19 +245,30 @@ export async function createDoc(input) {
       );
     }
 
-    // Validate and apply style preset with automatic category-based selection
-    let stylePreset = input.stylePreset;
+    // Style resolution priority:
+    //   1. User explicitly passed stylePreset → use it
+    //   2. Category detected → auto-select matching style (even over DNA default)
+    //   3. DNA default preset → use as general fallback
+    //   4. "minimal" → last resort
+    let stylePreset;
+    let styleReason;
 
-    // If no preset specified but category is available, automatically select style
-    if (!stylePreset && category) {
+    if (userExplicitlySetStyle) {
+      stylePreset = input.stylePreset;
+      styleReason = "user-specified";
+    } else if (category) {
       stylePreset = selectStyleBasedOnCategory(category);
+      styleReason = `auto-selected for "${category}" category`;
       console.log(
-        `[create-doc] Automatically selected style preset "${stylePreset}" for category "${category}"`,
+        `[create-doc] Auto-selected style "${stylePreset}" for category "${category}"`,
       );
+    } else if (input.stylePreset) {
+      stylePreset = input.stylePreset;
+      styleReason = "DNA default";
+    } else {
+      stylePreset = "minimal";
+      styleReason = "fallback (no category or DNA)";
     }
-
-    // Use minimal as fallback if still no preset
-    stylePreset = stylePreset || "minimal";
 
     if (!getAvailablePresets().includes(stylePreset)) {
       console.warn(
@@ -274,6 +333,7 @@ export async function createDoc(input) {
     // Add title using preset styling
     if (title) {
       const titleStyle = styleConfig.title;
+      const headingFontFamily = styleConfig.headingFont || styleConfig.font.family;
       children.push(
         createParagraph(title, {
           heading: HeadingLevel.TITLE,
@@ -288,7 +348,19 @@ export async function createDoc(input) {
           size: titleStyle.size,
           bold: titleStyle.bold,
           color: titleStyle.color,
-          fontFamily: styleConfig.font.family,
+          fontFamily: headingFontFamily,
+          smallCaps: titleStyle.smallCaps || false,
+          characterSpacing: titleStyle.characterSpacing || 0,
+          ...(titleStyle.borderBottom ? {
+            border: {
+              bottom: {
+                style: titleStyle.borderBottom.style || "single",
+                size: titleStyle.borderBottom.size || 6,
+                color: titleStyle.borderBottom.color || "000000",
+                space: titleStyle.borderBottom.space || 1,
+              },
+            },
+          } : {}),
         }),
       );
     }
@@ -298,11 +370,19 @@ export async function createDoc(input) {
       if (!para) continue;
 
       if (typeof para === "string") {
+        // Detect fenced code blocks (```...```)
+        if (para.trimStart().startsWith("```")) {
+          children.push(...createCodeBlock(para, styleConfig.code));
+          continue;
+        }
+
         // Parse inline markdown into styled TextRun array
         const baseStyle = {
           size: styleConfig.font.size,
           fontFamily: styleConfig.font.family,
           color: styleConfig.font.color,
+          codeColor: styleConfig.code?.color,
+          codeBackground: styleConfig.code?.backgroundColor,
         };
         const textRuns = parseInlineMarkdown(para, baseStyle);
 
@@ -340,10 +420,14 @@ export async function createDoc(input) {
               ? paragraphStyle.underline
               : false
             : false,
-          fontFamily: styleConfig.font.family,
+          fontFamily: isHeading
+            ? (styleConfig.headingFont || styleConfig.font.family)
+            : styleConfig.font.family,
           color:
             para.color ||
             (isHeading ? paragraphStyle.color : styleConfig.font.color),
+          codeColor: styleConfig.code?.color,
+          codeBackground: styleConfig.code?.backgroundColor,
         };
         const objTextRuns = parseInlineMarkdown(para.text, objBaseStyle);
 
@@ -379,8 +463,16 @@ export async function createDoc(input) {
           borderColor: styleConfig.table.borderColor,
           borderStyle: styleConfig.table.borderStyle,
           borderWidth: styleConfig.table.borderWidth,
-          headerFill: input.tableHeaderFill,
+          headerFill: input.tableHeaderFill || styleConfig.table.headerFill,
+          headerFontColor: styleConfig.table.headerFontColor,
+          zebraFill: styleConfig.table.zebraFill,
+          zebraInterval: styleConfig.table.zebraInterval,
+          insideBorderColor: styleConfig.table.insideBorderColor,
+          insideBorderWidth: styleConfig.table.insideBorderWidth,
+          outsideBorderWidth: styleConfig.table.outsideBorderWidth,
           cellSize: styleConfig.font.size,
+          fontFamily: styleConfig.font.family,
+          color: styleConfig.font.color,
         }),
       );
     }
@@ -424,6 +516,11 @@ export async function createDoc(input) {
       console.warn("Failed to register document:", err.message);
     }
 
+    // Record usage in DNA for auto-learning (non-fatal)
+    if (hasDNA) {
+      recordUsage(category || "misc", stylePreset);
+    }
+
     // Build message with enforcement information
     let enforcementMessage = "";
     if (docsEnforced) {
@@ -451,6 +548,7 @@ export async function createDoc(input) {
         ? { id: registryEntry.id, category: registryEntry.category }
         : null,
       stylePreset: stylePreset,
+      styleReason: styleReason,
       styleConfig: {
         preset: stylePreset,
         description: getPresetDescription(stylePreset),
@@ -467,7 +565,9 @@ export async function createDoc(input) {
         categorized: wasCategorized,
         categoryApplied: category || null,
       },
-      message: `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}`,
+      memoriesApplied: memories ? Object.keys(memories).length : 0,
+      message: `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
+        (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : ""),
     };
   } catch (err) {
     return {

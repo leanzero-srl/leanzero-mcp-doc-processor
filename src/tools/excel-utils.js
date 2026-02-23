@@ -61,10 +61,10 @@ export function applyExcelStyling(ws, data, styleConfig, preset, startRow = 0) {
           };
         }
 
-        // Header border
+        // Header border (thicker bottom for visual hierarchy)
         ws[cellRef].s.border = {
           top: { style: "thin", color: { auto: 1 } },
-          bottom: { style: "thin", color: { auto: 1 } },
+          bottom: { style: "medium", color: { auto: 1 } },
           left: { style: "thin", color: { auto: 1 } },
           right: { style: "thin", color: { auto: 1 } },
         };
@@ -193,13 +193,13 @@ export function cleanSheetData(data) {
  */
 export function getZebraColor(preset) {
   const zebraColors = {
-    minimal: "F9F9F9",
-    professional: "F2F2F2",
-    technical: "E8E8E8",
+    minimal: "FAFAFA",
+    professional: "F5F5F3",
+    technical: "F0F0F0",
     legal: "F5F5F5",
-    business: "F0F0F0",
+    business: "EBF1F7",
     casual: "FFF3E0",
     colorful: "F3E5F5",
   };
-  return zebraColors[preset] || "F9F9F9";
+  return zebraColors[preset] || "FAFAFA";
 }

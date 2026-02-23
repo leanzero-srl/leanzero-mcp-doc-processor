@@ -98,6 +98,7 @@ async function testCreateFormattedDocument() {
     footer: { text: "Page {{page}}", alignment: "center" },
     stylePreset: "professional",
     outputPath: path.join(testDir, "formatted-test.docx"),
+    preventDuplicates: false,
   });
 
   await assert(result.success, "Document created successfully");
@@ -199,6 +200,7 @@ async function testEditDocNewApproach() {
     footer: { text: "Page {{page}}" },
     stylePreset: "business",
     outputPath: path.join(testDir, "edit-test-new.docx"),
+    preventDuplicates: false,
   });
 
   await assert(createResult.success, "Test document created");
@@ -238,6 +240,7 @@ async function testEditDocLegacyApproach() {
     footer: { text: "Page {{page}}" },
     stylePreset: "minimal",
     outputPath: path.join(testDir, "edit-test-legacy.docx"),
+    preventDuplicates: false,
   });
 
   await assert(createResult.success, "Test document created");
@@ -269,6 +272,7 @@ async function testReplaceWithPreservation() {
     footer: { text: "Page {{page}}" },
     stylePreset: "technical",
     outputPath: path.join(testDir, "replace-test.docx"),
+    preventDuplicates: false,
   });
 
   await assert(createResult.success, "Test document created");
@@ -337,6 +341,7 @@ async function testWithComplexStructure() {
     stylePreset: "professional",
     margins: { top: 1.5, bottom: 1.5, left: 1, right: 1 },
     outputPath: path.join(testDir, "complex-test.docx"),
+    preventDuplicates: false,
   });
 
   await assert(createResult.success, "Complex document created");

@@ -43,15 +43,14 @@ export function encodeCell(row, col) {
 // ============================================================================
 
 const STYLE_PRESETS = {
-  // MINIMAL - Clean, simple, minimal styling
+  // MINIMAL - Clean Swiss-style, lots of whitespace, subtle details
   minimal: {
-    // DOCX styling
-    font: { size: 11, color: "000000", bold: false, family: "Arial" },
+    font: { size: 11, color: "333333", bold: false, family: "Arial" },
+    headingFont: null, // same as body
     heading1: {
       size: 16,
-      color: "000000",
+      color: "111111",
       bold: true,
-      underline: { type: "single", color: null },
       spacingBefore: 280,
       spacingAfter: 140,
     },
@@ -71,18 +70,21 @@ const STYLE_PRESETS = {
     },
     heading: {
       size: 14,
-      color: "000000",
+      color: "111111",
       bold: true,
       spacingBefore: 240,
       spacingAfter: 120,
     },
     title: {
       size: 24,
-      color: "333333",
+      color: "111111",
       bold: true,
       spacingBefore: 240,
       spacingAfter: 120,
       alignment: "center",
+      smallCaps: false,
+      characterSpacing: 0,
+      borderBottom: null,
     },
     paragraph: {
       alignment: "left",
@@ -90,20 +92,38 @@ const STYLE_PRESETS = {
       spacingAfter: 120,
       lineSpacing: 1.0,
     },
-    table: { borderColor: "D9D9D9", borderStyle: "single", borderWidth: 4 },
+    table: {
+      borderColor: "D9D9D9",
+      borderStyle: "single",
+      borderWidth: 4,
+      headerFill: "F2F2F2",
+      headerFontColor: "333333",
+      zebraFill: "FAFAFA",
+      zebraInterval: 2,
+      insideBorderColor: "E8E8E8",
+      insideBorderWidth: 2,
+      outsideBorderWidth: 4,
+    },
+    code: {
+      fontFamily: "Courier New",
+      fontSize: 9,
+      color: "1A1A1A",
+      backgroundColor: "F5F5F5",
+      borderColor: "E0E0E0",
+    },
     // Excel styling
     columnWidths: {},
     rowHeights: {},
     headerBold: true,
     headerSize: 11,
     headerColor: "FFFFFF",
-    headerBackground: "4472C4", // Excel blue
+    headerBackground: "4472C4",
   },
 
-  // PROFESSIONAL - Sophisticated, traditional professional formatting with serif typography
+  // PROFESSIONAL - Executive report with serif typography and refined details
   professional: {
-    // DOCX styling - Traditional, refined aesthetic with Garamond serif font
     font: { size: 11, color: "2C2C2C", bold: false, family: "Garamond" },
+    headingFont: "Cambria",
     heading1: {
       size: 16,
       color: "1A1A1A",
@@ -135,30 +155,51 @@ const STYLE_PRESETS = {
       spacingBefore: 480,
       spacingAfter: 300,
       alignment: "center",
+      smallCaps: true,
+      characterSpacing: 60,
+      borderBottom: { color: "999999", size: 4, style: "single", space: 4 },
     },
     paragraph: {
-      alignment: "both", // Full justification for professional, polished look
+      alignment: "both",
       spacingBefore: 180,
       spacingAfter: 180,
       lineSpacing: 1.25,
     },
-    table: { borderColor: "999999", borderStyle: "single", borderWidth: 6 },
+    table: {
+      borderColor: "999999",
+      borderStyle: "single",
+      borderWidth: 6,
+      headerFill: "2C2C2C",
+      headerFontColor: "FFFFFF",
+      zebraFill: "F5F5F3",
+      zebraInterval: 2,
+      insideBorderColor: "CCCCCC",
+      insideBorderWidth: 2,
+      outsideBorderWidth: 6,
+    },
+    code: {
+      fontFamily: "Courier New",
+      fontSize: 9,
+      color: "2C2C2C",
+      backgroundColor: "F5F0EB",
+      borderColor: "D9D0C7",
+    },
     // Excel styling
     columnWidths: {},
     rowHeights: {},
     headerBold: true,
     headerSize: 11,
     headerColor: "FFFFFF",
-    headerBackground: "3A3A3A", // Sophisticated dark gray
+    headerBackground: "3A3A3A",
   },
 
-  // TECHNICAL - Optimized for technical documentation
+  // TECHNICAL - Developer docs with clear hierarchy and high contrast
   technical: {
-    // DOCX styling - Based on technical documentation best practices
-    font: { size: 11, color: "000000", bold: false, family: "Arial" },
+    font: { size: 11, color: "1A1A1A", bold: false, family: "Arial" },
+    headingFont: "Segoe UI",
     heading1: {
       size: 16,
-      color: "000000",
+      color: "1A1A1A",
       bold: true,
       spacingBefore: 280,
       spacingAfter: 140,
@@ -180,11 +221,14 @@ const STYLE_PRESETS = {
     },
     title: {
       size: 24,
-      color: "000000",
+      color: "1A1A1A",
       bold: true,
       spacingBefore: 240,
       spacingAfter: 120,
       alignment: "left",
+      smallCaps: false,
+      characterSpacing: 0,
+      borderBottom: { color: "333333", size: 6, style: "single", space: 2 },
     },
     paragraph: {
       alignment: "left",
@@ -192,20 +236,38 @@ const STYLE_PRESETS = {
       spacingAfter: 120,
       lineSpacing: 1.15,
     },
-    table: { borderColor: "000000", borderStyle: "single", borderWidth: 6 },
+    table: {
+      borderColor: "333333",
+      borderStyle: "single",
+      borderWidth: 6,
+      headerFill: "1A1A1A",
+      headerFontColor: "FFFFFF",
+      zebraFill: "F0F0F0",
+      zebraInterval: 2,
+      insideBorderColor: "D0D0D0",
+      insideBorderWidth: 2,
+      outsideBorderWidth: 6,
+    },
+    code: {
+      fontFamily: "Courier New",
+      fontSize: 9,
+      color: "1A1A1A",
+      backgroundColor: "F5F5F5",
+      borderColor: "E0E0E0",
+    },
     // Excel styling
     columnWidths: {},
     rowHeights: {},
     headerBold: true,
     headerSize: 11,
     headerColor: "FFFFFF",
-    headerBackground: "000000", // Black headers for technical data
+    headerBackground: "000000",
   },
 
-  // LEGAL - Professional legal document formatting
+  // LEGAL - Conservative formal formatting, double-spaced, no frills
   legal: {
-    // DOCX styling - Based on legal document standards
     font: { size: 12, color: "000000", bold: false, family: "Times New Roman" },
+    headingFont: null,
     heading1: {
       size: 16,
       color: "000000",
@@ -246,27 +308,48 @@ const STYLE_PRESETS = {
       spacingAfter: 480,
       alignment: "center",
       underline: true,
+      smallCaps: false,
+      characterSpacing: 0,
+      borderBottom: null,
     },
     paragraph: {
-      alignment: "both", // Justified text for legal docs
+      alignment: "both",
       spacingBefore: 240,
       spacingAfter: 240,
-      lineSpacing: 2.0, // Double spacing for legal documents
+      lineSpacing: 2.0,
     },
-    table: { borderColor: "000000", borderStyle: "single", borderWidth: 8 },
+    table: {
+      borderColor: "000000",
+      borderStyle: "single",
+      borderWidth: 8,
+      headerFill: null,
+      headerFontColor: "000000",
+      zebraFill: null,
+      zebraInterval: 2,
+      insideBorderColor: null,
+      insideBorderWidth: null,
+      outsideBorderWidth: null,
+    },
+    code: {
+      fontFamily: "Courier New",
+      fontSize: 10,
+      color: "000000",
+      backgroundColor: "F5F5F5",
+      borderColor: "D9D9D9",
+    },
     // Excel styling
     columnWidths: {},
     rowHeights: {},
     headerBold: true,
     headerSize: 12,
     headerColor: "000000",
-    headerBackground: "FFFFFF", // White background, black text
+    headerBackground: "FFFFFF",
   },
 
-  // BUSINESS - Modern, polished business formatting with sophisticated aesthetics
+  // BUSINESS - Modern corporate with blue accent palette
   business: {
-    // DOCX styling - Contemporary, "spiffy" modern business look
     font: { size: 11, color: "333333", bold: false, family: "Calibri" },
+    headingFont: "Calibri Light",
     heading1: {
       size: 18,
       color: "1F4E79",
@@ -302,6 +385,9 @@ const STYLE_PRESETS = {
       spacingBefore: 360,
       spacingAfter: 280,
       alignment: "center",
+      smallCaps: false,
+      characterSpacing: 40,
+      borderBottom: { color: "1F4E79", size: 8, style: "single", space: 6 },
     },
     paragraph: {
       alignment: "left",
@@ -309,20 +395,38 @@ const STYLE_PRESETS = {
       spacingAfter: 140,
       lineSpacing: 1.2,
     },
-    table: { borderColor: "B7C9D6", borderStyle: "single", borderWidth: 6 },
+    table: {
+      borderColor: "B7C9D6",
+      borderStyle: "single",
+      borderWidth: 6,
+      headerFill: "1F4E79",
+      headerFontColor: "FFFFFF",
+      zebraFill: "EBF1F7",
+      zebraInterval: 2,
+      insideBorderColor: "D6E4ED",
+      insideBorderWidth: 2,
+      outsideBorderWidth: 6,
+    },
+    code: {
+      fontFamily: "Courier New",
+      fontSize: 9,
+      color: "1A3A5C",
+      backgroundColor: "EBF1F7",
+      borderColor: "B7C9D6",
+    },
     // Excel styling
     columnWidths: {},
     rowHeights: {},
     headerBold: true,
     headerSize: 11,
     headerColor: "FFFFFF",
-    headerBackground: "1F4E79", // Refined business blue
+    headerBackground: "1F4E79",
   },
 
-  // CASUAL - Friendly, readable formatting
+  // CASUAL - Friendly, warm, newsletter-style formatting
   casual: {
-    // DOCX styling - More relaxed, friendly formatting
     font: { size: 12, color: "333333", bold: false, family: "Verdana" },
+    headingFont: "Trebuchet MS",
     heading1: {
       size: 18,
       color: "E65100",
@@ -358,6 +462,9 @@ const STYLE_PRESETS = {
       spacingBefore: 200,
       spacingAfter: 200,
       alignment: "center",
+      smallCaps: false,
+      characterSpacing: 0,
+      borderBottom: { color: "FF9800", size: 6, style: "single", space: 4 },
     },
     paragraph: {
       alignment: "left",
@@ -365,20 +472,38 @@ const STYLE_PRESETS = {
       spacingAfter: 120,
       lineSpacing: 1.15,
     },
-    table: { borderColor: "FF9800", borderStyle: "single", borderWidth: 6 },
+    table: {
+      borderColor: "FF9800",
+      borderStyle: "single",
+      borderWidth: 6,
+      headerFill: "E65100",
+      headerFontColor: "FFFFFF",
+      zebraFill: "FFF3E0",
+      zebraInterval: 2,
+      insideBorderColor: "FFD180",
+      insideBorderWidth: 2,
+      outsideBorderWidth: 6,
+    },
+    code: {
+      fontFamily: "Courier New",
+      fontSize: 10,
+      color: "5D4037",
+      backgroundColor: "FFF8E1",
+      borderColor: "FFD180",
+    },
     // Excel styling
     columnWidths: {},
     rowHeights: {},
     headerBold: true,
     headerSize: 12,
     headerColor: "FFFFFF",
-    headerBackground: "FF9800", // Orange for casual
+    headerBackground: "FF9800",
   },
 
-  // COLORFUL - Vibrant, eye-catching formatting
+  // COLORFUL - Vibrant presentation/infographic style with geometric headings
   colorful: {
-    // DOCX styling
-    font: { size: 12, color: "C2185B", bold: false, family: "Arial" },
+    font: { size: 12, color: "4A148C", bold: false, family: "Arial" },
+    headingFont: "Century Gothic",
     heading1: {
       size: 20,
       color: "7B1FA2",
@@ -409,11 +534,14 @@ const STYLE_PRESETS = {
     },
     title: {
       size: 28,
-      color: "C2185B",
+      color: "4A148C",
       bold: true,
       spacingBefore: 200,
       spacingAfter: 200,
       alignment: "center",
+      smallCaps: true,
+      characterSpacing: 80,
+      borderBottom: { color: "7B1FA2", size: 8, style: "double", space: 4 },
     },
     paragraph: {
       alignment: "center",
@@ -421,14 +549,32 @@ const STYLE_PRESETS = {
       spacingAfter: 120,
       lineSpacing: 1.0,
     },
-    table: { borderColor: "7B1FA2", borderStyle: "double", borderWidth: 8 },
+    table: {
+      borderColor: "7B1FA2",
+      borderStyle: "double",
+      borderWidth: 8,
+      headerFill: "4A148C",
+      headerFontColor: "FFFFFF",
+      zebraFill: "F3E5F5",
+      zebraInterval: 2,
+      insideBorderColor: "CE93D8",
+      insideBorderWidth: 4,
+      outsideBorderWidth: 8,
+    },
+    code: {
+      fontFamily: "Courier New",
+      fontSize: 10,
+      color: "4A148C",
+      backgroundColor: "F3E5F5",
+      borderColor: "CE93D8",
+    },
     // Excel styling
     columnWidths: {},
     rowHeights: {},
     headerBold: true,
     headerSize: 12,
     headerColor: "FFFFFF",
-    headerBackground: "7B1FA2", // Purple for colorful
+    headerBackground: "7B1FA2",
   },
 };
 
@@ -590,6 +736,8 @@ export function createStyledHeading(
     }
   }
 
+  const headingFontFamily = config.headingFont || config.font.family;
+
   return new DocxParagraph({
     children: [
       new TextRun({
@@ -598,7 +746,7 @@ export function createStyledHeading(
         italics: headingConfig.italic || false,
         color: headingConfig.color,
         size: headingConfig.size * 2,
-        font: config.font.family,
+        font: headingFontFamily,
         underline: underlineConfig,
       }),
     ],
@@ -678,6 +826,10 @@ export function getStyleConfig(presetName = "minimal", customOptions = {}) {
 
   return {
     font: { ...basePreset.font, ...(customOptions.font || {}) },
+    headingFont:
+      customOptions.headingFont !== undefined
+        ? customOptions.headingFont
+        : basePreset.headingFont || null,
     heading1: { ...basePreset.heading1, ...(customOptions.heading1 || {}) },
     heading2: { ...basePreset.heading2, ...(customOptions.heading2 || {}) },
     heading3: { ...basePreset.heading3, ...(customOptions.heading3 || {}) },
@@ -685,6 +837,7 @@ export function getStyleConfig(presetName = "minimal", customOptions = {}) {
     title: { ...basePreset.title, ...(customOptions.title || {}) },
     paragraph: { ...basePreset.paragraph, ...(customOptions.paragraph || {}) },
     table: { ...basePreset.table, ...(customOptions.table || {}) },
+    code: { ...basePreset.code, ...(customOptions.code || {}) },
     // Excel-specific styling
     columnWidths:
       customOptions.columnWidths !== undefined
@@ -783,11 +936,14 @@ export function buildDocumentStyles(styleConfig) {
   const title = styleConfig.title || {};
   const para = styleConfig.paragraph || {};
 
+  const bodyFont = font.family || "Arial";
+  const headingFontFamily = styleConfig.headingFont || bodyFont;
+
   return {
     default: {
       document: {
         run: {
-          font: font.family || "Arial",
+          font: bodyFont,
           size: (font.size || 11) * 2,
           color: font.color || "000000",
         },
@@ -799,10 +955,12 @@ export function buildDocumentStyles(styleConfig) {
       },
       heading1: {
         run: {
-          font: font.family || "Arial",
+          font: headingFontFamily,
           size: (h1.size || 16) * 2,
           bold: h1.bold !== false,
           color: h1.color || "000000",
+          ...(h1.italic ? { italics: true } : {}),
+          ...(h1.underline ? { underline: resolveUnderline(h1.underline) } : {}),
         },
         paragraph: {
           spacing: {
@@ -813,10 +971,12 @@ export function buildDocumentStyles(styleConfig) {
       },
       heading2: {
         run: {
-          font: font.family || "Arial",
+          font: headingFontFamily,
           size: (h2.size || 14) * 2,
           bold: h2.bold !== false,
           color: h2.color || "1A1A1A",
+          ...(h2.italic ? { italics: true } : {}),
+          ...(h2.underline ? { underline: resolveUnderline(h2.underline) } : {}),
         },
         paragraph: {
           spacing: {
@@ -827,10 +987,12 @@ export function buildDocumentStyles(styleConfig) {
       },
       heading3: {
         run: {
-          font: font.family || "Arial",
+          font: headingFontFamily,
           size: (h3.size || 12) * 2,
           bold: h3.bold !== false,
           color: h3.color || "333333",
+          ...(h3.italic ? { italics: true } : {}),
+          ...(h3.underline ? { underline: resolveUnderline(h3.underline) } : {}),
         },
         paragraph: {
           spacing: {
@@ -848,18 +1010,47 @@ export function buildDocumentStyles(styleConfig) {
         next: "Normal",
         quickFormat: true,
         run: {
-          font: font.family || "Arial",
+          font: headingFontFamily,
           size: (title.size || 24) * 2,
           bold: title.bold !== false,
           color: title.color || "333333",
+          ...(title.smallCaps ? { smallCaps: true } : {}),
+          ...(title.characterSpacing ? { characterSpacing: title.characterSpacing } : {}),
         },
         paragraph: {
           spacing: {
             before: title.spacingBefore || 240,
             after: title.spacingAfter || 120,
           },
+          ...(title.borderBottom ? {
+            border: {
+              bottom: {
+                style: title.borderBottom.style || "single",
+                size: title.borderBottom.size || 6,
+                color: title.borderBottom.color || "000000",
+                space: title.borderBottom.space || 1,
+              },
+            },
+          } : {}),
         },
       },
     ],
   };
+}
+
+/**
+ * Resolves underline config from boolean or object to docx-compatible format
+ */
+function resolveUnderline(underlineConfig) {
+  if (!underlineConfig) return undefined;
+  if (typeof underlineConfig === "boolean") {
+    return { type: "single" };
+  }
+  if (typeof underlineConfig === "object") {
+    return {
+      type: underlineConfig.type || "single",
+      ...(underlineConfig.color ? { color: underlineConfig.color } : {}),
+    };
+  }
+  return undefined;
 }

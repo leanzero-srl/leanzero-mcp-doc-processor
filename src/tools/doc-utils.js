@@ -9,6 +9,8 @@ import {
   Header,
   Footer,
   PageNumber,
+  ShadingType,
+  TableLayoutType,
 } from "docx";
 import { marked } from "marked";
 
@@ -102,6 +104,8 @@ export function createText(text, options = {}) {
     size: (options.size || 12) * 2, // Convert points to half-points
     color: options.color || "000000",
     font: options.fontFamily || "Arial",
+    ...(options.smallCaps ? { smallCaps: true } : {}),
+    ...(options.characterSpacing ? { characterSpacing: options.characterSpacing } : {}),
   });
 }
 
@@ -151,9 +155,18 @@ function processMarkedToken(token, baseStyle, currentStyle = {}) {
       break;
 
     case "codespan":
-      // Inline code - use monospace font
+      // Inline code - monospace font with light gray background
       runs.push(
-        createText(token.text, { ...style, fontFamily: "Courier New" }),
+        new TextRun({
+          text: String(token.text || ""),
+          font: "Courier New",
+          size: (style.size || 11) * 2, // half-points
+          color: style.codeColor || "1A1A1A",
+          shading: {
+            type: ShadingType.CLEAR,
+            fill: style.codeBackground || "F0F0F0",
+          },
+        }),
       );
       break;
 
@@ -322,6 +335,8 @@ export function createParagraph(textOrRuns, options = {}) {
         ? Math.round(options.lineSpacing * 240)
         : undefined,
     },
+    ...(options.border ? { border: options.border } : {}),
+    ...(options.shading ? { shading: options.shading } : {}),
   });
 }
 
@@ -333,46 +348,79 @@ export function createTableFromData(data, options = {}) {
   const borderStyle = options.borderStyle || "single";
   const borderWidth = options.borderWidth ?? 4;
 
+  // New table visual properties
+  const headerFill = options.headerFill || null;
+  const headerFontColor = options.headerFontColor || null;
+  const zebraFill = options.zebraFill || null;
+  const zebraInterval = options.zebraInterval || 2;
+  const insideBorderColor = options.insideBorderColor || borderColor;
+  const insideBorderWidth = options.insideBorderWidth ?? borderWidth;
+  const outsideBorderWidth = options.outsideBorderWidth ?? borderWidth;
+
+  // Calculate equal column widths for consistent table layout
+  // Standard DOCX page width is ~9360 twips (6.5 inches at 1440 twips/inch)
+  const numCols = Math.max(...data.map((row) => (Array.isArray(row) ? row.length : 0)), 1);
+  const totalWidth = 9360;
+  const defaultColWidths = Array(numCols).fill(Math.floor(totalWidth / numCols));
+  const colWidths = options.columnWidths || defaultColWidths;
+
   return new Table({
     rows: data.map((row, rowIndex) => {
+      const isHeader = rowIndex === 0;
+      const isZebraRow = !isHeader && zebraFill && (rowIndex % zebraInterval === 0);
+
       return new TableRow({
         children: row.map((cell) => {
-          // Parse markdown in table cell content
           const cellText = typeof cell === "string" ? cell : String(cell);
           const cellBaseStyle = {
             size: options.cellSize || 11,
             fontFamily: options.fontFamily,
-            color: options.color,
+            color: isHeader && headerFontColor ? headerFontColor : (options.color || undefined),
+            bold: isHeader && headerFill ? true : undefined,
           };
           const cellRuns = parseInlineMarkdown(cellText, cellBaseStyle);
+
+          // Determine cell shading
+          let cellShading = undefined;
+          if (isHeader && headerFill) {
+            cellShading = {
+              fill: headerFill,
+              type: ShadingType.SOLID,
+              color: headerFill,
+            };
+          } else if (isZebraRow) {
+            cellShading = {
+              fill: zebraFill,
+              type: ShadingType.SOLID,
+              color: zebraFill,
+            };
+          }
+
           return new TableCell({
             children: [createParagraph(cellRuns, {})],
-            shading: {
-              fill:
-                rowIndex === 0 && options.headerFill
-                  ? options.headerFill
-                  : undefined,
-            },
+            ...(cellShading ? { shading: cellShading } : {}),
           });
         }),
-        tableHeader: rowIndex === 0,
+        tableHeader: isHeader,
       });
     }),
+    columnWidths: colWidths,
+    layout: TableLayoutType.FIXED,
     width: { size: 100, type: "pct" },
     borders: {
-      top: { style: borderStyle, size: borderWidth, color: borderColor },
-      bottom: { style: borderStyle, size: borderWidth, color: borderColor },
-      left: { style: borderStyle, size: borderWidth, color: borderColor },
-      right: { style: borderStyle, size: borderWidth, color: borderColor },
+      top: { style: borderStyle, size: outsideBorderWidth, color: borderColor },
+      bottom: { style: borderStyle, size: outsideBorderWidth, color: borderColor },
+      left: { style: borderStyle, size: outsideBorderWidth, color: borderColor },
+      right: { style: borderStyle, size: outsideBorderWidth, color: borderColor },
       insideHorizontal: {
         style: borderStyle,
-        size: borderWidth,
-        color: borderColor,
+        size: insideBorderWidth,
+        color: insideBorderColor,
       },
       insideVertical: {
         style: borderStyle,
-        size: borderWidth,
-        color: borderColor,
+        size: insideBorderWidth,
+        color: insideBorderColor,
       },
     },
   });
@@ -472,5 +520,75 @@ export function createDocFooter(options = {}) {
               : AlignmentType.LEFT,
       }),
     ],
+  });
+}
+
+/**
+ * Creates styled code block paragraphs from a code string.
+ * Renders as monospace text with a shaded background and thin border.
+ * Multi-line code is split into multiple paragraphs with tight spacing.
+ *
+ * @param {string} code - The code text (may be multi-line)
+ * @param {Object} codeStyle - Code style config from preset (fontFamily, fontSize, color, backgroundColor, borderColor)
+ * @returns {Paragraph[]} Array of Paragraph objects
+ */
+export function createCodeBlock(code, codeStyle = {}) {
+  const fontFamily = codeStyle.fontFamily || "Courier New";
+  const fontSize = codeStyle.fontSize || 9;
+  const color = codeStyle.color || "1A1A1A";
+  const backgroundColor = codeStyle.backgroundColor || "F5F5F5";
+  const borderColor = codeStyle.borderColor || "E0E0E0";
+
+  // Strip leading/trailing fences if present (```language ... ```)
+  let cleaned = code;
+  if (cleaned.startsWith("```")) {
+    // Remove opening fence line
+    const firstNewline = cleaned.indexOf("\n");
+    cleaned = firstNewline >= 0 ? cleaned.substring(firstNewline + 1) : "";
+    // Remove closing fence
+    if (cleaned.endsWith("```")) {
+      cleaned = cleaned.substring(0, cleaned.length - 3);
+    }
+    cleaned = cleaned.replace(/\n```\s*$/, "");
+  }
+  cleaned = cleaned.replace(/^\n+|\n+$/g, "");
+
+  const lines = cleaned.split("\n");
+  const shading = {
+    type: ShadingType.CLEAR,
+    fill: backgroundColor,
+    color: "auto",
+  };
+  const border = {
+    top: { style: "single", size: 2, color: borderColor },
+    bottom: { style: "single", size: 2, color: borderColor },
+    left: { style: "single", size: 2, color: borderColor },
+    right: { style: "single", size: 2, color: borderColor },
+  };
+
+  return lines.map((line, index) => {
+    return new Paragraph({
+      children: [
+        new TextRun({
+          text: line || " ", // empty lines need a space for the shading to render
+          font: fontFamily,
+          size: fontSize * 2, // half-points
+          color: color,
+        }),
+      ],
+      shading,
+      // Only top border on first line, only bottom on last, sides on all
+      border: {
+        top: index === 0 ? border.top : undefined,
+        bottom: index === lines.length - 1 ? border.bottom : undefined,
+        left: border.left,
+        right: border.right,
+      },
+      spacing: {
+        before: index === 0 ? 120 : 0,
+        after: index === lines.length - 1 ? 120 : 0,
+        line: 260, // tight line spacing (~1.08) for code
+      },
+    });
   });
 }
