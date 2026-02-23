@@ -26,7 +26,14 @@ import { editExcel } from "./tools/edit-excel.js";
 import { listDocuments, searchRegistry } from "./tools/utils.js";
 
 // Import DNA manager
-import { loadDNA, createDNAFile, getDefaultDNA } from "./utils/dna-manager.js";
+import { loadDNA, createDNAFile, getDefaultDNA, analyzeProjectProfile } from "./utils/dna-manager.js";
+
+// Import AI guidance tools (lean: 3 tools instead of 7)
+import {
+  handleCheckDocument,
+  handleSaveMemory,
+  handleDeleteMemory
+} from "./tools/guidance-tools.js";
 
 // Initialize logging
 setupLogging();
@@ -731,19 +738,79 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
         },
       },
-      {
-        name: "get-dna",
-        description:
-          "Get the current Document DNA configuration for this project. Returns the .document-dna.json settings including company name, default style preset, header and footer configuration. " +
-          "Returns null if DNA has not been initialized (use init-dna to set it up). " +
-          "AI models should call this at the start of document creation workflows to understand the project's document identity.",
-        inputSchema: {
-          type: "object",
-          properties: {},
-        },
-      },
-    ],
-  };
+       {
+         name: "get-dna",
+         description:
+           "Get the current Document DNA configuration for this project. Returns the .document-dna.json settings including company name, default style preset, header and footer configuration. " +
+           "Returns null if DNA has not been initialized (use init-dna to set it up). " +
+           "AI models should call this at the start of document creation workflows to understand the project's document identity.",
+         inputSchema: {
+           type: "object",
+           properties: {},
+         },
+       },
+       {
+         name: "check-document",
+         description:
+           "Check if a document already exists before creating it. Returns clear guidance: 'create' (no existing doc, proceed with create-doc), " +
+           "'augment' (document exists, use edit-doc with append), or 'replace' (too many versions, old ones cleaned up, use edit-doc with replace). " +
+           "NOTE: create-doc already calls this internally and will reject duplicates. You only need this tool if you want to check BEFORE preparing content. " +
+           "For most workflows, just call create-doc directly — it will tell you if a duplicate exists.",
+         inputSchema: {
+           type: "object",
+           properties: {
+             title: {
+               type: "string",
+               description: "Title of the document you plan to create",
+             },
+             category: {
+               type: "string",
+               description: "Document category (contracts, technical, business, legal, meeting, research)",
+             },
+           },
+           required: ["title"],
+         },
+       },
+       {
+         name: "save-memory",
+         description:
+           "Save a document-related preference or instruction that persists across sessions. " +
+           "Memories are stored in .document-dna.json and influence how ALL future documents are created. " +
+           "Use this when the user expresses a preference about document creation style, tone, structure, or formatting. " +
+           "Examples: 'Always use formal tone in business documents', 'Include executive summary in reports', 'Use metric units'. " +
+           "To view current memories, use get-dna. To remove a memory, use delete-memory.",
+         inputSchema: {
+           type: "object",
+           properties: {
+             memory: {
+               type: "string",
+               description: "The preference or instruction to remember (e.g., 'Use bullet points for action items')",
+             },
+             key: {
+               type: "string",
+               description: "Optional short key for this memory. If not provided, one is generated from the text.",
+             },
+           },
+           required: ["memory"],
+         },
+       },
+       {
+         name: "delete-memory",
+         description:
+           "Delete a document memory by its key. Use get-dna to see current memories and their keys first.",
+         inputSchema: {
+           type: "object",
+           properties: {
+             key: {
+               type: "string",
+               description: "The key of the memory to delete (visible in get-dna output under 'memories')",
+             },
+           },
+           required: ["key"],
+         },
+       },
+      ],
+    };
 });
 
 /**
@@ -999,28 +1066,65 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "get-dna": {
-        const dna = loadDNA();
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  initialized: dna !== null,
-                  config: dna || null,
-                  message: dna
-                    ? "Document DNA is configured. All new documents will use these defaults unless overridden."
-                    : "Document DNA is not initialized. Use init-dna to set up project document identity.",
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
+         const dna = loadDNA();
+         const memoriesList = dna && dna.memories
+           ? Object.entries(dna.memories).map(([key, val]) => `  - ${key}: "${val.text}"`)
+           : [];
+         const profile = analyzeProjectProfile();
 
-      default:
+         let profileMsg = "";
+         if (profile) {
+           profileMsg = `\n\nProject profile (${profile.totalDocs} documents created):`;
+           if (profile.dominantCategory) {
+             profileMsg += `\n  Most used category: ${profile.dominantCategory} (${profile.dominantCategoryPct}%)`;
+           }
+           if (profile.dominantStyle) {
+             profileMsg += `\n  Most used style: ${profile.dominantStyle} (${profile.dominantStylePct}%)`;
+           }
+           if (profile.suggestion) {
+             profileMsg += `\n  Suggestion: ${profile.suggestion}`;
+           }
+         }
+
+         return {
+           content: [
+             {
+               type: "text",
+               text: JSON.stringify(
+                 {
+                   initialized: dna !== null,
+                   config: dna || null,
+                   memoriesCount: memoriesList.length,
+                   projectProfile: profile,
+                   message: dna
+                     ? "Document DNA is configured. All new documents will use these defaults unless overridden." +
+                       (memoriesList.length > 0
+                         ? `\n\nActive document memories (${memoriesList.length}):\n${memoriesList.join("\n")}\n\nThese memories influence how documents are created. Use save-memory to add new ones, delete-memory to remove.`
+                         : "\n\nNo document memories stored yet. Use save-memory to store document preferences.") +
+                       profileMsg
+                     : "Document DNA is not initialized. Use init-dna to set up project document identity.",
+                 },
+                 null,
+                 2,
+               ),
+             },
+           ],
+         };
+       }
+       
+       case "check-document": {
+         return await handleCheckDocument(params);
+       }
+
+       case "save-memory": {
+         return await handleSaveMemory(params);
+       }
+
+       case "delete-memory": {
+         return await handleDeleteMemory(params);
+       }
+
+       default:
         log("error", "Unknown tool requested:", { toolName });
         return {
           content: [

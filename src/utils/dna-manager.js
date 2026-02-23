@@ -120,6 +120,16 @@ export function createDNAFile(config = {}, projectRoot) {
     },
   };
 
+  // Preserve memories if provided (not part of defaults, user-managed)
+  if (config.memories && typeof config.memories === "object") {
+    merged.memories = config.memories;
+  }
+
+  // Preserve usage stats if provided (auto-tracked)
+  if (config.usage && typeof config.usage === "object") {
+    merged.usage = config.usage;
+  }
+
   // Validate merged DNA
   const validation = validateDNA(merged);
   
@@ -221,4 +231,89 @@ export function clearDNACache() {
  */
 export function loadUserDNA(projectRoot) {
   return _loadUserDNA(projectRoot);
+}
+
+/**
+ * Record a document creation event in DNA usage stats.
+ * This builds up a profile of what the project actually produces,
+ * so the system can auto-tune defaults over time.
+ *
+ * Non-blocking, non-fatal — failures are silently ignored.
+ *
+ * @param {string} category - Document category used
+ * @param {string} stylePreset - Style preset used
+ */
+export function recordUsage(category, stylePreset) {
+  try {
+    const dna = loadDNA();
+    if (!dna) return; // No DNA file, nothing to update
+
+    const usage = dna.usage || { categories: {}, styles: {}, totalDocs: 0 };
+
+    usage.totalDocs = (usage.totalDocs || 0) + 1;
+
+    if (category) {
+      usage.categories[category] = (usage.categories[category] || 0) + 1;
+    }
+    if (stylePreset) {
+      usage.styles[stylePreset] = (usage.styles[stylePreset] || 0) + 1;
+    }
+
+    // Write updated DNA with usage stats
+    const updated = { ...dna, usage };
+    const root = process.cwd();
+    const filePath = path.join(root, DNA_FILENAME);
+    fs.writeFileSync(filePath, JSON.stringify(updated, null, 2), "utf-8");
+
+    // Invalidate cache so next read picks up changes
+    _cache = { path: null, mtime: 0, data: null };
+  } catch {
+    // Non-fatal — usage tracking should never break document creation
+  }
+}
+
+/**
+ * Analyze DNA usage stats and return project profile insights.
+ * Used by get-dna and init-dna to show what the project actually does.
+ *
+ * @returns {Object|null} Profile analysis or null if no usage data
+ */
+export function analyzeProjectProfile() {
+  const dna = loadDNA();
+  if (!dna || !dna.usage || !dna.usage.totalDocs) return null;
+
+  const { categories, styles, totalDocs } = dna.usage;
+
+  // Find dominant category
+  let topCategory = null;
+  let topCategoryCount = 0;
+  for (const [cat, count] of Object.entries(categories || {})) {
+    if (count > topCategoryCount) {
+      topCategory = cat;
+      topCategoryCount = count;
+    }
+  }
+
+  // Find dominant style
+  let topStyle = null;
+  let topStyleCount = 0;
+  for (const [style, count] of Object.entries(styles || {})) {
+    if (count > topStyleCount) {
+      topStyle = style;
+      topStyleCount = count;
+    }
+  }
+
+  return {
+    totalDocs,
+    dominantCategory: topCategory,
+    dominantCategoryPct: topCategory ? Math.round((topCategoryCount / totalDocs) * 100) : 0,
+    dominantStyle: topStyle,
+    dominantStylePct: topStyle ? Math.round((topStyleCount / totalDocs) * 100) : 0,
+    categories,
+    styles,
+    suggestion: topCategory && topCategoryCount >= 3
+      ? `This project mostly creates ${topCategory} documents. Consider setting defaults.category to "${topCategory}" in DNA.`
+      : null
+  };
 }

@@ -66,16 +66,16 @@ function testBuildDocumentStyles() {
     "heading1 spacing before matches",
   );
 
-  // Test 4: Title paragraph style is defined
+  // Test 4: Title paragraph style is defined and uses heading font
   const titleStyle = styles.paragraphStyles.find((s) => s.id === "Title");
   assert(titleStyle !== undefined, "Title paragraph style exists");
   assert(
-    titleStyle.run.font === "Garamond",
-    "Title font matches document font",
+    titleStyle.run.font === "Cambria",
+    "Title font uses headingFont (Cambria) for professional",
   );
   assert(titleStyle.run.bold === true, "Title is bold");
 
-  // Test 5: All presets produce valid styles
+  // Test 5: All presets produce valid styles with correct font pairing
   for (const preset of [
     "minimal",
     "professional",
@@ -89,11 +89,47 @@ function testBuildDocumentStyles() {
     const s = buildDocumentStyles(cfg);
     assert(
       s.default.document.run.font === cfg.font.family,
-      `${preset}: font family preserved correctly`,
+      `${preset}: body font preserved correctly`,
+    );
+    // Headings should use headingFont when defined, body font otherwise
+    const expectedHeadingFont = cfg.headingFont || cfg.font.family;
+    assert(
+      s.default.heading1.run.font === expectedHeadingFont,
+      `${preset}: heading1 uses correct font (${expectedHeadingFont})`,
+    );
+    // Title should also use heading font
+    const ts = s.paragraphStyles.find((p) => p.id === "Title");
+    assert(
+      ts.run.font === expectedHeadingFont,
+      `${preset}: Title uses correct font (${expectedHeadingFont})`,
     );
   }
 
-  // Test 6: selectStyleBasedOnCategory mapping
+  // Test 6: headingFont property exists on presets that define it
+  const businessConfig = getStyleConfig("business");
+  assert(businessConfig.headingFont === "Calibri Light", "business has headingFont Calibri Light");
+  const casualConfig = getStyleConfig("casual");
+  assert(casualConfig.headingFont === "Trebuchet MS", "casual has headingFont Trebuchet MS");
+  const colorfulConfig = getStyleConfig("colorful");
+  assert(colorfulConfig.headingFont === "Century Gothic", "colorful has headingFont Century Gothic");
+  const minimalConfig = getStyleConfig("minimal");
+  assert(minimalConfig.headingFont === null, "minimal has null headingFont");
+
+  // Test 7: Table properties — headerFill exists for non-legal presets
+  assert(config.table.headerFill !== null, "professional has table.headerFill");
+  assert(businessConfig.table.headerFill !== null, "business has table.headerFill");
+  assert(colorfulConfig.table.headerFill !== null, "colorful has table.headerFill");
+  const legalConfig = getStyleConfig("legal");
+  assert(legalConfig.table.headerFill === null, "legal has null table.headerFill");
+  assert(legalConfig.table.zebraFill === null, "legal has null table.zebraFill");
+
+  // Test 8: Title smallCaps and borderBottom on presets that use them
+  assert(config.title.smallCaps === true, "professional title has smallCaps");
+  assert(config.title.borderBottom !== null, "professional title has borderBottom");
+  assert(colorfulConfig.title.smallCaps === true, "colorful title has smallCaps");
+  assert(minimalConfig.title.smallCaps !== true, "minimal title has no smallCaps");
+
+  // Test 9: selectStyleBasedOnCategory mapping
   assert(
     selectStyleBasedOnCategory("contracts") === "legal",
     "contracts -> legal",
@@ -147,9 +183,12 @@ async function demonstrateStyling() {
         ["Column A", "Column B", "Column C"],
         ["Data 1", "Data 2", "Data 3"],
         ["Data 4", "Data 5", "Data 6"],
+        ["Data 7", "Data 8", "Data 9"],
+        ["Data 10", "Data 11", "Data 12"],
       ],
     ],
     outputPath: "./output/doc-minimal.docx",
+    preventDuplicates: false,
   });
   console.log("� Result:", docMinimalResult.success ? "SUCCESS" : "FAILED");
   if (docMinimalResult.styleConfig) {
@@ -182,10 +221,13 @@ async function demonstrateStyling() {
         ["Name", "Department", "Salary"],
         ["John Doe", "Engineering", "$75,000"],
         ["Jane Smith", "Marketing", "$82,500"],
+        ["Bob Wilson", "Finance", "$71,200"],
+        ["Alice Chen", "Design", "$79,900"],
       ],
     ],
     stylePreset: "professional",
     outputPath: "./output/doc-professional.docx",
+    preventDuplicates: false,
   });
   console.log(
     "� Result:",
@@ -219,10 +261,13 @@ async function demonstrateStyling() {
         ["Category", "Value", "Status"],
         ["High Priority", "Critical", "Pending"],
         ["Low Priority", "Normal", "Complete"],
+        ["Medium Priority", "Warning", "In Progress"],
+        ["Urgent", "Severe", "Escalated"],
       ],
     ],
     stylePreset: "colorful",
     outputPath: "./output/doc-colorful.docx",
+    preventDuplicates: false,
   });
   console.log("� Result:", docColorfulResult.success ? "SUCCESS" : "FAILED");
   if (docColorfulResult.styleConfig) {
@@ -278,6 +323,7 @@ async function demonstrateStyling() {
       },
     },
     outputPath: "./output/doc-custom.docx",
+    preventDuplicates: false,
   });
   console.log("� Result:", docCustomResult.success ? "SUCCESS" : "FAILED");
   if (docCustomResult.styleConfig) {
