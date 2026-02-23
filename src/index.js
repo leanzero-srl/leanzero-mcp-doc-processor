@@ -22,6 +22,12 @@ import { createExcel } from "./tools/create-excel.js";
 import { editDoc } from "./tools/edit-doc.js";
 import { editExcel } from "./tools/edit-excel.js";
 
+// Import registry query tools
+import { listDocuments, searchRegistry } from "./tools/utils.js";
+
+// Import DNA manager
+import { loadDNA, createDNAFile, getDefaultDNA } from "./utils/dna-manager.js";
+
 // Initialize logging
 setupLogging();
 
@@ -104,10 +110,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         description:
           "Creates a Word DOCX document on DISK with title, paragraphs, tables, headers, and footers. " +
           "USER CONFIRMATION REQUIRED: This tool writes files to disk. ALWAYS describe to the user what document you plan to create (title, sections, approximate content) and get their explicit confirmation BEFORE calling this tool. Never call create-doc without the user's approval. Use dryRun: true to generate a preview first. " +
-          "CONTENT RULES: Do NOT include markdown syntax in paragraph text. No **, *, #, -, backticks, or other markdown ornaments. Write clean prose. The tool handles formatting through its style system (headingLevel, bold, stylePreset). If you need bold text, use paragraph objects with bold: true. If you need headings, use headingLevel: 'heading1'. Any remaining markdown syntax will be automatically converted to proper DOCX formatting, but you should avoid it. " +
+          "CONTENT RULES: Do NOT include markdown syntax in paragraph text. No **, *, #, -, backticks, or other markdown ornaments. Write clean prose. The tool handles formatting through its style system (headingLevel, bold, stylePreset). " +
+          'HEADING STRUCTURE: Use paragraph objects with headingLevel to create proper document hierarchy. For example, use {"text": "Core Components", "headingLevel": "heading2"} for section headings. This preserves the document structure and enables proper styling based on the selected stylePreset. ' +
           "CONSOLIDATION: Before creating a document, gather and consolidate ALL relevant information first. Do not create multiple small documents when one comprehensive document would serve better. Structure content logically with a clear title, organized sections, and coherent flow. " +
           "READ FIRST: If an existing document at the target path may already contain relevant content, use get-doc-summary or get-doc-indepth to read it first. Then decide whether to edit it (using edit-doc) or create a fresh version. " +
-          "ORGANIZATION: The tool enforces docs/ folder by default. EXTENSION: Enforces .docx extension regardless of input. Supports 7 style presets (minimal, professional, technical, legal, business, casual, colorful).",
+          "CATEGORIES: Optionally specify a category to auto-organize into subfolders (docs/contracts/, docs/technical/, etc.). Documents are tracked in a registry for deduplication and discovery. " +
+          "ORGANIZATION: The tool enforces docs/ folder by default. EXTENSION: Enforces .docx extension regardless of input. Supports 7 style presets (minimal, professional, technical, legal, business, casual, colorful). " +
+          "DOCUMENT DNA: This project may have a .document-dna.json file that defines default headers, footers, and style presets. When present, documents automatically include branded headers and footers without needing to specify them. Use get-dna to check current DNA settings, or init-dna to set up project document identity. You can always override DNA defaults by explicitly passing header, footer, or stylePreset parameters.",
         inputSchema: {
           type: "object",
           properties: {
@@ -117,9 +126,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             paragraphs: {
               type: "array",
-              items: { type: "string" },
+              items: {
+                oneOf: [
+                  { type: "string", description: "Simple paragraph text" },
+                  {
+                    type: "object",
+                    properties: {
+                      text: { type: "string" },
+                      headingLevel: {
+                        type: "string",
+                        enum: ["heading1", "heading2", "heading3"],
+                        description:
+                          "Heading level for the paragraph (heading1, heading2, or heading3)",
+                      },
+                      bold: { type: "boolean" },
+                      italics: { type: "boolean" },
+                      underline: { type: "boolean" },
+                      alignment: {
+                        type: "string",
+                        enum: ["left", "right", "center", "both"],
+                      },
+                    },
+                    required: ["text"],
+                  },
+                ],
+              },
               description:
-                "Array of paragraph strings. Write clean prose without markdown syntax.",
+                "Array of paragraphs. Can be simple strings or objects with headingLevel, formatting options, and text content.",
             },
             tables: {
               type: "array",
@@ -141,7 +174,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 "colorful",
               ],
               description:
-                "Style preset name: minimal (clean/basic), professional (Garamond serif, full justification), technical (Arial, optimized readability), legal (Times New Roman, double-spaced), business (Calibri, modern blue palette), casual (Verdana, warm colors), colorful (vibrant, visual impact). Default: minimal. Choose based on document type and audience.",
+                "Style preset name: minimal (clean/basic), professional (Garamond serif, full justification), technical (Arial, optimized readability), legal (Times New Roman, double-spaced), business (Calibri, modern blue palette), casual (Verdana, warm colors), colorful (vibrant, visual impact). Default: minimal. AUTO-SELECTION: If omitted and a category is provided, the style is automatically selected based on category: contracts→legal, technical→technical, business→business, meeting→professional, research→professional. Choose the appropriate category and let the system pick the matching style, or specify stylePreset explicitly to override.",
             },
             header: {
               type: "object",
@@ -161,12 +194,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             footer: {
               type: "object",
               description:
-                "Footer configuration options. Use {{page}} for page number.",
+                "Footer configuration options. Use {current} for current page number and {total} for total pages. Example: 'Page {current} of {total}'. Legacy {{page}} syntax also supported. If Document DNA is configured, a footer is applied automatically unless you explicitly set one here.",
               properties: {
                 text: {
                   type: "string",
                   description:
-                    "Text to display in footer. Use '{{page}}' placeholder for page numbers (e.g., 'Page {{page}} of 5')",
+                    "Text to display in footer. Use '{current}' for page number and '{total}' for total pages (e.g., 'Page {current} of {total}')",
                 },
                 alignment: {
                   type: "string",
@@ -267,6 +300,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description:
                 "When true, returns a preview of the document that would be created WITHOUT writing any file to disk. Use this to show the user what will be created before committing. Default: false.",
             },
+            category: {
+              type: "string",
+              enum: [
+                "contracts",
+                "technical",
+                "business",
+                "legal",
+                "meeting",
+                "research",
+              ],
+              description:
+                "Document category for automatic subfolder organization. Files are placed in docs/{category}/. " +
+                "Available: contracts (legal agreements, NDA), technical (specs, API docs), business (reports, proposals), " +
+                "legal (memos, compliance), meeting (minutes, agendas), research (papers, whitepapers). " +
+                "If omitted, file goes to docs/ root.",
+            },
+            tags: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Tags for document search and discovery in the registry. Example: ['Q1-2026', 'finance', 'draft']",
+            },
+            description: {
+              type: "string",
+              description:
+                "Brief description of the document for registry search. Helps find documents later.",
+            },
           },
           required: ["title"],
         },
@@ -279,7 +339,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "CONTENT RULES: Do NOT include markdown syntax in cell values. No **, *, #, -, backticks. Write plain data values. Any markdown will be automatically stripped. " +
           "CONSOLIDATION: Organize all data into well-structured sheets before creating. Use clear column headers. Group related data into logical sheets rather than creating multiple workbooks. " +
           "READ FIRST: If appending data to an existing spreadsheet, use get-doc-indepth to read the current contents first, then use edit-excel to add new data rather than creating a duplicate file. " +
-          "ORGANIZATION: The tool enforces docs/ folder by default. EXTENSION: Enforces .xlsx extension. Supports 7 style presets with optimized header backgrounds and colors.",
+          "CATEGORIES: Optionally specify a category to auto-organize into subfolders (docs/contracts/, docs/technical/, etc.). Documents are tracked in a registry for deduplication and discovery. " +
+          "ORGANIZATION: The tool enforces docs/ folder by default. EXTENSION: Enforces .xlsx extension. Supports 7 style presets with optimized header backgrounds and colors. " +
+          "DOCUMENT DNA: If a .document-dna.json exists, the default style preset is applied automatically. Use get-dna to check settings.",
         inputSchema: {
           type: "object",
           properties: {
@@ -308,7 +370,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 "colorful",
               ],
               description:
-                "Style preset name: minimal (clean/basic), professional (Garamond serif, full justification), technical (Arial, optimized readability), legal (Times New Roman, double-spaced), business (Calibri, modern blue palette), casual (Verdana, warm colors), colorful (vibrant, visual impact). Default: minimal.",
+                "Style preset name: minimal (clean/basic), professional (Garamond serif, full justification), technical (Arial, optimized readability), legal (Times New Roman, double-spaced), business (Calibri, modern blue palette), casual (Verdana, warm colors), colorful (vibrant, visual impact). Default: minimal. AUTO-SELECTION: If omitted and a category is provided, the style is automatically selected: contracts→legal, technical→technical, business→business, meeting→professional, research→professional.",
             },
             style: {
               type: "object",
@@ -364,6 +426,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description:
                 "When true, returns a preview of the workbook that would be created WITHOUT writing any file to disk. Use this to show the user what will be created before committing. Default: false.",
             },
+            category: {
+              type: "string",
+              enum: [
+                "contracts",
+                "technical",
+                "business",
+                "legal",
+                "meeting",
+                "research",
+              ],
+              description:
+                "Document category for automatic subfolder organization. Files are placed in docs/{category}/. " +
+                "Available: contracts (legal agreements, NDA), technical (specs, API docs), business (reports, proposals), " +
+                "legal (memos, compliance), meeting (minutes, agendas), research (papers, whitepapers). " +
+                "If omitted, file goes to docs/ root.",
+            },
+            tags: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Tags for document search and discovery in the registry. Example: ['Q1-2026', 'finance', 'draft']",
+            },
+            description: {
+              type: "string",
+              description:
+                "Brief description of the workbook for registry search. Helps find documents later.",
+            },
           },
           required: ["sheets"],
         },
@@ -375,6 +464,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "USER CONFIRMATION REQUIRED: This tool modifies files on disk. ALWAYS describe what changes you plan to make and get the user's explicit confirmation BEFORE calling this tool. " +
           "READ FIRST: ALWAYS use get-doc-indepth to read the existing document BEFORE editing it. You must understand what content is already there to avoid duplication and ensure the edit makes sense. " +
           "CONTENT RULES: Do NOT include markdown syntax in paragraph text. Write clean prose. Any markdown will be automatically converted to proper DOCX formatting. " +
+          'HEADING STRUCTURE: Use paragraph objects with headingLevel to maintain proper document hierarchy. For example, use {"text": "Core Components", "headingLevel": "heading2"} for section headings. This ensures consistent styling with the existing document structure. ' +
           "ACTIONS: Use action 'append' to add new paragraphs and tables after existing content. Use action 'replace' to overwrite all content (keeping the same file path). " +
           "NOTE: Append mode preserves existing text content but may not preserve complex original formatting (images, custom styles). For best results when appending, provide content that works well as a continuation.",
         inputSchema: {
@@ -392,9 +482,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             paragraphs: {
               type: "array",
-              items: { type: "string" },
+              items: {
+                oneOf: [
+                  { type: "string", description: "Simple paragraph text" },
+                  {
+                    type: "object",
+                    properties: {
+                      text: { type: "string" },
+                      headingLevel: {
+                        type: "string",
+                        enum: ["heading1", "heading2", "heading3"],
+                        description:
+                          "Heading level for the paragraph (heading1, heading2, or heading3)",
+                      },
+                      bold: { type: "boolean" },
+                      italics: { type: "boolean" },
+                      underline: { type: "boolean" },
+                      alignment: {
+                        type: "string",
+                        enum: ["left", "right", "center", "both"],
+                      },
+                    },
+                    required: ["text"],
+                  },
+                ],
+              },
               description:
-                "Paragraphs to append or replace with. Write clean prose without markdown.",
+                "Paragraphs to append or replace with. Can be simple strings or objects with headingLevel and formatting options.",
             },
             tables: {
               type: "array",
@@ -420,7 +534,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 "casual",
                 "colorful",
               ],
-              description: "Style preset for new content. Default: minimal.",
+              description:
+                "Style preset for new content. Default: minimal. AUTO-SELECTION: If omitted and a category is provided, the style is automatically selected: contracts→legal, technical→technical, business→business, meeting→professional, research→professional.",
+            },
+            category: {
+              type: "string",
+              description:
+                "Document category for registry organization (contracts, technical, business, legal, meeting, research)",
+            },
+            tags: {
+              type: "array",
+              items: { type: "string" },
+              description: "Tags for document search and organization",
             },
           },
           required: ["filePath", "action"],
@@ -486,10 +611,135 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 "casual",
                 "colorful",
               ],
-              description: "Style preset for new content. Default: minimal.",
+              description:
+                "Style preset for new content. Default: minimal. AUTO-SELECTION: If omitted and a category is provided, the style is automatically selected: contracts→legal, technical→technical, business→business, meeting→professional, research→professional.",
+            },
+            category: {
+              type: "string",
+              description:
+                "Document category for registry organization (contracts, technical, business, legal, meeting, research)",
+            },
+            tags: {
+              type: "array",
+              items: { type: "string" },
+              description: "Tags for document search and organization",
             },
           },
           required: ["filePath", "action"],
+        },
+      },
+      {
+        name: "list-documents",
+        description:
+          "List all documents in the document registry. Optionally filter by category, tag, or title. Returns a list of documents with metadata including id, title, filePath, category, tags, description, createdAt, and updatedAt. This tool allows you to discover what documents have been created.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            category: {
+              type: "string",
+              description:
+                "Filter documents by category (contracts, technical, business, legal, meeting, research)",
+            },
+            tags: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Filter documents by tags (matches if document has any of these tags)",
+            },
+            title: {
+              type: "string",
+              description:
+                "Filter documents by title (partial match, case-insensitive)",
+            },
+          },
+        },
+      },
+      {
+        name: "search-registry",
+        description:
+          "Search the document registry for documents matching search criteria. Returns grouped results with total matches and matching documents. Use this to find specific documents or explore what has been created.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description:
+                "Title to search for (partial match, case-insensitive)",
+            },
+            category: {
+              type: "string",
+              description:
+                "Filter documents by category (contracts, technical, business, legal, meeting, research)",
+            },
+            tags: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Search by tags (matches if document has any of these tags)",
+            },
+          },
+        },
+      },
+      {
+        name: "init-dna",
+        description:
+          "Initialize Document DNA for this project. Creates a .document-dna.json configuration file that defines your project's document identity — company name, default headers, footers, and style preset. " +
+          "Once initialized, ALL documents created by create-doc will automatically include branded headers and footers without needing to specify them each time. " +
+          "Use get-dna first to check if DNA is already configured. You can pass company name, header text, footer text, and style preset to customize, or use defaults.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            companyName: {
+              type: "string",
+              description:
+                "Company or project name. Used in default header. Example: 'Acme Corp'",
+            },
+            stylePreset: {
+              type: "string",
+              enum: [
+                "minimal",
+                "professional",
+                "technical",
+                "legal",
+                "business",
+                "casual",
+                "colorful",
+              ],
+              description:
+                "Default style preset for all documents. Default: 'professional'",
+            },
+            headerText: {
+              type: "string",
+              description:
+                "Default header text for documents. Defaults to company name.",
+            },
+            headerAlignment: {
+              type: "string",
+              enum: ["left", "center", "right"],
+              description: "Header alignment. Default: 'right'",
+            },
+            footerText: {
+              type: "string",
+              description:
+                "Default footer text. Use {current} for page number and {total} for total pages. Default: 'Page {current} of {total}'",
+            },
+            footerAlignment: {
+              type: "string",
+              enum: ["left", "center", "right"],
+              description: "Footer alignment. Default: 'center'",
+            },
+          },
+        },
+      },
+      {
+        name: "get-dna",
+        description:
+          "Get the current Document DNA configuration for this project. Returns the .document-dna.json settings including company name, default style preset, header and footer configuration. " +
+          "Returns null if DNA has not been initialized (use init-dna to set it up). " +
+          "AI models should call this at the start of document creation workflows to understand the project's document identity.",
+        inputSchema: {
+          type: "object",
+          properties: {},
         },
       },
     ],
@@ -636,6 +886,138 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             isError: true,
           };
         }
+      }
+
+      case "list-documents": {
+        const docs = await listDocuments(params || {});
+        if (docs) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(docs, null, 2),
+              },
+            ],
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  { error: "Failed to list documents" },
+                  null,
+                  2,
+                ),
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
+      case "search-registry": {
+        const results = await searchRegistry(params || {});
+        if (results) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(results, null, 2),
+              },
+            ],
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  { error: "Failed to search registry" },
+                  null,
+                  2,
+                ),
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
+      case "init-dna": {
+        try {
+          const result = createDNAFile({
+            company: { name: params.companyName },
+            defaults: { stylePreset: params.stylePreset },
+            header: {
+              text: params.headerText || params.companyName,
+              alignment: params.headerAlignment,
+            },
+            footer: {
+              text: params.footerText,
+              alignment: params.footerAlignment,
+            },
+          });
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    success: true,
+                    path: result.path,
+                    config: result.config,
+                    message:
+                      `Document DNA initialized at: ${result.path}\n\n` +
+                      `All future documents created with create-doc will automatically include:\n` +
+                      `- Header: "${result.config.header.text}" (${result.config.header.alignment}-aligned)\n` +
+                      `- Footer: "${result.config.footer.text}" (${result.config.footer.alignment}-aligned)\n` +
+                      `- Style: ${result.config.defaults.stylePreset}\n\n` +
+                      `You can override any of these by explicitly passing header, footer, or stylePreset to create-doc.`,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  { success: false, error: err.message },
+                  null,
+                  2,
+                ),
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
+      case "get-dna": {
+        const dna = loadDNA();
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  initialized: dna !== null,
+                  config: dna || null,
+                  message: dna
+                    ? "Document DNA is configured. All new documents will use these defaults unless overridden."
+                    : "Document DNA is not initialized. Use init-dna to set up project document identity.",
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
       }
 
       default:

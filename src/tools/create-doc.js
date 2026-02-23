@@ -3,8 +3,6 @@ import {
   Packer,
   Paragraph,
   TextRun,
-  Header,
-  Footer,
   AlignmentType,
   HeadingLevel,
 } from "docx";
@@ -14,92 +12,35 @@ import {
   getStyleConfig,
   getAvailablePresets,
   getPresetDescription,
+  selectStyleBasedOnCategory,
+  buildDocumentStyles,
 } from "./styling.js";
 import {
   validateAndNormalizeInput,
   ensureDirectory,
   enforceDocsFolder,
   preventDuplicateFiles,
+  applyCategoryToPath,
+  registerDocumentInRegistry,
+  getCategoryPath,
+  classifyDocumentContent,
 } from "./utils.js";
+import { applyDNAToInput, loadDNA } from "../utils/dna-manager.js";
 // Import shared utilities from doc-utils.js
 import {
   stripMarkdownLinePrefixes,
   parseInlineMarkdown,
   stripMarkdownPlain,
+  extractHeadingLevels,
   createText,
   createParagraph,
   createTableFromData,
+  createDocHeader,
+  createDocFooter,
 } from "./doc-utils.js";
 
 // Re-export for backwards compatibility (other modules import from create-doc.js)
 export { stripMarkdownLinePrefixes, parseInlineMarkdown, stripMarkdownPlain };
-
-/**
- * Creates a header with optional alignment
- */
-function createHeader(text, options = {}) {
-  return new Header({
-    children: [
-      createParagraph(text, {
-        alignment: options.alignment || "left",
-        size: 10,
-        color: options.color || "666666",
-      }),
-    ],
-  });
-}
-
-/**
- * Creates a footer with optional page numbers
- */
-function createFooter(options = {}) {
-  const parts = [];
-
-  if (options.text) {
-    // Split text by {{page}} placeholder
-    const segments = options.text.split("{{page}}");
-
-    segments.forEach((segment, index) => {
-      if (segment) {
-        parts.push(
-          createText(segment, {
-            size: options.fontSize || 10,
-            color: options.color || "666666",
-          }),
-        );
-      }
-
-      if (index < segments.length - 1) {
-        // Add page number field
-        parts.push(
-          new TextRun({
-            text: "",
-            pageNumber:
-              options.pageType === "total"
-                ? { type: "totalPages" }
-                : { type: "current" },
-            size: (options.fontSize || 10) * 2,
-            color: options.color || "666666",
-          }),
-        );
-      }
-    });
-  }
-
-  return new Footer({
-    children: [
-      new Paragraph({
-        children: parts.length > 0 ? parts : [new TextRun({ text: "" })],
-        alignment:
-          options.alignment === "center"
-            ? AlignmentType.CENTER
-            : options.alignment === "right"
-              ? AlignmentType.RIGHT
-              : AlignmentType.LEFT,
-      }),
-    ],
-  });
-}
 
 /**
  * Creates a DOCX document from structured content with professional formatting
@@ -109,20 +50,66 @@ function createFooter(options = {}) {
  * @param {Array} input.paragraphs - Array of paragraph content (strings or objects)
  * @param {Array<Array>} input.tables - Array of table data
  * @param {string} input.outputPath - Output file path
+ * @param {string} [input.category] - Document category for folder organization (contracts, technical, business, legal, meetings, research)
  * @param {string} [input.stylePreset] - Style preset name (minimal, professional, technical, legal, business, casual, colorful)
  * @param {Object} [input.style] - Custom style overrides
  * @param {Object} [input.header] - Header configuration {text, alignment, color}
  * @param {Object} [input.footer] - Footer configuration {text, alignment, color, includeTotal}
  * @param {string} [input.description] - Document description
+ * @param {Array<string>} [input.tags] - Tags for document search and organization
  * @param {string} [input.backgroundColor] - Background color
  * @param {Object} [input.margins] - Custom margins {top, bottom, left, right} in inches
  * @returns {Promise<Object>} Result object with filePath and message
  */
 export async function createDoc(input) {
   try {
-    const title = input.title || "Untitled Document";
-    const paragraphs = Array.isArray(input.paragraphs) ? input.paragraphs : [];
-    const tables = Array.isArray(input.tables) ? input.tables : [];
+    // Parse input if it's a JSON string (for MCP compatibility)
+    const parsedInput = typeof input === "string" ? JSON.parse(input) : input;
+
+    // Apply Document DNA defaults (header, footer, stylePreset) if not explicitly provided
+    const hasDNA = loadDNA() !== null;
+    applyDNAToInput(parsedInput);
+
+    const title = parsedInput.title || "Untitled Document";
+    let paragraphs = Array.isArray(parsedInput.paragraphs)
+      ? parsedInput.paragraphs
+      : [];
+
+    // Parse paragraph objects if they're JSON strings
+    paragraphs = paragraphs.map((para) => {
+      if (
+        typeof para === "string" &&
+        para.startsWith("{") &&
+        para.endsWith("}")
+      ) {
+        try {
+          return JSON.parse(para);
+        } catch (e) {
+          return para;
+        }
+      }
+      return para;
+    });
+
+    const tables = Array.isArray(parsedInput.tables) ? parsedInput.tables : [];
+
+    // Auto-extract heading levels from markdown content
+    const processedParagraphs = extractHeadingLevels(paragraphs);
+
+    // Get category and tags from input
+    let category = input.category || null;
+    const tags = Array.isArray(input.tags) ? input.tags : [];
+
+    // Auto-classify if no category provided and title/content available
+    if (!category && input.title) {
+      const classification = classifyDocumentContent(input.title, "");
+      if (classification.category !== "misc") {
+        category = classification.category;
+        console.log(
+          `[create-doc] Auto-classified document as "${category}" (confidence: ${classification.confidence})`,
+        );
+      }
+    }
 
     // Normalize input with extension handling FIRST (fixes .md → .docx before docs folder check)
     const normalized = validateAndNormalizeInput(input, [], "docx");
@@ -131,10 +118,19 @@ export async function createDoc(input) {
       outputPath = path.resolve(process.cwd(), outputPath);
     }
 
+    // Apply category-based subfolder organization
+    const { outputPath: categorizedPath, wasCategorized } = applyCategoryToPath(
+      outputPath,
+      category,
+    );
+    outputPath = categorizedPath;
+
     // Enforce docs/ folder FIRST so duplicate prevention checks the final location
     const enforceDocs = input.enforceDocsFolder !== false;
-    const { outputPath: docsPath, wasEnforced: docsEnforced } =
-      enforceDocsFolder(outputPath, enforceDocs);
+    let { outputPath: docsPath, wasEnforced: docsEnforced } = enforceDocsFolder(
+      outputPath,
+      enforceDocs,
+    );
 
     if (docsEnforced) {
       outputPath = docsPath;
@@ -162,9 +158,14 @@ export async function createDoc(input) {
           stylePreset: input.stylePreset || "minimal",
           hasHeader: !!(input.header && input.header.text),
           hasFooter: !!(input.footer && input.footer.text),
+          category: category || null,
+          tags: tags.length > 0 ? tags : null,
+          wasCategorized: wasCategorized,
         },
         enforcement: {
           docsFolderEnforced: docsEnforced,
+          categorized: wasCategorized,
+          categoryApplied: category || null,
         },
         message: `DRY RUN - No file written. Preview of document that would be created:\n\nTitle: "${title}"\nPath: ${outputPath}\nParagraphs: ${paraCount}\nTables: ${tableCount}\nStyle: ${input.stylePreset || "minimal"}\n\nCall this tool again without dryRun (or with dryRun: false) to create the file.`,
       };
@@ -196,8 +197,20 @@ export async function createDoc(input) {
       );
     }
 
-    // Validate and apply style preset
-    const stylePreset = input.stylePreset || "minimal";
+    // Validate and apply style preset with automatic category-based selection
+    let stylePreset = input.stylePreset;
+
+    // If no preset specified but category is available, automatically select style
+    if (!stylePreset && category) {
+      stylePreset = selectStyleBasedOnCategory(category);
+      console.log(
+        `[create-doc] Automatically selected style preset "${stylePreset}" for category "${category}"`,
+      );
+    }
+
+    // Use minimal as fallback if still no preset
+    stylePreset = stylePreset || "minimal";
+
     if (!getAvailablePresets().includes(stylePreset)) {
       console.warn(
         `Warning: Style preset "${stylePreset}" not found. Using "minimal" preset.`,
@@ -215,7 +228,7 @@ export async function createDoc(input) {
     let hasHeader = false;
     let headerObj = undefined;
     if (input.header && input.header.text) {
-      headerObj = createHeader(input.header.text, {
+      headerObj = createDocHeader(input.header.text, {
         alignment: input.header.alignment || "left",
         color: input.header.color,
       });
@@ -226,12 +239,11 @@ export async function createDoc(input) {
     let hasFooter = false;
     let footerObj = undefined;
     if (input.footer && input.footer.text) {
-      footerObj = createFooter({
+      footerObj = createDocFooter({
         text: input.footer.text,
         alignment: input.footer.alignment || "center",
         fontSize: 10,
         color: input.footer.color,
-        pageType: input.footer.includeTotal ? "total" : "current",
       });
       hasFooter = true;
     }
@@ -282,7 +294,7 @@ export async function createDoc(input) {
     }
 
     // Add paragraphs with proper styling (markdown ornaments are parsed into formatting)
-    for (const para of paragraphs) {
+    for (const para of processedParagraphs) {
       if (!para) continue;
 
       if (typeof para === "string") {
@@ -373,11 +385,12 @@ export async function createDoc(input) {
       );
     }
 
-    // Create document with proper section configuration
+    // Create document with proper section configuration and embedded styles
     const doc = new Document({
       creator: "MCP Doc Processor",
       title: title,
       description: input.description || "",
+      styles: buildDocumentStyles(styleConfig),
       sections: [
         {
           ...sectionProps,
@@ -397,6 +410,20 @@ export async function createDoc(input) {
     const buffer = await Packer.toBuffer(doc);
     await fs.writeFile(outputPath, buffer);
 
+    // Register document in registry (non-blocking, failure is non-fatal)
+    let registryEntry = null;
+    try {
+      registryEntry = await registerDocumentInRegistry({
+        title: title,
+        filePath: outputPath,
+        category: category || "misc",
+        tags: tags,
+        description: input.description || "",
+      });
+    } catch (err) {
+      console.warn("Failed to register document:", err.message);
+    }
+
     // Build message with enforcement information
     let enforcementMessage = "";
     if (docsEnforced) {
@@ -407,10 +434,22 @@ export async function createDoc(input) {
         outputPath,
       )}. To allow duplicates, set preventDuplicates: false.\n`;
     }
+    if (wasCategorized) {
+      enforcementMessage += `NOTE: Document categorized as "${category}" and placed in docs/${getCategoryPath(category).subfolder}/.\n`;
+    }
+    if (registryEntry) {
+      enforcementMessage += `NOTE: Document registered in registry (ID: ${registryEntry.id}).\n`;
+    }
 
     return {
       success: true,
       filePath: outputPath,
+      category: category || null,
+      tags: tags.length > 0 ? tags : null,
+      wasCategorized: wasCategorized,
+      registryEntry: registryEntry
+        ? { id: registryEntry.id, category: registryEntry.category }
+        : null,
       stylePreset: stylePreset,
       styleConfig: {
         preset: stylePreset,
@@ -419,11 +458,14 @@ export async function createDoc(input) {
         paragraph: styleConfig.paragraph,
         table: styleConfig.table,
       },
+      dnaApplied: hasDNA,
       header: hasHeader ? input.header : null,
       footer: hasFooter ? input.footer : null,
       enforcement: {
         docsFolderEnforced: docsEnforced,
         duplicatePrevented: wasDuplicatePrevented,
+        categorized: wasCategorized,
+        categoryApplied: category || null,
       },
       message: `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}`,
     };

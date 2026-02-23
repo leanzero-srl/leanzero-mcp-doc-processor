@@ -5,8 +5,61 @@ import {
   TableCell,
   TableRow,
   AlignmentType,
+  HeadingLevel,
+  Header,
+  Footer,
+  PageNumber,
 } from "docx";
 import { marked } from "marked";
+
+/**
+ * Extracts heading levels from markdown content
+ * Converts markdown headings (#, ##, ###) to proper HeadingLevel values
+ */
+export function extractHeadingLevels(paragraphs) {
+  if (!Array.isArray(paragraphs)) return paragraphs;
+
+  return paragraphs.map((para) => {
+    if (typeof para === "string") {
+      // Check for markdown headings
+      let headingLevel = null;
+      let text = para;
+
+      if (para.startsWith("# ")) {
+        headingLevel = "heading1";
+        text = para.substring(2);
+      } else if (para.startsWith("## ")) {
+        headingLevel = "heading2";
+        text = para.substring(3);
+      } else if (para.startsWith("### ")) {
+        headingLevel = "heading3";
+        text = para.substring(4);
+      }
+
+      // Return as object with headingLevel if detected
+      if (headingLevel) {
+        return { text, headingLevel };
+      }
+
+      // Return simple string otherwise
+      return para;
+    }
+
+    // Already an object, just ensure headingLevel is valid if present
+    if (para && typeof para === "object" && para.text) {
+      const validHeadingLevels = ["heading1", "heading2", "heading3"];
+      if (
+        para.headingLevel &&
+        !validHeadingLevels.includes(para.headingLevel)
+      ) {
+        delete para.headingLevel;
+      }
+      return para;
+    }
+
+    return para;
+  });
+}
 
 /**
  * Strips markdown line-level prefixes from a string.
@@ -70,7 +123,10 @@ function processMarkedToken(token, baseStyle, currentStyle = {}) {
       if (token.tokens && token.tokens.length > 0) {
         token.tokens.forEach((childToken) => {
           runs.push(
-            ...processMarkedToken(childToken, baseStyle, { ...currentStyle, bold: true }),
+            ...processMarkedToken(childToken, baseStyle, {
+              ...currentStyle,
+              bold: true,
+            }),
           );
         });
       } else if (token.text) {
@@ -83,7 +139,10 @@ function processMarkedToken(token, baseStyle, currentStyle = {}) {
       if (token.tokens && token.tokens.length > 0) {
         token.tokens.forEach((childToken) => {
           runs.push(
-            ...processMarkedToken(childToken, baseStyle, { ...currentStyle, italics: true }),
+            ...processMarkedToken(childToken, baseStyle, {
+              ...currentStyle,
+              italics: true,
+            }),
           );
         });
       } else if (token.text) {
@@ -205,7 +264,10 @@ export function parseInlineMarkdown(text, baseStyle = {}) {
     return runs.length > 0 ? runs : [createText(cleaned, baseStyle)];
   } catch (error) {
     // Fallback to plain text if parsing fails
-    console.warn("Markdown parsing failed, falling back to plain text:", error.message);
+    console.warn(
+      "Markdown parsing failed, falling back to plain text:",
+      error.message,
+    );
     return [createText(cleaned, baseStyle)];
   }
 }
@@ -313,5 +375,102 @@ export function createTableFromData(data, options = {}) {
         color: borderColor,
       },
     },
+  });
+}
+
+/**
+ * Creates a document header with styled text
+ * @param {string} text - Header text
+ * @param {Object} [options] - Header options
+ * @param {string} [options.alignment] - Text alignment (left, center, right)
+ * @param {string} [options.color] - Text color hex
+ * @returns {Header} docx Header object
+ */
+export function createDocHeader(text, options = {}) {
+  return new Header({
+    children: [
+      createParagraph(text, {
+        alignment: options.alignment || "left",
+        size: 10,
+        color: options.color || "666666",
+      }),
+    ],
+  });
+}
+
+/**
+ * Creates a document footer with page number support.
+ * Supports {current} and {total} placeholders that map to PageNumber.CURRENT
+ * and PageNumber.TOTAL_PAGES respectively. Also supports legacy {{page}} syntax.
+ *
+ * @param {Object} [options] - Footer options
+ * @param {string} [options.text] - Footer text with optional placeholders
+ * @param {string} [options.alignment] - Text alignment (left, center, right)
+ * @param {number} [options.fontSize] - Font size in points (default: 10)
+ * @param {string} [options.color] - Text color hex (default: "666666")
+ * @returns {Footer} docx Footer object
+ */
+export function createDocFooter(options = {}) {
+  const parts = [];
+  const fontSize = options.fontSize || 10;
+  const color = options.color || "666666";
+
+  if (options.text) {
+    // Normalize legacy {{page}} to {current}
+    let text = options.text.replace(/\{\{page\}\}/g, "{current}");
+
+    // Split by {current} and {total} placeholders
+    const regex = /\{(current|total)\}/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      // Add text before the placeholder
+      if (match.index > lastIndex) {
+        parts.push(
+          createText(text.substring(lastIndex, match.index), {
+            size: fontSize,
+            color: color,
+          }),
+        );
+      }
+
+      // Add the page number field
+      const pageType =
+        match[1] === "total" ? PageNumber.TOTAL_PAGES : PageNumber.CURRENT;
+      parts.push(
+        new TextRun({
+          children: [pageType],
+          size: fontSize * 2, // half-points
+          color: color,
+        }),
+      );
+
+      lastIndex = regex.lastIndex;
+    }
+
+    // Add any remaining text after the last placeholder
+    if (lastIndex < text.length) {
+      parts.push(
+        createText(text.substring(lastIndex), {
+          size: fontSize,
+          color: color,
+        }),
+      );
+    }
+  }
+
+  return new Footer({
+    children: [
+      new Paragraph({
+        children: parts.length > 0 ? parts : [new TextRun({ text: "" })],
+        alignment:
+          options.alignment === "center"
+            ? AlignmentType.CENTER
+            : options.alignment === "right"
+              ? AlignmentType.RIGHT
+              : AlignmentType.LEFT,
+      }),
+    ],
   });
 }

@@ -6,6 +6,10 @@ import {
   ensureDirectory,
   enforceDocsFolder,
   preventDuplicateFiles,
+  applyCategoryToPath,
+  registerDocumentInRegistry,
+  getCategoryPath,
+  classifyDocumentContent,
 } from "./utils.js";
 import {
   getStyleConfig,
@@ -16,6 +20,7 @@ import {
 } from "./styling.js";
 // Import shared utilities (eliminates code duplication)
 import { stripMarkdownPlain } from "./doc-utils.js";
+import { applyDNAToInput } from "../utils/dna-manager.js";
 import {
   hexToRgb,
   applyExcelStyling,
@@ -58,13 +63,43 @@ export async function createExcel(input) {
       }
     }
 
-    // Enforce docs/ folder for organization (default: true, can be disabled with enforceDocsFolder: false)
+    // Get category and tags from input
+    let category = input.category || null;
+    const tags = Array.isArray(input.tags) ? input.tags : [];
+
+    // Auto-classify if no category provided and title available
+    const firstCell = input.sheets?.[0]?.data?.[0]?.[0];
+    const title = firstCell ? String(firstCell) : "";
+    if (!category && title) {
+      const classification = classifyDocumentContent(
+        input.outputPath || "",
+        title,
+      );
+      if (classification.category !== "misc") {
+        category = classification.category;
+        console.log(
+          `[create-excel] Auto-classified document as "${category}" (confidence: ${classification.confidence})`,
+        );
+      }
+    }
+
+    let outputPath = normalized.outputPath;
+    if (!path.isAbsolute(outputPath)) {
+      outputPath = path.resolve(process.cwd(), outputPath);
+    }
+
+    // Apply category-based subfolder organization
+    const { outputPath: categorizedPath, wasCategorized } = applyCategoryToPath(
+      outputPath,
+      category,
+    );
+    outputPath = categorizedPath;
+
+    // Enforce docs/ folder FIRST so duplicate prevention checks the final location
     const enforceDocs = input.enforceDocsFolder !== false;
     const { outputPath: docsPath, wasEnforced: docsEnforced } =
-      enforceDocsFolder(normalized.outputPath, enforceDocs);
+      enforceDocsFolder(outputPath, enforceDocs);
 
-    // Apply docs folder enforcement
-    let outputPath = normalized.outputPath;
     if (docsEnforced) {
       outputPath = docsPath;
     }
@@ -91,9 +126,14 @@ export async function createExcel(input) {
           sheets: sheetSummaries,
           totalSheets: normalized.sheets.length,
           stylePreset: input.stylePreset || "minimal",
+          category: category || null,
+          tags: tags.length > 0 ? tags : null,
+          wasCategorized: wasCategorized,
         },
         enforcement: {
           docsFolderEnforced: docsEnforced,
+          categorized: wasCategorized,
+          categoryApplied: category || null,
         },
         message: `DRY RUN - No file written. Preview of workbook that would be created:\n\nPath: ${outputPath}\nSheets: ${sheetSummaries.map((s) => `${s.name} (${s.rows} rows x ${s.columns} cols)`).join(", ")}\nStyle: ${input.stylePreset || "minimal"}\n\nCall this tool again without dryRun (or with dryRun: false) to create the file.`,
       };
@@ -124,6 +164,9 @@ export async function createExcel(input) {
         )}`,
       );
     }
+
+    // Apply Document DNA defaults (stylePreset) if not explicitly provided
+    applyDNAToInput(input);
 
     // Step 3: Validate and apply style preset
     const stylePreset = input.stylePreset || "minimal";
@@ -182,6 +225,15 @@ export async function createExcel(input) {
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
     await fs.promises.writeFile(outputPath, wbout);
 
+    // Register document in registry (non-blocking, failure is non-fatal)
+    const registryEntry = await registerDocumentInRegistry({
+      title: normalized.sheets[0]?.name || "Untitled Workbook",
+      filePath: path.resolve(outputPath),
+      category: category || "misc",
+      tags: tags,
+      description: input.description || "",
+    });
+
     // Build message with enforcement information
     let enforcementMessage = "";
     if (docsEnforced) {
@@ -192,10 +244,22 @@ export async function createExcel(input) {
         outputPath,
       )}. To allow duplicates, set preventDuplicates: false.\n`;
     }
+    if (wasCategorized) {
+      enforcementMessage += `NOTE: Document categorized as "${category}" and placed in docs/${getCategoryPath(category).subfolder}/.\n`;
+    }
+    if (registryEntry) {
+      enforcementMessage += `NOTE: Document registered in registry (ID: ${registryEntry.id}).\n`;
+    }
 
     return {
       success: true,
       filePath: path.resolve(outputPath),
+      category: category || null,
+      tags: tags.length > 0 ? tags : null,
+      wasCategorized: wasCategorized,
+      registryEntry: registryEntry
+        ? { id: registryEntry.id, category: registryEntry.category }
+        : null,
       stylePreset: input.stylePreset,
       styleConfig: {
         preset: input.stylePreset,
@@ -216,6 +280,8 @@ export async function createExcel(input) {
       enforcement: {
         docsFolderEnforced: docsEnforced,
         duplicatePrevented: wasDuplicatePrevented,
+        categorized: wasCategorized,
+        categoryApplied: category || null,
       },
       message: `XLSX FILE WRITTEN TO DISK at: ${path.resolve(outputPath)}\n\nIMPORTANT: This tool has created an actual .xlsx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}`,
     };

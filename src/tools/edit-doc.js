@@ -1,91 +1,29 @@
 import fs from "fs/promises";
 import path from "path";
 import mammoth from "mammoth";
+import { Document, Packer, Paragraph, AlignmentType, HeadingLevel } from "docx";
 import {
-  Document,
-  Packer,
-  Paragraph,
-  Header,
-  Footer,
-  AlignmentType,
-  HeadingLevel,
-} from "docx";
-import { getStyleConfig, getAvailablePresets } from "./styling.js";
-import { appendToDocx, replaceDocxContent, inspectDocx } from "./docx-patch.js";
+  getStyleConfig,
+  getAvailablePresets,
+  selectStyleBasedOnCategory,
+} from "./styling.js";
+import {
+  appendToDocx,
+  replaceDocxContent,
+  inspectDocx,
+  applyStylingToDocx,
+} from "./docx-patch.js";
+import { registerDocumentInRegistry } from "./utils.js";
 // Import shared utilities from doc-utils.js (eliminates code duplication)
 import {
   parseInlineMarkdown,
+  extractHeadingLevels,
   createText,
   createParagraph,
   createTableFromData,
+  createDocHeader,
+  createDocFooter,
 } from "./doc-utils.js";
-
-/**
- * Creates a header with optional alignment
- */
-function createHeader(text, options = {}) {
-  return new Header({
-    children: [
-      createParagraph(text, {
-        alignment: options.alignment || "left",
-        size: 10,
-        color: options.color || "666666",
-      }),
-    ],
-  });
-}
-
-/**
- * Creates a footer with optional alignment
- */
-function createFooter(options = {}) {
-  const parts = [];
-
-  if (options.text) {
-    // Split text by {{page}} placeholder
-    const segments = options.text.split("{{page}}");
-
-    segments.forEach((segment, index) => {
-      if (segment) {
-        parts.push(
-          createText(segment, {
-            size: options.fontSize || 10,
-            color: options.color || "666666",
-          }),
-        );
-      }
-
-      if (index < segments.length - 1) {
-        // Add page number field
-        parts.push(
-          new TextRun({
-            text: "",
-            pageNumber:
-              options.pageType === "total"
-                ? { type: "totalPages" }
-                : { type: "current" },
-            size: (options.fontSize || 10) * 2,
-            color: options.color || "666666",
-          }),
-        );
-      }
-    });
-  }
-
-  return new Footer({
-    children: [
-      new Paragraph({
-        children: parts.length > 0 ? parts : [new TextRun({ text: "" })],
-        alignment:
-          options.alignment === "center"
-            ? AlignmentType.CENTER
-            : options.alignment === "right"
-              ? AlignmentType.RIGHT
-              : AlignmentType.LEFT,
-      }),
-    ],
-  });
-}
 
 /**
  * Edits an existing DOCX document by appending or replacing content.
@@ -117,6 +55,8 @@ function createFooter(options = {}) {
  * @param {string} [input.stylePreset] - Style preset for new content
  * @param {Object} [input.style] - Custom style overrides
  * @param {boolean} [input.useLegacy] - Use legacy mode (loses formatting)
+ * @param {string} [input.category] - Document category for registry update
+ * @param {Array<string>} [input.tags] - Tags for document search and organization
  * @param {boolean} [input.addSeparator] - Add blank line before new content (append mode)
  * @returns {Promise<Object>} Result with filePath and message
  */
@@ -124,11 +64,15 @@ export async function editDoc(input) {
   try {
     const { filePath, action } = input;
 
+    // Get category and tags from input
+    const category = input.category || null;
+    const tags = Array.isArray(input.tags) ? input.tags : [];
+
     if (!filePath) {
       throw new Error("filePath is required");
     }
-    if (!action || !["append", "replace"].includes(action)) {
-      throw new Error("action must be 'append' or 'replace'");
+    if (!action || !["append", "replace", "style"].includes(action)) {
+      throw new Error("action must be 'append', 'replace', or 'style'");
     }
 
     const resolvedPath = path.isAbsolute(filePath)
@@ -145,10 +89,26 @@ export async function editDoc(input) {
     const newParagraphs = Array.isArray(input.paragraphs)
       ? input.paragraphs
       : [];
+
+    // Auto-extract heading levels from markdown content
+    const processedParagraphs = extractHeadingLevels(newParagraphs);
+
     const newTables = Array.isArray(input.tables) ? input.tables : [];
 
-    // Get style config
-    const stylePreset = input.stylePreset || "minimal";
+    // Get style config with automatic category-based selection
+    let stylePreset = input.stylePreset;
+
+    // If no preset specified but category is available, automatically select style
+    if (!stylePreset && input.category) {
+      stylePreset = selectStyleBasedOnCategory(input.category);
+      console.log(
+        `[edit-doc] Automatically selected style preset "${stylePreset}" for category "${input.category}"`,
+      );
+    }
+
+    // Use minimal as fallback if still no preset
+    stylePreset = stylePreset || "minimal";
+
     const styleConfig = getStyleConfig(
       getAvailablePresets().includes(stylePreset) ? stylePreset : "minimal",
       input.style || {},
@@ -162,7 +122,7 @@ export async function editDoc(input) {
       if (action === "append") {
         // Use XML patching for append - preserves formatting!
         const result = await appendToDocx(resolvedPath, {
-          paragraphs: newParagraphs,
+          paragraphs: processedParagraphs,
           tables: newTables,
           stylePreset,
           style: input.style,
@@ -173,18 +133,34 @@ export async function editDoc(input) {
           // Inspect the document to provide more info
           const inspection = await inspectDocx(resolvedPath);
 
+          // Always update registry regardless of result
+          let registryEntry = null;
+          try {
+            registryEntry = await registerDocumentInRegistry({
+              title: input.title || path.basename(resolvedPath, ".docx"),
+              filePath: resolvedPath,
+              category: category || "misc",
+              tags: tags,
+            });
+          } catch (err) {
+            console.warn("Failed to update registry:", err.message);
+          }
+
           return {
             success: true,
             filePath: resolvedPath,
             action: "append",
-            paragraphsAppended: newParagraphs.length,
+            paragraphsAppended: processedParagraphs.length,
             tablesAppended: newTables.length,
             formattingPreserved: true,
             documentStructure: inspection.success ? inspection.structure : null,
+            registryEntry: registryEntry
+              ? { id: registryEntry.id, category: registryEntry.category }
+              : null,
             message:
               `DOCX file UPDATED at: ${resolvedPath}\n\n` +
               `✓ FORMATTING PRESERVED: The original document formatting has been maintained.\n` +
-              `✓ Appended ${newParagraphs.length} paragraph(s) and ${newTables.length} table(s).\n` +
+              `✓ Appended ${processedParagraphs.length} paragraph(s) and ${newTables.length} table(s).\n` +
               `${inspection.success && inspection.structure.hasHeaders ? "✓ Headers preserved\n" : ""}` +
               `${inspection.success && inspection.structure.hasFooters ? "✓ Footers preserved\n" : ""}` +
               `${inspection.success && inspection.structure.hasImages ? "✓ Images preserved\n" : ""}` +
@@ -199,13 +175,26 @@ export async function editDoc(input) {
         // Use XML patching for replace - preserves structure!
         const result = await replaceDocxContent(resolvedPath, {
           title: input.title,
-          paragraphs: newParagraphs,
+          paragraphs: processedParagraphs,
           tables: newTables,
           stylePreset,
           style: input.style,
         });
 
         if (result.success) {
+          // Always update registry regardless of result
+          let registryEntry = null;
+          try {
+            registryEntry = await registerDocumentInRegistry({
+              title: input.title || path.basename(resolvedPath, ".docx"),
+              filePath: resolvedPath,
+              category: category || "misc",
+              tags: tags,
+            });
+          } catch (err) {
+            console.warn("Failed to update registry:", err.message);
+          }
+
           return {
             success: true,
             filePath: resolvedPath,
@@ -213,11 +202,59 @@ export async function editDoc(input) {
             paragraphsReplaced: newParagraphs.length,
             tablesReplaced: newTables.length,
             structurePreserved: true,
+            registryEntry: registryEntry
+              ? { id: registryEntry.id, category: registryEntry.category }
+              : null,
             message:
               `DOCX file REPLACED at: ${resolvedPath}\n\n` +
               `✓ STRUCTURE PRESERVED: Document headers, footers, and styles remain intact.\n` +
               `✓ Replaced content with ${newParagraphs.length} paragraph(s) and ${newTables.length} table(s).\n` +
               `\nNew content uses the "${stylePreset}" style preset.`,
+          };
+        } else {
+          return result;
+        }
+      }
+
+      if (action === "style") {
+        // Style mode: apply proper formatting to existing document
+        const result = await applyStylingToDocx(resolvedPath, {
+          stylePreset,
+          style: input.style,
+        });
+
+        if (result.success) {
+          // Always update registry regardless of result
+          let registryEntry = null;
+          try {
+            registryEntry = await registerDocumentInRegistry({
+              title: input.title || path.basename(resolvedPath, ".docx"),
+              filePath: resolvedPath,
+              category: category || "misc",
+              tags: tags,
+            });
+          } catch (err) {
+            console.warn("Failed to update registry:", err.message);
+          }
+
+          return {
+            success: true,
+            filePath: resolvedPath,
+            action: "style",
+            paragraphsStyled: result.paragraphsStyled,
+            stylePreset: result.stylePreset,
+            registryEntry: registryEntry
+              ? { id: registryEntry.id, category: registryEntry.category }
+              : null,
+            message:
+              `DOCX file STYLED at: ${resolvedPath}\n\n` +
+              `✓ STYLING APPLIED: Proper formatting has been applied to the document.\n` +
+              `✓ Used "${stylePreset}" style preset for category "${input.category || "unknown"}".\n` +
+              `✓ Applied to ${result.paragraphsStyled} paragraph(s).\n\n` +
+              `Document now has proper styling including:\n` +
+              `- Correct heading hierarchy (heading1, heading2, heading3)\n` +
+              `- Proper font sizes and colors based on preset\n` +
+              `- Consistent paragraph spacing and alignment\n`,
           };
         } else {
           return result;
@@ -313,6 +350,14 @@ export async function editDoc(input) {
       const buffer = await Packer.toBuffer(doc);
       await fs.writeFile(resolvedPath, buffer);
 
+      // Update registry timestamp with category and tags
+      await registerDocumentInRegistry({
+        title: input.title || path.basename(resolvedPath, ".docx"),
+        filePath: resolvedPath,
+        category: category || "misc",
+        tags: tags,
+      }).catch(() => {});
+
       return {
         success: true,
         filePath: resolvedPath,
@@ -400,6 +445,14 @@ export async function editDoc(input) {
 
     const buffer = await Packer.toBuffer(doc);
     await fs.writeFile(resolvedPath, buffer);
+
+    // Update registry timestamp with category and tags
+    await registerDocumentInRegistry({
+      title: input.title || path.basename(resolvedPath, ".docx"),
+      filePath: resolvedPath,
+      category: category || "misc",
+      tags: tags,
+    }).catch(() => {});
 
     return {
       success: true,

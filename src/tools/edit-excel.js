@@ -2,6 +2,7 @@ import XLSX from "xlsx-js-style";
 import fs from "fs";
 import path from "path";
 import { getStyleConfig, getAvailablePresets } from "./styling.js";
+import { registerDocumentInRegistry } from "./utils.js";
 // Import shared utilities (eliminates code duplication)
 import { stripMarkdownPlain } from "./doc-utils.js";
 import {
@@ -30,6 +31,10 @@ import {
 export async function editExcel(input) {
   try {
     const { filePath, action } = input;
+
+    // Get category and tags from input
+    const category = input.category || null;
+    const tags = Array.isArray(input.tags) ? input.tags : [];
 
     if (!filePath) {
       throw new Error("filePath is required");
@@ -100,6 +105,14 @@ export async function editExcel(input) {
       const wbout = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
       await fs.promises.writeFile(resolvedPath, wbout);
 
+      // Update registry timestamp with category and tags if provided
+      await registerDocumentInRegistry({
+        title: path.basename(resolvedPath, ".xlsx"),
+        filePath: resolvedPath,
+        category: category || "misc",
+        tags: tags,
+      }).catch(() => {});
+
       return {
         success: true,
         filePath: resolvedPath,
@@ -143,6 +156,14 @@ export async function editExcel(input) {
       const wbout = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
       await fs.promises.writeFile(resolvedPath, wbout);
 
+      // Update registry timestamp with category and tags
+      await registerDocumentInRegistry({
+        title: path.basename(resolvedPath, ".xlsx"),
+        filePath: resolvedPath,
+        category: category || "misc",
+        tags: tags,
+      }).catch(() => {});
+
       return {
         success: true,
         filePath: resolvedPath,
@@ -183,6 +204,14 @@ export async function editExcel(input) {
       // Write back
       const wbout = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
       await fs.promises.writeFile(resolvedPath, wbout);
+
+      // Update registry timestamp with category and tags
+      await registerDocumentInRegistry({
+        title: path.basename(resolvedPath, ".xlsx"),
+        filePath: resolvedPath,
+        category: category || "misc",
+        tags: tags,
+      }).catch(() => {});
 
       return {
         success: true,
