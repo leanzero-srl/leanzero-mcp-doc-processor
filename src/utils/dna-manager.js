@@ -1,240 +1,224 @@
-/**
- * Document DNA Manager
- * Manages project DNA and document memories for AI guidance
- */
-
-import fs from "fs/promises";
-import fsSync from "fs";
+import fs from "fs";
 import path from "path";
 
-const REGISTRY_PATH = path.join(process.cwd(), "docs", "registry.json");
+const DNA_FILENAME = ".document-dna.json";
+const USER_DNA_FILENAME = ".document-user.json";
+
+// Import inheritance system (use aliases to avoid circular references)
+import {
+  getSystemDefaults,
+  loadProjectDNA as _loadProjectDNA,
+  loadUserDNA as _loadUserDNA,
+  mergeDNALevels as _mergeDNALevels,
+  clearDNACache as clearInheritanceCache
+} from "./dna-inheritance.js";
+
+// Import schema validation for DNA configuration
+import { validateDNA, applyMigration } from "./dna-schema.js";
+
+// Module-level cache for DNA config (backward compatibility)
+let _cache = { path: null, mtime: 0, data: null };
 
 /**
- * Get project DNA configuration
+ * Returns the default DNA configuration template.
+ * @returns {Object} Default DNA config
  */
-export function getProjectDNA() {
-  return {
-    defaultStylePreset: "technical",
-    defaultHeader: "Technical Document",
-    defaultFooter: "Page {{page}}",
-    autoDetectCategories: true,
-    defaultDocumentType: "technical"
-  };
+export function getDefaultDNA() {
+  return getSystemDefaults();
 }
 
 /**
- * Load registry with project DNA
+ * Loads the .document-dna.json file from the project root.
+ * Uses an in-memory cache with mtime checking for performance.
+ *
+ * @param {string} [projectRoot] - Project root directory (default: process.cwd())
+ * @returns {Object|null} Parsed DNA config, or null if file doesn't exist
  */
-export async function loadRegistry() {
+export function loadDNA(projectRoot) {
+  const root = projectRoot || process.cwd();
+  const filePath = path.join(root, DNA_FILENAME);
+
   try {
-    const data = await fs.readFile(REGISTRY_PATH, "utf8");
-    return JSON.parse(data);
+    const stat = fs.statSync(filePath);
+    const mtime = stat.mtimeMs;
+
+    // Return cached data if file hasn't changed
+    if (_cache.path === filePath && _cache.mtime === mtime) {
+      return _cache.data;
+    }
+
+    const content = fs.readFileSync(filePath, "utf-8");
+    const data = JSON.parse(content);
+
+    // Validate loaded DNA
+    const validation = validateDNA(data);
+    
+    if (!validation.valid) {
+      console.warn(
+        `[dna-manager] DNA validation failed for ${DNA_FILENAME}: ${validation.errors.join(", ")}`
+      );
+      console.warn("[dna-manager] Using DNA but validation issues should be addressed.");
+    }
+
+    // Apply migration if needed
+    const migrated = applyMigration(data);
+
+    // Update cache
+    _cache = { path: filePath, mtime, data: migrated };
+
+    return migrated;
   } catch (err) {
     if (err.code === "ENOENT") {
-      return { documents: [], projectDNA: getProjectDNA(), memories: [], version: 1, lastUpdated: null };
+      return null;
     }
-    throw err;
+    console.warn(`[dna-manager] Failed to load ${DNA_FILENAME}:`, err.message);
+    return null;
   }
 }
 
 /**
- * Get project DNA from registry (synchronous)
+ * Loads the .document-dna.json file from the project root.
+ * Wrapper for loadProjectDNA to maintain backward compatibility.
+ *
+ * @param {string} [projectRoot] - Project root directory (default: process.cwd())
+ * @returns {Object|null} Parsed project DNA config, or null if file doesn't exist
  */
-export function getRegistryDNA() {
-  try {
-    // Try to read from registry file
-    const data = fs.readFileSync(REGISTRY_PATH, "utf8");
-    const registry = JSON.parse(data);
-    return registry.projectDNA || getProjectDNA();
-  } catch (err) {
-    // If file doesn't exist, return default DNA
-    return getProjectDNA();
-  }
+export function loadProjectDNA(projectRoot) {
+  return _loadProjectDNA(projectRoot);
 }
 
 /**
- * Get memories from registry
+ * Creates a .document-dna.json file by merging provided config with defaults.
+ *
+ * @param {Object} config - Partial DNA config to merge with defaults
+ * @param {string} [projectRoot] - Project root directory (default: process.cwd())
+ * @returns {Object} Result with path and final config
  */
-export async function getMemories() {
-  const registry = await loadRegistry();
-  return registry.memories || [];
-}
+export function createDNAFile(config = {}, projectRoot) {
+  const root = projectRoot || process.cwd();
+  const filePath = path.join(root, DNA_FILENAME);
+  const defaults = getDefaultDNA();
 
-/**
- * Apply project DNA to document creation input
- */
-export function applyProjectDNAToDocument(input) {
-  const dna = getRegistryDNA();
-  
-  return {
-    ...input,
-    stylePreset: input.stylePreset || dna.defaultStylePreset,
-    header: input.header || { text: dna.defaultHeader },
-    footer: input.footer || {
-      text: dna.defaultFooter,
-      alignment: "center"
-    }
+  // Deep merge: config wins over defaults
+  const merged = {
+    version: config.version || defaults.version,
+    company: {
+      ...defaults.company,
+      ...stripUndefined(config.company || {}),
+    },
+    defaults: {
+      ...defaults.defaults,
+      ...stripUndefined(config.defaults || {}),
+    },
+    header: {
+      ...defaults.header,
+      ...stripUndefined(config.header || {}),
+    },
+    footer: {
+      ...defaults.footer,
+      ...stripUndefined(config.footer || {}),
+    },
   };
+
+  // Validate merged DNA
+  const validation = validateDNA(merged);
+  
+  if (!validation.valid) {
+    console.warn(
+      `[dna-manager] DNA validation failed: ${validation.errors.join(", ")}`
+    );
+    console.warn("[dna-manager] Using DNA but validation issues should be addressed.");
+  }
+
+  fs.writeFileSync(filePath, JSON.stringify(merged, null, 2), "utf-8");
+
+  // Invalidate cache
+  _cache = { path: null, mtime: 0, data: null };
+
+  return { path: filePath, config: merged };
 }
 
 /**
- * Apply document memories to input
+ * Applies DNA defaults to a tool input object.
+ * Only injects values for fields that are NOT explicitly provided.
+ * Uses the inheritance system to merge DNA from multiple levels.
+ *
+ * @param {Object} input - The tool input (e.g., create-doc params)
+ * @returns {Object} The input with DNA defaults injected where missing
  */
-export async function applyMemories(input, category) {
-  const memories = await getMemories();
+export function applyDNAToInput(input) {
+  // Load all DNA levels
+  const userDNA = loadUserDNA();
+  const projectDNA = loadProjectDNA();
   
-  // Find memories that apply to this category or are general
-  const applicableMemories = memories.filter(m => 
-    !m.appliedTo || m.appliedTo.includes(category) || m.type === "document_preferences"
-  );
-  
-  // Apply memory preferences
-  let result = { ...input };
-  
-  for (const memory of applicableMemories) {
-    if (memory.content?.stylePreset && !result.stylePreset) {
-      result.stylePreset = memory.content.stylePreset;
-    }
-    
-    if (memory.content?.headerTemplate && !result.header) {
-      result.header = { text: memory.content.headerTemplate };
-    }
-    
-    if (memory.content?.footerTemplate && !result.footer) {
-      result.footer = { text: memory.content.footerTemplate };
-    }
+  // If neither userDNA nor projectDNA exists, return input unchanged
+  if (!userDNA && !projectDNA) {
+    return input;
   }
   
+  // Use inheritance system to merge DNA
+  const effectiveDNA = _mergeDNALevels(userDNA, projectDNA);
+  
+  if (!effectiveDNA) {
+    return input;
+  }
+
+  // Inject header if not explicitly provided and DNA header is enabled
+  if (!input.header && effectiveDNA.header && effectiveDNA.header.enabled !== false && effectiveDNA.header.text) {
+    input.header = {
+      text: effectiveDNA.header.text,
+      alignment: effectiveDNA.header.alignment || "right",
+    };
+  }
+
+  // Inject footer if not explicitly provided and DNA footer is enabled
+  if (!input.footer && effectiveDNA.footer && effectiveDNA.footer.enabled !== false && effectiveDNA.footer.text) {
+    input.footer = {
+      text: effectiveDNA.footer.text,
+      alignment: effectiveDNA.footer.alignment || "center",
+    };
+  }
+
+  // Inject stylePreset if not explicitly provided
+  if (!input.stylePreset && effectiveDNA.defaults && effectiveDNA.defaults.stylePreset) {
+    input.stylePreset = effectiveDNA.defaults.stylePreset;
+  }
+
+  return input;
+}
+
+/**
+ * Removes undefined values from an object (shallow).
+ * Prevents undefined from overwriting defaults during merge.
+ */
+function stripUndefined(obj) {
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
   return result;
 }
 
 /**
- * Create a new memory in registry
+ * Clears all DNA caches. Useful for testing.
  */
-export async function createMemory(type, content, appliedTo = null) {
-  const registry = await loadRegistry();
+export function clearDNACache() {
+  // Clear backward compatibility cache
+  _cache = { path: null, mtime: 0, data: null };
   
-  const memory = {
-    id: `memory_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    type: type,
-    content: content,
-    appliedTo: appliedTo || null,
-    createdAt: new Date().toISOString()
-  };
-  
-  if (!registry.memories) {
-    registry.memories = [];
-  }
-  
-  registry.memories.push(memory);
-  registry.lastUpdated = new Date().toISOString();
-  
-  await fs.writeFile(REGISTRY_PATH, JSON.stringify(registry, null, 2));
-  
-  return memory;
+  // Clear inheritance cache
+  clearInheritanceCache();
 }
 
 /**
- * Get memories for a specific category
+ * Loads the .document-user.json file from the project root.
+ * Wrapper for loadUserDNA to maintain backward compatibility.
+ *
+ * @param {string} [projectRoot] - Project root directory (default: process.cwd())
+ * @returns {Object|null} Parsed user DNA config, or null if file doesn't exist
  */
-export async function getMemoriesForCategory(category) {
-  const memories = await getMemories();
-  
-  return memories.filter(m => 
-    !m.appliedTo || m.appliedTo.includes(category)
-  );
-}
-
-/**
- * Detect document type based on title and content
- */
-export function detectDocumentType(title, content = "") {
-  // Define keywords for each document type
-  const technicalKeywords = ["specification", "api", "architecture", "technical"];
-  const businessKeywords = ["report", "proposal", "business", "financial"];
-  const legalKeywords = ["contract", "agreement", "nda", "legal"];
-  
-  // Combine title and content for analysis
-  const text = `${title} ${content}`.toLowerCase();
-  
-  // Calculate scores for each type
-  const technicalScore = technicalKeywords.reduce((sum, keyword) => {
-    const regex = new RegExp(`\\b${keyword}\\b`, "gi");
-    return sum + (text.match(regex)?.length || 0);
-  }, 0);
-  
-  const businessScore = businessKeywords.reduce((sum, keyword) => {
-    const regex = new RegExp(`\\b${keyword}\\b`, "gi");
-    return sum + (text.match(regex)?.length || 0);
-  }, 0);
-  
-  const legalScore = legalKeywords.reduce((sum, keyword) => {
-    const regex = new RegExp(`\\b${keyword}\\b`, "gi");
-    return sum + (text.match(regex)?.length || 0);
-  }, 0);
-  
-  // Return best match
-  if (technicalScore >= businessScore && technicalScore >= legalScore) {
-    return { type: "technical", stylePreset: "technical" };
-  }
-  
-  if (businessScore >= technicalScore && businessScore >= legalScore) {
-    return { type: "business", stylePreset: "business" };
-  }
-  
-  if (legalScore >= technicalScore && legalScore >= businessScore) {
-    return { type: "legal", stylePreset: "legal" };
-  }
-  
-  // Default to professional if no clear match
-  return { type: "default", stylePreset: "professional" };
-}
-
-/**
- * Update project DNA in registry
- */
-export async function updateProjectDNA(updatedConfig) {
-  const registry = await loadRegistry();
-  
-  registry.projectDNA = {
-    ...registry.projectDNA,
-    ...updatedConfig
-  };
-  
-  registry.lastUpdated = new Date().toISOString();
-  
-  await fs.writeFile(REGISTRY_PATH, JSON.stringify(registry, null, 2));
-  
-  return registry.projectDNA;
-}
-
-/**
- * Save document preferences as memory
- */
-export async function saveDocumentPreferences(input, category) {
-  // Extract style preferences from input
-  const preferences = {};
-  
-  if (input.stylePreset) {
-    preferences.stylePreset = input.stylePreset;
-  }
-  
-  if (input.header) {
-    preferences.headerTemplate = input.header.text;
-  }
-  
-  if (input.footer) {
-    preferences.footerTemplate = input.footer.text;
-  }
-  
-  // Save as memory if we have preferences
-  if (Object.keys(preferences).length > 0) {
-    return await createMemory(
-      "document_preferences",
-      preferences,
-      category ? [category] : null
-    );
-  }
-  
-  return null;
+export function loadUserDNA(projectRoot) {
+  return _loadUserDNA(projectRoot);
 }

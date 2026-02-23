@@ -2,6 +2,13 @@ import fs from "fs/promises";
 import { constants as fsConstants } from "fs";
 import path from "path";
 
+// Import categorization utilities
+import { classifyDocument, getCategoryInfo, getAvailableCategories as getCategoriesFromClassifier } from "../utils/categorizer.js";
+import {
+  registerDocument,
+  findDocuments
+} from "../utils/registry.js";
+
 /**
  * Enforces docs/ folder structure for file organization
  * @param {string} outputPath - The requested output path
@@ -228,5 +235,206 @@ export async function ensureDirectory(dirPath) {
     throw new Error(
       `Failed to create output directory '${dirPath}': ${err.message}`,
     );
+  }
+}
+
+// ============================================================================
+// CATEGORY-RELATED UTILITIES
+// ============================================================================
+
+/**
+ * Resolve category to subfolder path within docs/
+ * @param {string} category - Category name
+ * @returns {Object} { subfolder, fullPath }
+ */
+export function getCategoryPath(category) {
+  const categoryInfo = getCategoryInfo(category);
+
+  if (!categoryInfo) {
+    // Default to documents/ for unknown categories
+    return { subfolder: "documents", fullPath: path.join("docs", "documents") };
+  }
+
+  return {
+    subfolder: categoryInfo.path,
+    fullPath: path.join("docs", categoryInfo.path)
+  };
+}
+
+/**
+ * Apply category to output path (adds subfolder if needed)
+ * @param {string} outputPath - Original output path
+ * @param {string} category - Category to apply
+ * @returns {Object} { outputPath, wasCategorized }
+ */
+export function applyCategoryToPath(outputPath, category) {
+  if (!category) {
+    return { outputPath, wasCategorized: false };
+  }
+
+  const resolvedPath = path.isAbsolute(outputPath)
+    ? outputPath
+    : path.resolve(process.cwd(), outputPath);
+
+  const categoryInfo = getCategoryPath(category);
+  const docsRoot = path.join(process.cwd(), "docs");
+
+  // If already in docs/, check if it's in the correct subfolder
+  let relativePath;
+  try {
+    relativePath = path.relative(docsRoot, resolvedPath);
+  } catch {
+    return { outputPath, wasCategorized: false };
+  }
+
+  if (relativePath.startsWith(categoryInfo.subfolder + path.sep)) {
+    // Already in correct category folder
+    return { outputPath, wasCategorized: false };
+  }
+
+  // Need to add category subfolder
+  const parsedPath = path.parse(path.basename(resolvedPath));
+  const newFilePath = `${parsedPath.name}${parsedPath.ext}`;
+  const newPath = path.join(docsRoot, categoryInfo.subfolder, newFilePath);
+
+  return {
+    outputPath: newPath,
+    wasCategorized: true
+  };
+}
+
+/**
+ * Get available categories for AI models to choose from
+ * @returns {Array} Array of category objects with name, path, and description
+ */
+export function getAvailableCategories() {
+  return getCategoriesFromClassifier().map(cat => ({
+    name: cat.name,
+    path: `docs/${cat.path}/`,
+    description: cat.description
+  }));
+}
+
+/**
+ * Register a document in the registry
+ * @param {Object} doc - Document info to register
+ */
+export async function registerDocumentInRegistry(doc) {
+  try {
+    return await registerDocument({
+      title: doc.title,
+      filePath: path.isAbsolute(doc.filePath) ? doc.filePath : path.resolve(process.cwd(), doc.filePath),
+      category: doc.category,
+      tags: doc.tags || [],
+      description: doc.description
+    });
+  } catch (err) {
+    console.warn("Failed to register document:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Check for duplicate documents in registry
+ * @param {string} title - Document title to check
+ * @param {string} [category] - Expected category
+ * @returns {Array} Array of duplicate candidates
+ */
+export async function getDuplicateCandidates(title, category) {
+  try {
+    return await findDocuments({ title, category });
+  } catch (err) {
+    console.warn("Failed to check for duplicates:", err.message);
+    return [];
+  }
+}
+
+/**
+ * Classify document content and return category
+ * @param {string} title - Document title
+ * @param {string} [content] - Document content for analysis
+ * @returns {Object} Category classification result
+ */
+export function classifyDocumentContent(title, content) {
+  return classifyDocument(title, content);
+}
+
+// ============================================================================
+// REGISTRY QUERY UTILITIES
+// ============================================================================
+
+/**
+ * List all documents in the registry with optional filtering
+ * @param {Object} filters - Optional filtering criteria
+ * @param {string} [filters.category] - Filter by category
+ * @param {Array<string>} [filters.tags] - Filter by tags (matches any)
+ * @param {string} [filters.title] - Filter by title (partial match)
+ * @returns {Array} Array of document objects from registry
+ */
+export async function listDocuments(filters = {}) {
+  try {
+    const docs = await findDocuments({});
+
+    return docs.filter(doc => {
+      if (filters.category && doc.category !== filters.category) {
+        return false;
+      }
+      if (filters.tags && !doc.tags.some(tag => filters.tags.includes(tag))) {
+        return false;
+      }
+      if (filters.title && !doc.title.toLowerCase().includes(filters.title.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
+  } catch (err) {
+    console.warn("Failed to list documents:", err.message);
+    return [];
+  }
+}
+
+/**
+ * Search registry by title, category, or tags
+ * @param {Object} criteria - Search parameters
+ * @param {string} [criteria.title] - Title to search for (partial match)
+ * @param {string} [criteria.category] - Category to filter by
+ * @param {Array<string>} [criteria.tags] - Tags to match (any tag)
+ * @returns {Object} Search results with matches and metadata
+ */
+export async function searchRegistry(criteria = {}) {
+  try {
+    const allDocs = await findDocuments({});
+
+    let matches = allDocs.filter(doc => {
+      if (criteria.title && !doc.title.toLowerCase().includes(criteria.title.toLowerCase())) {
+        return false;
+      }
+      if (criteria.category && doc.category !== criteria.category) {
+        return false;
+      }
+      if (criteria.tags && !doc.tags.some(tag => criteria.tags.includes(tag))) {
+        return false;
+      }
+      return true;
+    });
+
+    // Group by category
+    const byCategory = {};
+    for (const doc of matches) {
+      if (!byCategory[doc.category]) {
+        byCategory[doc.category] = [];
+      }
+      byCategory[doc.category].push(doc);
+    }
+
+    return {
+      query: criteria,
+      totalMatches: matches.length,
+      byCategory,
+      documents: matches
+    };
+  } catch (err) {
+    console.warn("Failed to search registry:", err.message);
+    return { query: criteria, totalMatches: 0, byCategory: {}, documents: [] };
   }
 }

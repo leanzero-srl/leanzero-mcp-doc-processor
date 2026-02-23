@@ -491,6 +491,266 @@ Here is a comprehensive comparison of all seven style presets to help you choose
 | Paragraph Spacing | 120 | 180 | 120 | 240 | 140 | 120 | 120 |
 | Excel Header BG | #4472C4 | #3A3A3A | #000000 | #FFFFFF | #1F4E79 | #FF9800 | #7B1FA2 |
 
+## AI Guidance System for Automatic Document Creation
+
+The system includes a sophisticated AI guidance system that enables automatic document creation based on context, without requiring explicit styling requests. This system uses "Document DNA" stored in a `.document-dna.json` file to guide document creation decisions.
+
+### Document DNA
+
+#### What is Document DNA?
+Document DNA is a set of default document preferences stored in `.document-dna.json` that the AI uses to make stylistic decisions. This eliminates the need for users to manually specify style presets, headers, footers, and other document formatting options.
+
+#### DNA Configuration
+The Document DNA is stored in `.document-dna.json`:
+
+```json
+{
+  "version": 1,
+  "company": {
+    "name": "My Project",
+    "department": ""
+  },
+  "defaults": {
+    "stylePreset": "professional",
+    "category": null
+  },
+  "header": {
+    "enabled": true,
+    "text": "My Project",
+    "alignment": "right"
+  },
+  "footer": {
+    "enabled": true,
+    "text": "Page {current} of {total}",
+    "alignment": "center"
+  }
+}
+```
+
+#### DNA Components
+- **version**: DNA format version number
+- **company**: Project identification including name and department
+- **defaults**: Default styling preferences (stylePreset, category)
+- **header**: Header configuration (enabled, text, alignment)
+- **footer**: Footer configuration (enabled, text, alignment)
+
+#### DNA Functions
+The system provides several functions to work with Document DNA:
+
+- `loadDNA()`: Loads the `.document-dna.json` file from project root with caching
+- `createDNAFile(config, projectRoot)`: Creates or updates `.document-dna.json` with provided config
+- `applyDNAToInput(input)`: Applies DNA defaults to tool input (only for missing fields)
+- `clearDNACache()`: Clears the DNA cache for testing
+
+### Category-Based Styling
+
+The AI guidance system automatically determines appropriate styling based on document categories:
+
+```javascript
+// Categories: contracts, technical, business, legal, meeting, research
+
+// contracts → legal (for agreements and legal documents)
+// technical → technical (for specs and documentation)
+// business → business (for reports and proposals)
+// legal → legal (for memos and compliance documents)
+// meeting → professional (for minutes and agendas)
+// research → professional (for papers and analysis)
+```
+
+#### Automatic Styling Selection
+The `selectStyleBasedOnCategory()` function automatically maps document categories to appropriate styling presets:
+
+```javascript
+import { selectStyleBasedOnCategory } from './src/tools/styling.js';
+
+const preset = selectStyleBasedOnCategory("technical");
+// Returns: "technical"
+```
+
+#### Category Classification
+The categorizer system classifies documents based on keywords in title and content:
+
+```javascript
+import { classifyDocument } from './src/utils/categorizer.js';
+
+const classification = classifyDocument(
+  "API Architecture Specification",
+  "Technical documentation for API endpoints"
+);
+// Returns: { category: "technical", stylePreset: "technical" }
+```
+
+### Using AI Guidance
+
+When you create documents without specifying styling, the system automatically:
+
+1. **Check Document DNA**: Use `loadDNA()` to get default preferences
+2. **Auto-Detect Category**: Use `classifyDocument(title, content)` to determine appropriate style
+3. **Apply DNA Preferences**: Use `applyDNAToInput(input)` to add default styling
+4. **Auto-Select Preset**: Use `selectStyleBasedOnCategory(category)` to choose appropriate styling
+
+#### Example: Automatic Document Creation
+
+```javascript
+import { createDoc } from './src/tools/create-doc.js';
+
+// User starts working on something that needs documentation
+const input = {
+  title: "API Architecture Specification",
+  paragraphs: ["Content about API endpoints..."]
+};
+
+// System automatically:
+// 1. Detects category (technical)
+// 2. Applies stylePreset (technical) from DNA or category mapping
+// 3. Uses default header from DNA
+// 4. Uses default footer with page numbers
+
+const result = await createDoc(input);
+// Result includes stylePreset, header, footer from DNA
+```
+
+#### Explicit Overrides
+
+Users can still explicitly specify preferences when needed:
+
+```javascript
+createDoc({
+  title: "Custom Document",
+  paragraphs: ["Content"],
+  stylePreset: "professional", // Override DNA default
+  header: { text: "Custom Header" }, // Override DNA default
+  footer: { text: "Page {current} of {total}" } // Override DNA default
+})
+```
+
+### Document Registry System
+
+The system includes a sophisticated file-based registry that tracks all created documents for deduplication and discovery. It provides a persistent database of document metadata stored in JSON format, with file locking to ensure thread-safe concurrent access.
+
+#### Core Components
+
+The registry system consists of two main components:
+
+- `src/utils/registry.js`: Main registry implementation with lock-based file I/O
+- `docs/registry.json`: Persistent storage for document metadata (auto-created)
+
+The system implements a custom file locking mechanism using atomic directory creation to prevent race conditions during concurrent access.
+
+#### Registry Data Structure
+
+The registry stores documents with the following structure:
+
+```json
+{
+  "version": 1,
+  "lastUpdated": "2026-02-21T22:17:59.733Z",
+  "documents": [
+    {
+      "id": "doc_1234567890_abc123def",
+      "title": "Document Title",
+      "filePath": "/absolute/path/to/document.docx",
+      "category": "contracts",
+      "tags": ["legal", "agreement"],
+      "description": "Document description",
+      "createdAt": "2026-02-21T22:17:59.733Z",
+      "updatedAt": "2026-02-21T22:17:59.733Z"
+    }
+  ]
+}
+```
+
+#### Registry API Reference
+
+##### Registry Management
+- `getRegistryPath()`: Get absolute registry file path
+- `getLockFilePath()`: Get absolute lock file path
+- `acquireLock()`: Acquire exclusive access lock
+- `releaseLock()`: Release the file lock
+
+##### Document Registration
+- `registerDocument()`: Add/update document entry with duplicate checking
+- `unregisterDocument()`: Remove document from registry
+
+##### Query Operations
+- `findDocuments()`: Find documents by criteria (title, category, tags)
+- `getDocument()`: Get document by path or ID
+- `getRegistryStats()`: Get registry statistics (total count, counts by category/tag)
+
+#### Duplicate Detection
+
+The system implements multiple levels of duplicate detection:
+
+1. **Exact Match**: Same filePath (absolute path comparison)
+2. **Title+Category Match**: Same title in same category
+3. **Fuzzy Matching**: Substring matching with character normalization
+
+#### Thread Safety
+
+The registry implements thread-safe operations through:
+
+1. **Atomic Locking**: Uses fs.writeFile with exclusive flag for exclusive access
+2. **Spin-Wait**: Retries lock acquisition with 100ms delays
+3. **PID Tracking**: Stores process ID in lock file for debugging
+4. **Exception Safety**: Lock is released in finally blocks
+
+#### MCP Tool Integration
+
+The registry is integrated with the MCP server through `src/tools/utils.js`:
+
+##### Tool Utilities
+- `registerDocumentInRegistry()`: Wrapper for MCP tools with path resolution
+- `listDocuments(filters)`: MCP tool for listing documents with optional filtering
+- `searchRegistry(criteria)`: MCP tool for registry search with grouped results
+- `getCategoryPath(category)`: Category path resolution
+- `getAvailableCategories()`: Get category list from classifier
+
+### Embedding Styling in DOCX Files
+
+The `buildDocumentStyles()` function embeds heading/title/body definitions directly into the DOCX file's styles.xml so that Word, LibreOffice, etc. render them correctly without relying solely on inline TextRun formatting.
+
+```javascript
+import { getStyleConfig, buildDocumentStyles } from './src/tools/styling.js';
+
+// Get style configuration
+const config = getStyleConfig("professional");
+
+// Build styles object for DOCX constructor
+const styles = buildDocumentStyles(config);
+// This embeds styling into DOCX file's styles.xml
+```
+
+The function creates:
+- Default document styles (font, size, line spacing)
+- Heading1, Heading2, Heading3 styles with proper formatting
+- Title paragraph style with special formatting
+
+### Document Categorization System
+
+The categorizer system classifies documents into categories based on keywords in title and content:
+
+```javascript
+import { classifyDocument, getCategoryInfo } from './src/utils/categorizer.js';
+
+// Categories: contracts, technical, business, legal, meeting, research
+const classification = classifyDocument("Technical Specification", "API architecture");
+```
+
+#### Available Categories
+
+| Category | Path | Description |
+|----------|------|-------------|
+| contracts | docs/contracts/ | Legal agreements, NDA, service contracts |
+| technical | docs/technical/ | Technical specs, architecture docs, API documentation |
+| business | docs/business/ | Business documents, reports, proposals |
+| legal | docs/legal/ | Legal memos, opinions, compliance documents |
+| meeting | docs/meetings/ | Meeting minutes, agendas, notes |
+| research | docs/research/ | Research papers, analysis, whitepapers |
+
+The system maps categories to subfolder paths under docs/, enabling automatic organization of created documents.
+
+## Testing The System
+
 Choose the minimal preset for clean, uncluttered everyday documents. Choose the professional preset for formal, established documents with traditional serif typography. Choose the technical preset for documentation requiring maximum readability and clarity. Choose the legal preset for contracts and agreements that must meet traditional legal standards. Choose the business preset for modern corporate communications and go-to-market materials. Choose the casual preset for friendly, approachable internal communications. Choose the colorful preset for presentations and materials requiring visual impact.
 
 ### Choosing The Right Preset
@@ -579,6 +839,18 @@ npm test:create
 
 This tests just the document creation tools to ensure they are generating files correctly with all formatting features working properly.
 
+```bash
+npm test:category
+```
+
+This tests the document categorization and registry system, validating keyword-based classification, registry operations, category-based path resolution, and duplicate detection.
+
+```bash
+npm test:dna
+```
+
+This tests the Document DNA system, validating DNA file loading, creation, and automatic styling application.
+
 ## Recent Improvements and Bug Fixes
 
 The system has received significant performance improvements and bug fixes to ensure reliable operation:
@@ -628,7 +900,19 @@ If you are interested in extending or modifying the system, understanding the ar
 
 ### Directory Structure
 
-The project is organized with clear separation of concerns. The src directory contains all the application code. Tools in src/tools handle the MCP protocol layer. Services in src/services provide specialized functionality like vision processing, layout analysis, and table extraction. Parsers in src/parsers handle file-type specific operations. Utilities in src/utils provide helper functions for logging and file operations.
+The project is organized with clear separation of concerns. The src directory contains all the application code:
+
+- **Tools** (`src/tools/`): Tool handlers for MCP protocol layer (summary, indepth, focused, create-doc, create-excel, edit-doc, edit-excel)
+- **Services** (`src/services/`): Business logic (vision-factory, lm-studio-service, zai-vision, layout-analyzer, ocr-postprocessor, table-extractor)
+- **Parsers** (`src/parsers/`): File-type specific parsers (pdf-parser, docx-parser, excel-parser)
+- **Utils** (`src/utils/`): Core utilities (logger, file-detector, image-processor, categorizer, registry, dna-manager)
+
+New features include:
+- `src/utils/categorizer.js`: Keyword-based document categorization (contracts, technical, business, legal, meeting, research)
+- `src/utils/registry.js`: Document registry system with lock-based file I/O for deduplication
+- `src/utils/dna-manager.js`: Document DNA system for automatic styling selection
+
+The tools in `src/tools/utils.js` provide MCP integration with registry and categorization functions.
 
 ### Adding New Features
 
@@ -638,11 +922,17 @@ To add a new feature, you would typically start by defining the tool schema in s
 
 The codebase uses ES modules and follows modern JavaScript patterns. Error handling is comprehensive, with detailed error information returned including stack traces when appropriate. Logging is structured and written to both console and log files for debugging in production environments.
 
-### The Styling System Design
+### Document DNA System
 
-The styling module uses a configuration object pattern with merge capabilities. Presets are defined as complete configuration objects that include distinct styling for H1, H2, and H3 heading levels. Custom options override preset values using object spreading for simple properties and nullish coalescing for nested structures. This design allows presets to be complete defaults while still permitting fine-grained customization including headers, footers, background colors, and specific heading level styling.
+The Document DNA system stores default document preferences in a `.document-dna.json` file that the AI uses to make stylistic decisions automatically. This eliminates the need for users to manually specify style presets, headers, footers, and other document formatting options.
 
-Each preset includes font family, size, color, paragraph alignment, line spacing, and spacing values that are optimized for that document type. The professional preset uses Garamond serif font with full justification for traditional documents, while business preset uses modern Calibri with refined blue color palette for contemporary materials. Legal preset follows traditional legal formatting with Times New Roman, double spacing, and underlined headings.
+The DNA system includes:
+- `loadDNA()`: Loads the `.document-dna.json` file with in-memory caching
+- `createDNAFile(config)`: Creates or updates the DNA configuration
+- `applyDNAToInput(input)`: Applies DNA defaults to tool input (only for missing fields)
+- `clearDNACache()`: Clears the DNA cache for testing
+
+When creating documents, the system automatically checks Document DNA to apply default styling preferences, providing a seamless experience where documents are created with appropriate formatting without explicit configuration.
 
 ## Best Practices For Using The System
 

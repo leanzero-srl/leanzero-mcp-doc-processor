@@ -1,12 +1,134 @@
-import { createDoc } from "./src/tools/create-doc.js";
-import { createExcel } from "./src/tools/create-excel.js";
+import { createDoc } from "../src/tools/create-doc.js";
+import { createExcel } from "../src/tools/create-excel.js";
+import {
+  getStyleConfig,
+  buildDocumentStyles,
+  selectStyleBasedOnCategory,
+} from "../src/tools/styling.js";
 
 /**
  * Comprehensive styling demonstration for DOCX and Excel document generation
  * This script showcases all available styling options and presets
  */
 
+function testBuildDocumentStyles() {
+  console.log("=== buildDocumentStyles Unit Tests ===\n");
+  let passed = 0;
+  let failed = 0;
+
+  function assert(condition, msg) {
+    if (condition) {
+      passed++;
+      console.log(`  OK: ${msg}`);
+    } else {
+      failed++;
+      console.error(`  FAIL: ${msg}`);
+    }
+  }
+
+  // Test 1: Returns correct top-level structure
+  const config = getStyleConfig("professional");
+  const styles = buildDocumentStyles(config);
+  assert(styles.default !== undefined, "has default styles");
+  assert(styles.default.document !== undefined, "has default.document");
+  assert(styles.default.heading1 !== undefined, "has default.heading1");
+  assert(styles.default.heading2 !== undefined, "has default.heading2");
+  assert(styles.default.heading3 !== undefined, "has default.heading3");
+  assert(Array.isArray(styles.paragraphStyles), "has paragraphStyles array");
+
+  // Test 2: Document run styles use correct font family (not uppercased)
+  assert(
+    styles.default.document.run.font === "Garamond",
+    "document font is Garamond for professional",
+  );
+  assert(
+    typeof styles.default.document.run.size === "number",
+    "document font size is a number",
+  );
+  assert(
+    styles.default.document.run.size === config.font.size * 2,
+    "document font size is in half-points",
+  );
+
+  // Test 3: Heading styles have proper values
+  assert(styles.default.heading1.run.bold === true, "heading1 is bold");
+  assert(
+    styles.default.heading1.run.size === config.heading1.size * 2,
+    "heading1 size matches config",
+  );
+  assert(
+    styles.default.heading1.run.color === config.heading1.color,
+    "heading1 color matches config",
+  );
+  assert(
+    styles.default.heading1.paragraph.spacing.before ===
+      config.heading1.spacingBefore,
+    "heading1 spacing before matches",
+  );
+
+  // Test 4: Title paragraph style is defined
+  const titleStyle = styles.paragraphStyles.find((s) => s.id === "Title");
+  assert(titleStyle !== undefined, "Title paragraph style exists");
+  assert(
+    titleStyle.run.font === "Garamond",
+    "Title font matches document font",
+  );
+  assert(titleStyle.run.bold === true, "Title is bold");
+
+  // Test 5: All presets produce valid styles
+  for (const preset of [
+    "minimal",
+    "professional",
+    "technical",
+    "legal",
+    "business",
+    "casual",
+    "colorful",
+  ]) {
+    const cfg = getStyleConfig(preset);
+    const s = buildDocumentStyles(cfg);
+    assert(
+      s.default.document.run.font === cfg.font.family,
+      `${preset}: font family preserved correctly`,
+    );
+  }
+
+  // Test 6: selectStyleBasedOnCategory mapping
+  assert(
+    selectStyleBasedOnCategory("contracts") === "legal",
+    "contracts -> legal",
+  );
+  assert(
+    selectStyleBasedOnCategory("technical") === "technical",
+    "technical -> technical",
+  );
+  assert(
+    selectStyleBasedOnCategory("business") === "business",
+    "business -> business",
+  );
+  assert(
+    selectStyleBasedOnCategory("meeting") === "professional",
+    "meeting -> professional",
+  );
+  assert(
+    selectStyleBasedOnCategory("research") === "professional",
+    "research -> professional",
+  );
+  assert(
+    selectStyleBasedOnCategory("unknown") === "minimal",
+    "unknown -> minimal",
+  );
+
+  console.log(`\nbuildDocumentStyles: ${passed} passed, ${failed} failed\n`);
+  if (failed > 0) {
+    process.exitCode = 1;
+  }
+}
+
 async function demonstrateStyling() {
+  // Run unit tests first
+  testBuildDocumentStyles();
+
   console.log("=== Styling Demonstration ===\n");
 
   // ============================================================================

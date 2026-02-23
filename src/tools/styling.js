@@ -114,11 +114,12 @@ const STYLE_PRESETS = {
     },
     heading2: {
       size: 14,
-      color: "2C2C2C",
+      color: "3A3A3A",
       bold: true,
       italic: true,
+      underline: { type: "double", color: null },
       spacingBefore: 300,
-      spacingAfter: 180,
+      spacingAfter: 160,
     },
     heading3: {
       size: 12,
@@ -126,15 +127,6 @@ const STYLE_PRESETS = {
       bold: true,
       spacingBefore: 240,
       spacingAfter: 140,
-    },
-    heading2: {
-      size: 14,
-      color: "3A3A3A",
-      bold: true,
-      italic: true,
-      underline: { type: "double", color: null },
-      spacingBefore: 300,
-      spacingAfter: 160,
     },
     title: {
       size: 22,
@@ -171,7 +163,7 @@ const STYLE_PRESETS = {
       spacingBefore: 280,
       spacingAfter: 140,
     },
-    heading: {
+    heading2: {
       size: 14,
       color: "3A3A3A",
       bold: true,
@@ -185,13 +177,6 @@ const STYLE_PRESETS = {
       bold: true,
       spacingBefore: 200,
       spacingAfter: 100,
-    },
-    heading: {
-      size: 14,
-      color: "000000",
-      bold: true,
-      spacingBefore: 240,
-      spacingAfter: 120,
     },
     title: {
       size: 24,
@@ -754,4 +739,127 @@ export function getPresetDescription(presetName) {
     colorful: "Vibrant, eye-catching formatting for presentations",
   };
   return descriptions[presetName] || "Unknown preset";
+}
+
+/**
+ * Automatically select style preset based on document category
+ * Maps document categories to appropriate styling presets for AI guidance
+ *
+ * @param {string} category - Document category (contracts, technical, business, legal, meeting, research)
+ * @returns {string} Style preset name (minimal, professional, technical, legal, business, casual, colorful)
+ */
+export function selectStyleBasedOnCategory(category) {
+  if (!category || typeof category !== "string") {
+    return "minimal"; // Default to minimal for unknown categories
+  }
+
+  const categoryToPresetMap = {
+    contracts: "legal", // Legal agreements need formal legal formatting
+    legal: "legal", // Legal documents use legal preset with double spacing
+    technical: "technical", // Technical docs use technical preset with clear hierarchy
+    business: "business", // Business documents need professional business formatting
+    meeting: "professional", // Meeting minutes use professional format with clear structure
+    research: "professional", // Research papers need sophisticated serif typography
+  };
+
+  return categoryToPresetMap[category.toLowerCase()] || "minimal";
+}
+
+/**
+ * Converts a resolved styleConfig into the `styles` object accepted by the
+ * docx library's Document constructor.  This embeds heading / title / body
+ * definitions directly into the DOCX file's styles.xml so that Word,
+ * LibreOffice, etc. render them correctly without relying solely on inline
+ * TextRun formatting.
+ *
+ * @param {Object} styleConfig - Merged style configuration from getStyleConfig()
+ * @returns {Object} A styles object for `new Document({ styles: ... })`
+ */
+export function buildDocumentStyles(styleConfig) {
+  const font = styleConfig.font || {};
+  const h1 = styleConfig.heading1 || {};
+  const h2 = styleConfig.heading2 || {};
+  const h3 = styleConfig.heading3 || {};
+  const title = styleConfig.title || {};
+  const para = styleConfig.paragraph || {};
+
+  return {
+    default: {
+      document: {
+        run: {
+          font: font.family || "Arial",
+          size: (font.size || 11) * 2,
+          color: font.color || "000000",
+        },
+        paragraph: {
+          spacing: {
+            line: Math.round((para.lineSpacing || 1.15) * 240),
+          },
+        },
+      },
+      heading1: {
+        run: {
+          font: font.family || "Arial",
+          size: (h1.size || 16) * 2,
+          bold: h1.bold !== false,
+          color: h1.color || "000000",
+        },
+        paragraph: {
+          spacing: {
+            before: h1.spacingBefore || 280,
+            after: h1.spacingAfter || 140,
+          },
+        },
+      },
+      heading2: {
+        run: {
+          font: font.family || "Arial",
+          size: (h2.size || 14) * 2,
+          bold: h2.bold !== false,
+          color: h2.color || "1A1A1A",
+        },
+        paragraph: {
+          spacing: {
+            before: h2.spacingBefore || 240,
+            after: h2.spacingAfter || 120,
+          },
+        },
+      },
+      heading3: {
+        run: {
+          font: font.family || "Arial",
+          size: (h3.size || 12) * 2,
+          bold: h3.bold !== false,
+          color: h3.color || "333333",
+        },
+        paragraph: {
+          spacing: {
+            before: h3.spacingBefore || 200,
+            after: h3.spacingAfter || 100,
+          },
+        },
+      },
+    },
+    paragraphStyles: [
+      {
+        id: "Title",
+        name: "Title",
+        basedOn: "Normal",
+        next: "Normal",
+        quickFormat: true,
+        run: {
+          font: font.family || "Arial",
+          size: (title.size || 24) * 2,
+          bold: title.bold !== false,
+          color: title.color || "333333",
+        },
+        paragraph: {
+          spacing: {
+            before: title.spacingBefore || 240,
+            after: title.spacingAfter || 120,
+          },
+        },
+      },
+    ],
+  };
 }
