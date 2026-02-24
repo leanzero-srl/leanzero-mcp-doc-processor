@@ -25,7 +25,7 @@ import {
   getCategoryPath,
   classifyDocumentContent,
 } from "./utils.js";
-import { applyDNAToInput, loadDNA, recordUsage, analyzeTrends, detectRecurringStructures } from "../utils/dna-manager.js";
+import { applyDNAToInput, loadDNA, recordUsage } from "../utils/dna-manager.js";
 import { checkForExistingDocument, cleanupExcessVersions, buildGuidanceMessage } from "../services/ai-guidance-system.js";
 import { recordWrite } from "../services/lineage-tracker.js";
 import { loadBlueprint } from "../utils/blueprint-store.js";
@@ -580,36 +580,6 @@ export async function createDoc(input) {
       // Lineage tracking is non-fatal
     }
 
-    // Check for evolution suggestions after recording usage
-    let evolutionHint = null;
-    if (hasDNA) {
-      try {
-        const trends = analyzeTrends();
-        if (trends.ready && trends.suggestions && trends.suggestions.length > 0) {
-          const topSuggestion = trends.suggestions[0];
-          evolutionHint = `DNA evolution available: ${topSuggestion.reason}. Use evolve-dna tool to review and apply.`;
-        }
-      } catch {
-        // Non-fatal
-      }
-    }
-
-    // Check for recurring structure patterns (non-fatal)
-    let templateHint = null;
-    if (hasDNA) {
-      try {
-        const structureAnalysis = detectRecurringStructures();
-        if (structureAnalysis.found && structureAnalysis.suggestions.length > 0) {
-          const top = structureAnalysis.suggestions[0];
-          if (top.occurrences >= 3) {
-            templateHint = `Recurring structure detected (used ${top.occurrences} times). Consider: blueprint learn --filePath "${outputPath}" --name "auto-template"`;
-          }
-        }
-      } catch {
-        // Non-fatal
-      }
-    }
-
     // Build message with enforcement information
     let enforcementMessage = "";
     if (docsEnforced) {
@@ -659,12 +629,8 @@ export async function createDoc(input) {
         sourceCount: lineageRecord.sources.length,
         sources: lineageRecord.sources.map(s => s.filePath),
       } : null,
-      evolutionHint: evolutionHint || null,
-      ...(templateHint && { templateHint }),
       message: `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
-        (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : "") +
-        (evolutionHint ? `\n\n${evolutionHint}` : "") +
-        (templateHint ? `\n\n${templateHint}` : ""),
+        (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : ""),
     };
   } catch (err) {
     return {
