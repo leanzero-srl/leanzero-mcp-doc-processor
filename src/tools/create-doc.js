@@ -103,7 +103,31 @@ export async function createDoc(input) {
     // Load document memories from DNA to include in response
     const memories = (dnaConfig && dnaConfig.memories) ? dnaConfig.memories : null;
 
-    const title = parsedInput.title || "Untitled Document";
+    // Validate title is semantically meaningful — reject generic placeholders
+    const GENERIC_TITLES = new Set([
+      "untitled", "untitled document", "new document", "document", "doc",
+      "file", "output", "temp", "tmp",
+      "new file", "unnamed", "no title",
+    ]);
+    const rawTitle = (parsedInput.title || "").trim();
+    if (!rawTitle) {
+      return {
+        success: false,
+        error: "GENERIC_TITLE",
+        message: `Title is empty. Please provide a specific, descriptive title that reflects the document's actual content.\n\n` +
+          `Good examples: "Q1 2026 Engineering Strategy", "Software License Agreement — Acme Corp", "REST API Design Guidelines"`,
+      };
+    }
+    if (GENERIC_TITLES.has(rawTitle.toLowerCase())) {
+      return {
+        success: false,
+        error: "GENERIC_TITLE",
+        message: `Title "${rawTitle}" is too generic. Please provide a specific, descriptive title that reflects the document's actual content.\n\n` +
+          `Good examples: "Q1 2026 Engineering Strategy", "Software License Agreement — Acme Corp", "REST API Design Guidelines"\n` +
+          `Bad examples: "Document", "Untitled", "File", "Output"`,
+      };
+    }
+    const title = rawTitle;
     let paragraphs = Array.isArray(parsedInput.paragraphs)
       ? parsedInput.paragraphs
       : [];
@@ -524,10 +548,17 @@ export async function createDoc(input) {
     }
 
     // Create document with proper section configuration and embedded styles
+    // Auto-generate description from first paragraph if not provided
+    const autoDescription = input.description || (() => {
+      const firstTextPara = paragraphs.find(p => typeof p === "string" ? p.trim() : (p.text && !p.headingLevel));
+      const text = typeof firstTextPara === "string" ? firstTextPara : firstTextPara?.text;
+      return text ? text.slice(0, 200).trim() : title;
+    })();
+
     const doc = new Document({
       creator: "MCP Doc Processor",
       title: title,
-      description: input.description || "",
+      description: autoDescription,
       styles: buildDocumentStyles(styleConfig),
       sections: [
         {
@@ -556,7 +587,7 @@ export async function createDoc(input) {
         filePath: outputPath,
         category: category || "misc",
         tags: tags,
-        description: input.description || "",
+        description: autoDescription,
       });
     } catch (err) {
       console.warn("Failed to register document:", err.message);
