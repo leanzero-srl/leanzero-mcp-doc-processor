@@ -161,50 +161,6 @@ export function mergeDNALevels(userDNA, projectDNA, systemDefaults) {
 }
 
 /**
- * Applies DNA defaults to a tool input object using the inheritance system.
- * Only injects values for fields that are NOT explicitly provided.
- * Explicit user values always win, then project DNA, then system defaults.
- *
- * @param {Object} input - The tool input (e.g., create-doc params)
- * @returns {Object} The input with DNA defaults injected where missing
- */
-export function applyDNAToInput(input) {
-  // Load all DNA levels
-  const userDNA = loadUserDNA();
-  const projectDNA = loadProjectDNA();
-  
-  // Merge them to get final effective DNA
-  const effectiveDNA = mergeDNALevels(userDNA, projectDNA);
-  
-  if (!effectiveDNA) {
-    return input;
-  }
-
-  // Inject header if not explicitly provided and DNA header is enabled
-  if (!input.header && effectiveDNA.header && effectiveDNA.header.enabled !== false && effectiveDNA.header.text) {
-    input.header = {
-      text: effectiveDNA.header.text,
-      alignment: effectiveDNA.header.alignment || "right",
-    };
-  }
-
-  // Inject footer if not explicitly provided and DNA footer is enabled
-  if (!input.footer && effectiveDNA.footer && effectiveDNA.footer.enabled !== false && effectiveDNA.footer.text) {
-    input.footer = {
-      text: effectiveDNA.footer.text,
-      alignment: effectiveDNA.footer.alignment || "center",
-    };
-  }
-
-  // Inject stylePreset if not explicitly provided
-  if (!input.stylePreset && effectiveDNA.defaults && effectiveDNA.defaults.stylePreset) {
-    input.stylePreset = effectiveDNA.defaults.stylePreset;
-  }
-
-  return input;
-}
-
-/**
  * Removes undefined values from an object (shallow).
  * Prevents undefined from overwriting defaults during merge.
  */

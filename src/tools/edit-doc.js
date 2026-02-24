@@ -14,6 +14,7 @@ import {
   applyStylingToDocx,
 } from "./docx-patch.js";
 import { registerDocumentInRegistry } from "./utils.js";
+import { recordWrite } from "../services/lineage-tracker.js";
 // Import shared utilities from doc-utils.js (eliminates code duplication)
 import {
   parseInlineMarkdown,
@@ -102,7 +103,7 @@ export async function editDoc(input) {
     // If no preset specified but category is available, automatically select style
     if (!stylePreset && input.category) {
       stylePreset = selectStyleBasedOnCategory(input.category);
-      console.log(
+      console.error(
         `[edit-doc] Automatically selected style preset "${stylePreset}" for category "${input.category}"`,
       );
     }
@@ -131,6 +132,9 @@ export async function editDoc(input) {
         });
 
         if (result.success) {
+          // Record lineage AFTER successful edit (non-fatal)
+          try { await recordWrite(resolvedPath); } catch { /* non-fatal */ }
+
           // Inspect the document to provide more info
           const inspection = await inspectDocx(resolvedPath);
 
@@ -183,6 +187,9 @@ export async function editDoc(input) {
         });
 
         if (result.success) {
+          // Record lineage AFTER successful edit (non-fatal)
+          try { await recordWrite(resolvedPath); } catch { /* non-fatal */ }
+
           // Always update registry regardless of result
           let registryEntry = null;
           try {
@@ -225,6 +232,9 @@ export async function editDoc(input) {
         });
 
         if (result.success) {
+          // Record lineage AFTER successful edit (non-fatal)
+          try { await recordWrite(resolvedPath); } catch { /* non-fatal */ }
+
           // Always update registry regardless of result
           let registryEntry = null;
           try {

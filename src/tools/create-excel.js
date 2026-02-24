@@ -77,7 +77,7 @@ export async function createExcel(input) {
       );
       if (classification.category !== "misc") {
         category = classification.category;
-        console.log(
+        console.error(
           `[create-excel] Auto-classified document as "${category}" (confidence: ${classification.confidence})`,
         );
       }
@@ -150,7 +150,7 @@ export async function createExcel(input) {
 
     // Log enforcement actions to teach AI models
     if (docsEnforced) {
-      console.log(
+      console.error(
         `[create-excel] Enforced docs/ folder structure. File placed in: ${path.relative(
           process.cwd(),
           outputPath,
@@ -158,7 +158,7 @@ export async function createExcel(input) {
       );
     }
     if (wasDuplicatePrevented) {
-      console.log(
+      console.error(
         `[create-excel] Prevented duplicate file. Created: ${path.basename(
           outputPath,
         )}`,
