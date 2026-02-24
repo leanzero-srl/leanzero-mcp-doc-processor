@@ -24,6 +24,7 @@ import {
   recordUsage,
   clearDNACache,
   detectRecurringStructures,
+  signatureSimilarity,
 } from "../src/utils/dna-manager.js";
 
 const DNA_PATH = path.join(process.cwd(), ".document-dna.json");
@@ -274,6 +275,35 @@ describe("Drift Detection Internals", () => {
     });
   });
 
+  // --- 4b. signatureSimilarity ---
+  describe("Test 4b: signatureSimilarity — fuzzy matching", () => {
+    test("identical signatures return 1.0", () => {
+      assert.equal(signatureSimilarity("h1:introduction|h2:background", "h1:introduction|h2:background"), 1.0);
+    });
+
+    test("intro vs introduction returns high similarity", () => {
+      const sim = signatureSimilarity("h1:introduction|h2:background", "h1:intro|h2:background");
+      assert.ok(sim >= 0.6, `similarity ${sim} should be >= 0.6`);
+    });
+
+    test("completely different text returns low similarity", () => {
+      const sim = signatureSimilarity("h1:introduction|h2:background", "h1:conclusion|h2:references");
+      assert.ok(sim < 0.6, `similarity ${sim} should be < 0.6`);
+    });
+
+    test("different heading counts return 0.0", () => {
+      assert.equal(signatureSimilarity("h1:intro|h2:body", "h1:intro"), 0.0);
+    });
+
+    test("different heading levels return 0.0", () => {
+      assert.equal(signatureSimilarity("h1:intro|h2:body", "h2:intro|h1:body"), 0.0);
+    });
+
+    test("empty signatures return 1.0", () => {
+      assert.equal(signatureSimilarity("", ""), 1.0);
+    });
+  });
+
   // --- 5. detectRecurringStructures ---
   describe("Test 5: detectRecurringStructures — threshold behavior", () => {
     let dnaBackup = null;
@@ -336,22 +366,34 @@ describe("Drift Detection Internals", () => {
       assert.equal(match.dominantCategory, "technical", "technical should dominate (3 vs 1)");
     });
 
-    test("exact matching means different text = different patterns", () => {
+    test("fuzzy matching groups 'introduction' and 'intro' as same pattern", () => {
       clearDNACache();
       createDNAFile({ company: { name: "TestCo" } });
       clearDNACache();
-      // "introduction" and "intro" are different signatures
+      // "introduction" and "intro" should now be grouped together via fuzzy matching
       recordUsage("technical", "minimal", {}, "h1:introduction|h2:background");
       recordUsage("technical", "minimal", {}, "h1:introduction|h2:background");
-      recordUsage("technical", "minimal", {}, "h1:introduction|h2:background");
-      recordUsage("technical", "minimal", {}, "h1:intro|h2:background");
       recordUsage("technical", "minimal", {}, "h1:intro|h2:background");
       clearDNACache();
       const result = detectRecurringStructures(3);
-      const matchFull = result.suggestions.find(s => s.signature === "h1:introduction|h2:background");
-      const matchShort = result.suggestions.find(s => s.signature === "h1:intro|h2:background");
-      assert.ok(matchFull, "full 'introduction' pattern should be detected (3 occurrences)");
-      assert.ok(!matchShort, "short 'intro' pattern should NOT be detected (only 2 occurrences)");
+      // Should find a group with 3 occurrences (2 "introduction" + 1 "intro")
+      const match = result.suggestions.find(s => s.occurrences >= 3);
+      assert.ok(match, "fuzzy match should group introduction + intro (3 total)");
+      assert.ok(match.variants && match.variants.length === 2, "should report 2 variants");
+    });
+
+    test("completely different heading text is NOT grouped", () => {
+      clearDNACache();
+      createDNAFile({ company: { name: "TestCo" } });
+      clearDNACache();
+      // "introduction" and "conclusion" are too different to group
+      recordUsage("technical", "minimal", {}, "h1:introduction|h2:background");
+      recordUsage("technical", "minimal", {}, "h1:introduction|h2:background");
+      recordUsage("technical", "minimal", {}, "h1:conclusion|h2:references");
+      clearDNACache();
+      const result = detectRecurringStructures(3);
+      const match = result.suggestions.find(s => s.occurrences >= 3);
+      assert.ok(!match, "introduction and conclusion should NOT be grouped");
     });
 
     test("returns found=false when no DNA exists", () => {
