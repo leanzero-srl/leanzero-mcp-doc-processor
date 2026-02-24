@@ -7,7 +7,8 @@
  * Backward-compatible aliases: init-dna, get-dna, evolve-dna, save-memory, delete-memory, memory
  */
 
-import { loadDNA, createDNAFile, analyzeProjectProfile, analyzeTrends, applyEvolution, detectRecurringStructures } from "../utils/dna-manager.js";
+import { loadDNA, createDNAFile, analyzeProjectProfile, analyzeTrends, applyEvolution, detectRecurringStructures, convertSignatureToBlueprint, generateAutoBlueprintName } from "../utils/dna-manager.js";
+import { saveBlueprint, listBlueprints } from "../utils/blueprint-store.js";
 import { log } from "../utils/logger.js";
 
 /**
@@ -116,31 +117,42 @@ export async function handleDNA(params, toolName) {
         return { content: [{ type: "text", text: JSON.stringify(trends, null, 2) }] };
       }
 
+      let evolveResult = { ...trends };
+
       if (params.apply && trends.suggestions && trends.suggestions.length > 0) {
         const topSuggestion = trends.suggestions.find(s => s.mutation);
         if (topSuggestion) {
           const evolutionResult = applyEvolution(topSuggestion.mutation);
-          // Also check for recurring structures
-          const structureAnalysis = detectRecurringStructures();
-          const result = { ...trends, applied: evolutionResult, message: `Evolution applied: ${evolutionResult.message}` };
-          if (structureAnalysis.found) {
-            result.recurringStructures = structureAnalysis.suggestions;
-          }
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(result, null, 2),
-            }],
-          };
+          evolveResult.applied = evolutionResult;
+          evolveResult.message = `Evolution applied: ${evolutionResult.message}`;
         }
       }
 
-      // Also check for recurring structures
+      // Check for recurring structures and auto-learn as blueprints
       const structureAnalysis = detectRecurringStructures();
-      const evolveResult = { ...trends };
       if (structureAnalysis.found) {
         evolveResult.recurringStructures = structureAnalysis.suggestions;
+
+        // Auto-save recurring structures as blueprints (non-fatal)
+        try {
+          const existingBps = listBlueprints();
+          const autoLearnedBlueprints = [];
+
+          for (const suggestion of structureAnalysis.suggestions) {
+            const name = generateAutoBlueprintName(suggestion, existingBps);
+            const blueprint = convertSignatureToBlueprint(suggestion);
+            saveBlueprint(name, blueprint, blueprint.learnedFrom);
+            autoLearnedBlueprints.push({ name, headingCount: suggestion.headingCount, occurrences: suggestion.occurrences });
+          }
+
+          if (autoLearnedBlueprints.length > 0) {
+            evolveResult.autoLearnedBlueprints = autoLearnedBlueprints;
+          }
+        } catch (bpErr) {
+          log("warn", "Auto-blueprint learning failed (non-fatal):", { error: bpErr.message });
+        }
       }
+
       return { content: [{ type: "text", text: JSON.stringify(evolveResult, null, 2) }] };
     } catch (err) {
       return {
