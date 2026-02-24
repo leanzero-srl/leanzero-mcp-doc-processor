@@ -486,7 +486,74 @@ export function analyzeTrends(threshold = 5) {
 }
 
 /**
+ * Compute Levenshtein edit distance between two strings.
+ * Used for fuzzy signature matching in template detection.
+ */
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const m = a.length;
+  const n = b.length;
+  // Use single-row optimization (O(n) space instead of O(m*n))
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  let curr = new Array(n + 1);
+
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+/**
+ * Compute normalized similarity between two signatures using fuzzy heading matching.
+ * Returns a score from 0.0 (completely different) to 1.0 (identical).
+ *
+ * Two signatures match if they have the same heading count and each heading pair
+ * has the same level and similar text (Levenshtein distance normalized by length ≤ 0.4).
+ */
+export function signatureSimilarity(sigA, sigB) {
+  if (sigA === sigB) return 1.0;
+
+  const headingsA = sigA.split("|").filter(h => h.length > 0);
+  const headingsB = sigB.split("|").filter(h => h.length > 0);
+
+  // Different heading counts = different structure
+  if (headingsA.length !== headingsB.length) return 0.0;
+  if (headingsA.length === 0) return 1.0;
+
+  let totalSim = 0;
+  for (let i = 0; i < headingsA.length; i++) {
+    const [levelA, ...textPartsA] = headingsA[i].split(":");
+    const [levelB, ...textPartsB] = headingsB[i].split(":");
+    const textA = textPartsA.join(":");
+    const textB = textPartsB.join(":");
+
+    // Different heading levels at same position = different structure
+    if (levelA !== levelB) return 0.0;
+
+    // Compute text similarity via normalized Levenshtein
+    const maxLen = Math.max(textA.length, textB.length);
+    if (maxLen === 0) {
+      totalSim += 1.0;
+    } else {
+      const dist = levenshtein(textA, textB);
+      totalSim += 1.0 - (dist / maxLen);
+    }
+  }
+
+  return totalSim / headingsA.length;
+}
+
+/**
  * Analyze stored structure signatures to detect recurring patterns.
+ * Uses fuzzy matching so that "h1:introduction" and "h1:intro" are grouped together.
  * Returns suggestions for auto-creating blueprints when similar
  * documents are repeatedly created.
  *
@@ -501,40 +568,51 @@ export function detectRecurringStructures(minOccurrences = 3) {
 
   const structures = dna.usage.structures;
 
-  // Group by exact signature match first
-  const signatureGroups = new Map();
+  // Fuzzy grouping: cluster signatures with similarity >= 0.6
+  const SIMILARITY_THRESHOLD = 0.6;
+  const groups = []; // Each group: { representative: string, entries: [] }
+
   for (const entry of structures) {
-    const key = entry.signature;
-    if (!signatureGroups.has(key)) {
-      signatureGroups.set(key, []);
+    let matched = false;
+    for (const group of groups) {
+      if (signatureSimilarity(group.representative, entry.signature) >= SIMILARITY_THRESHOLD) {
+        group.entries.push(entry);
+        matched = true;
+        break;
+      }
     }
-    signatureGroups.get(key).push(entry);
+    if (!matched) {
+      groups.push({ representative: entry.signature, entries: [entry] });
+    }
   }
 
   const suggestions = [];
 
-  for (const [signature, entries] of signatureGroups) {
-    if (entries.length >= minOccurrences) {
-      // Parse the signature to get heading info
-      const headings = signature.split("|").filter(h => h.length > 0);
+  for (const group of groups) {
+    if (group.entries.length >= minOccurrences) {
+      const headings = group.representative.split("|").filter(h => h.length > 0);
 
       // Determine most common category for this pattern
       const catCounts = {};
-      for (const e of entries) {
+      for (const e of group.entries) {
         if (e.category) {
           catCounts[e.category] = (catCounts[e.category] || 0) + 1;
         }
       }
       const topCat = Object.entries(catCounts).sort((a, b) => b[1] - a[1])[0];
 
+      // Collect unique signature variants in this fuzzy group
+      const variants = [...new Set(group.entries.map(e => e.signature))];
+
       suggestions.push({
         type: "recurring-structure",
-        occurrences: entries.length,
-        signature,
+        occurrences: group.entries.length,
+        signature: group.representative,
+        variants: variants.length > 1 ? variants : undefined,
         headingCount: headings.length,
         headings,
         dominantCategory: topCat ? topCat[0] : null,
-        message: `A document structure with ${headings.length} section(s) has been used ${entries.length} times. Consider creating a blueprint for it.`,
+        message: `A document structure with ${headings.length} section(s) has been used ${group.entries.length} times${variants.length > 1 ? ` (${variants.length} variants)` : ""}. Consider creating a blueprint for it.`,
       });
     }
   }
