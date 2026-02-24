@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 
 const DNA_FILENAME = ".document-dna.json";
-const USER_DNA_FILENAME = ".document-user.json";
 
 // Import inheritance system (use aliases to avoid circular references)
 import {
@@ -253,7 +252,7 @@ export function loadUserDNA(projectRoot) {
  * @param {boolean} [overrides.header] - User overrode header
  * @param {boolean} [overrides.footer] - User overrode footer
  */
-export function recordUsage(category, stylePreset, overrides = {}) {
+export function recordUsage(category, stylePreset, overrides = {}, structureSignature = null) {
   try {
     const dna = loadDNA();
     if (!dna) return; // No DNA file, nothing to update
@@ -290,6 +289,21 @@ export function recordUsage(category, stylePreset, overrides = {}) {
       usage.correlations = usage.correlations || {};
       const corrKey = `${category}+${stylePreset}`;
       usage.correlations[corrKey] = (usage.correlations[corrKey] || 0) + 1;
+    }
+
+    // Track structure signatures for template detection
+    if (structureSignature) {
+      usage.structures = usage.structures || [];
+      usage.structures.push({
+        signature: structureSignature,
+        category: category || null,
+        style: stylePreset || null,
+        createdAt: new Date().toISOString(),
+      });
+      // Keep only last 50 entries to avoid unbounded growth
+      if (usage.structures.length > 50) {
+        usage.structures = usage.structures.slice(-50);
+      }
     }
 
     // Write updated DNA with usage stats
@@ -468,6 +482,73 @@ export function analyzeTrends(threshold = 5) {
     message: suggestions.length > 0
       ? `${suggestions.length} evolution suggestion(s) available based on ${totalDocs} documents.`
       : `No evolution suggestions at this time. Current DNA defaults match usage patterns well.`,
+  };
+}
+
+/**
+ * Analyze stored structure signatures to detect recurring patterns.
+ * Returns suggestions for auto-creating blueprints when similar
+ * documents are repeatedly created.
+ *
+ * @param {number} [minOccurrences=3] - Minimum times a pattern must appear
+ * @returns {Object} Analysis result with suggestions
+ */
+export function detectRecurringStructures(minOccurrences = 3) {
+  const dna = loadDNA();
+  if (!dna?.usage?.structures || dna.usage.structures.length < minOccurrences) {
+    return { found: false, suggestions: [], message: "Not enough documents created yet." };
+  }
+
+  const structures = dna.usage.structures;
+
+  // Group by exact signature match first
+  const signatureGroups = new Map();
+  for (const entry of structures) {
+    const key = entry.signature;
+    if (!signatureGroups.has(key)) {
+      signatureGroups.set(key, []);
+    }
+    signatureGroups.get(key).push(entry);
+  }
+
+  const suggestions = [];
+
+  for (const [signature, entries] of signatureGroups) {
+    if (entries.length >= minOccurrences) {
+      // Parse the signature to get heading info
+      const headings = signature.split("|").filter(h => h.length > 0);
+
+      // Determine most common category for this pattern
+      const catCounts = {};
+      for (const e of entries) {
+        if (e.category) {
+          catCounts[e.category] = (catCounts[e.category] || 0) + 1;
+        }
+      }
+      const topCat = Object.entries(catCounts).sort((a, b) => b[1] - a[1])[0];
+
+      suggestions.push({
+        type: "recurring-structure",
+        occurrences: entries.length,
+        signature,
+        headingCount: headings.length,
+        headings,
+        dominantCategory: topCat ? topCat[0] : null,
+        message: `A document structure with ${headings.length} section(s) has been used ${entries.length} times. Consider creating a blueprint for it.`,
+      });
+    }
+  }
+
+  // Sort by occurrence count (most frequent first)
+  suggestions.sort((a, b) => b.occurrences - a.occurrences);
+
+  return {
+    found: suggestions.length > 0,
+    suggestions,
+    totalStructuresTracked: structures.length,
+    message: suggestions.length > 0
+      ? `${suggestions.length} recurring document structure(s) detected.`
+      : "No recurring patterns detected yet.",
   };
 }
 

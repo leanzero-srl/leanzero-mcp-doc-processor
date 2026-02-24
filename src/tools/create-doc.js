@@ -25,7 +25,7 @@ import {
   getCategoryPath,
   classifyDocumentContent,
 } from "./utils.js";
-import { applyDNAToInput, loadDNA, recordUsage, analyzeTrends } from "../utils/dna-manager.js";
+import { applyDNAToInput, loadDNA, recordUsage, analyzeTrends, detectRecurringStructures } from "../utils/dna-manager.js";
 import { checkForExistingDocument, cleanupExcessVersions, buildGuidanceMessage } from "../services/ai-guidance-system.js";
 import { recordWrite } from "../services/lineage-tracker.js";
 import { loadBlueprint } from "../utils/blueprint-store.js";
@@ -46,6 +46,27 @@ import {
 
 // Re-export for backwards compatibility (other modules import from create-doc.js)
 export { stripMarkdownLinePrefixes, parseInlineMarkdown, stripMarkdownPlain };
+
+/**
+ * Compute a compact structure signature from document paragraphs.
+ * The signature captures the heading hierarchy as a pipe-separated string.
+ * E.g., "h1:introduction|h2:background|h1:methods|h2:data collection"
+ */
+function computeStructureSignature(paragraphs) {
+  if (!paragraphs || !Array.isArray(paragraphs)) return null;
+
+  const headings = paragraphs
+    .filter(p => p && typeof p === "object" && p.headingLevel)
+    .map(p => {
+      const level = p.headingLevel.replace("heading", "h");
+      // Normalize the text: lowercase, trim, first 50 chars
+      const text = (p.text || "").trim().toLowerCase().substring(0, 50);
+      return `${level}:${text}`;
+    });
+
+  if (headings.length === 0) return null;
+  return headings.join("|");
+}
 
 /**
  * Creates a DOCX document from structured content with professional formatting
@@ -543,11 +564,12 @@ export async function createDoc(input) {
 
     // Record usage in DNA for auto-learning with override tracking (non-fatal)
     if (hasDNA) {
+      const structSig = computeStructureSignature(processedParagraphs);
       recordUsage(category || "misc", stylePreset, {
         stylePreset: userExplicitlySetStyle,
         header: !!input.header,
         footer: !!input.footer,
-      });
+      }, structSig);
     }
 
     // Record lineage (track which read documents informed this creation)
@@ -566,6 +588,22 @@ export async function createDoc(input) {
         if (trends.ready && trends.suggestions && trends.suggestions.length > 0) {
           const topSuggestion = trends.suggestions[0];
           evolutionHint = `DNA evolution available: ${topSuggestion.reason}. Use evolve-dna tool to review and apply.`;
+        }
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    // Check for recurring structure patterns (non-fatal)
+    let templateHint = null;
+    if (hasDNA) {
+      try {
+        const structureAnalysis = detectRecurringStructures();
+        if (structureAnalysis.found && structureAnalysis.suggestions.length > 0) {
+          const top = structureAnalysis.suggestions[0];
+          if (top.occurrences >= 3) {
+            templateHint = `Recurring structure detected (used ${top.occurrences} times). Consider: blueprint learn --filePath "${outputPath}" --name "auto-template"`;
+          }
         }
       } catch {
         // Non-fatal
@@ -622,9 +660,11 @@ export async function createDoc(input) {
         sources: lineageRecord.sources.map(s => s.filePath),
       } : null,
       evolutionHint: evolutionHint || null,
+      ...(templateHint && { templateHint }),
       message: `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
         (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : "") +
-        (evolutionHint ? `\n\n${evolutionHint}` : ""),
+        (evolutionHint ? `\n\n${evolutionHint}` : "") +
+        (templateHint ? `\n\n${templateHint}` : ""),
     };
   } catch (err) {
     return {
