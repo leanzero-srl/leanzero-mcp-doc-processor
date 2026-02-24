@@ -16,10 +16,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Import Tool Handlers
-import { handleSummary } from "../src/tools/summary-tool.js";
-import { handleInDepth } from "../src/tools/indepth-tool.js";
-import { handleFocused } from "../src/tools/focused-tool.js";
+// Import unified read-doc tool handler
+import { handleReadDoc } from "../src/tools/read-doc-tool.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,33 +80,32 @@ async function runTests() {
     console.log(`${colors.bold}📄 Document: ${file}${colors.reset}`);
     console.log(`${colors.gray}   Path: ${filePath}${colors.reset}\n`);
 
-    // --- Scenario A: Summary Tool ---
+    // --- Scenario A: Summary Mode ---
     await runTestScenario(
-      "get-doc-summary",
-      () => handleSummary({ filePath }),
+      "read-doc (summary)",
+      () => handleReadDoc({ filePath, mode: "summary" }),
       (response) => {
         const text = response.content[0].text;
         return text.includes("Document Summary") && text.length > 50;
       },
     );
 
-    // --- Scenario B: In-Depth Tool ---
+    // --- Scenario B: In-Depth Mode ---
     await runTestScenario(
-      "get-doc-indepth",
-      () => handleInDepth({ filePath }),
+      "read-doc (indepth)",
+      () => handleReadDoc({ filePath, mode: "indepth" }),
       (response) => {
         const text = response.content[0].text;
         return text.includes("Document Content") && text.length > 100;
       },
     );
 
-    // --- Scenario C: Focused Tool (Discovery Mode) ---
+    // --- Scenario C: Focused Mode (Discovery) ---
     await runTestScenario(
-      "get-doc-focused (Discovery)",
-      () => handleFocused({ filePath }, null, null),
+      "read-doc (focused, discovery)",
+      () => handleReadDoc({ filePath, mode: "focused" }),
       (response) => {
         const text = response.content[0].text;
-        // Should ask questions or provide brief overview
         return (
           text.includes("answer the following questions") ||
           text.includes("Document Analysis")
@@ -116,11 +113,11 @@ async function runTests() {
       },
     );
 
-    // --- Scenario D: Focused Tool (Query Mode) ---
+    // --- Scenario D: Focused Mode (With Query) ---
     const query = TEST_QUERIES[ext] || TEST_QUERIES.default;
     await runTestScenario(
-      `get-doc-focused (Query: "${query}")`,
-      () => handleFocused({ filePath }, query, null),
+      `read-doc (focused, query: "${query}")`,
+      () => handleReadDoc({ filePath, mode: "focused", userQuery: query }),
       (response) => {
         const text = response.content[0].text;
         return (
