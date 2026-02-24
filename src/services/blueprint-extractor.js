@@ -10,69 +10,7 @@
 import JSZip from "jszip";
 import fs from "fs/promises";
 import { documentProcessor } from "./document-processor.js";
-/**
- * Simple XML tag finder (lightweight, mirrors SimpleXMLParser logic from docx-patch.js)
- */
-function findAllXMLTags(xml, tagName) {
-  const results = [];
-  const openTag = `<${tagName}`;
-  const closeTag = `</${tagName}>`;
-  let pos = 0;
-
-  while (pos < xml.length) {
-    const start = xml.indexOf(openTag, pos);
-    if (start === -1) break;
-
-    const afterTag = xml[start + openTag.length];
-    if (afterTag !== " " && afterTag !== ">" && afterTag !== "/" && afterTag !== "\n" && afterTag !== "\t") {
-      pos = start + 1;
-      continue;
-    }
-
-    // Find matching close tag (handle nesting)
-    const tagEnd = xml.indexOf(">", start);
-    if (tagEnd === -1) break;
-
-    // Self-closing
-    if (xml[tagEnd - 1] === "/") {
-      results.push({ start, end: tagEnd + 1, content: "", xml: xml.substring(start, tagEnd + 1) });
-      pos = tagEnd + 1;
-      continue;
-    }
-
-    let depth = 1;
-    let searchPos = tagEnd + 1;
-    while (depth > 0 && searchPos < xml.length) {
-      const nextOpen = xml.indexOf(openTag, searchPos);
-      const nextClose = xml.indexOf(closeTag, searchPos);
-      if (nextClose === -1) break;
-
-      if (nextOpen !== -1 && nextOpen < nextClose) {
-        const nc = xml[nextOpen + openTag.length];
-        if (nc === " " || nc === ">" || nc === "/" || nc === "\n" || nc === "\t") {
-          depth++;
-        }
-        searchPos = nextOpen + 1;
-      } else {
-        depth--;
-        if (depth === 0) {
-          const end = nextClose + closeTag.length;
-          results.push({
-            start,
-            end,
-            content: xml.substring(tagEnd + 1, nextClose),
-            xml: xml.substring(start, end),
-          });
-        }
-        searchPos = nextClose + 1;
-      }
-    }
-
-    pos = results.length > 0 ? results[results.length - 1].end : start + 1;
-  }
-
-  return results;
-}
+import { findXMLTags } from "../utils/xml-utils.js";
 
 /**
  * Extract text content from a w:p XML node
@@ -113,11 +51,11 @@ function detectHeadingLevel(paraXml) {
  * Extract table dimensions from w:tbl XML node
  */
 function extractTableDimensions(tblXml) {
-  const rows = findAllXMLTags(tblXml, "w:tr");
+  const rows = findXMLTags(tblXml, "w:tr");
   if (rows.length === 0) return null;
 
   // Count cells in first row for column count
-  const firstRowCells = findAllXMLTags(rows[0].xml, "w:tc");
+  const firstRowCells = findXMLTags(rows[0].xml, "w:tc");
 
   return {
     rows: rows.length,
@@ -140,8 +78,8 @@ export async function extractBlueprintFromDocx(filePath) {
     throw new Error("Invalid DOCX: Could not find word/document.xml");
   }
 
-  const paragraphs = findAllXMLTags(documentXml, "w:p");
-  const tables = findAllXMLTags(documentXml, "w:tbl");
+  const paragraphs = findXMLTags(documentXml, "w:p");
+  const tables = findXMLTags(documentXml, "w:tbl");
 
   // Build section map: heading -> paragraphs under it, with richer metadata
   const sections = [];
