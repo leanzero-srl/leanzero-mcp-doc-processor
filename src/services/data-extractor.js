@@ -12,6 +12,7 @@ import JSZip from "jszip";
 import fs from "fs/promises";
 import { documentProcessor } from "./document-processor.js";
 import { FileTypeDetector } from "../utils/file-detector.js";
+import { findXMLTags } from "../utils/xml-utils.js";
 
 const fileDetector = new FileTypeDetector();
 
@@ -22,71 +23,6 @@ function extractCellText(cellXml) {
   const textMatches = cellXml.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
   if (!textMatches) return "";
   return textMatches.map(t => t.replace(/<w:t[^>]*>([^<]*)<\/w:t>/, "$1")).join("");
-}
-
-/**
- * Find all occurrences of an XML tag.
- * Fixed position advancement to avoid infinite loops and duplicate matches.
- */
-function findXMLTags(xml, tagName) {
-  const results = [];
-  const openTag = `<${tagName}`;
-  const closeTag = `</${tagName}>`;
-  let pos = 0;
-
-  while (pos < xml.length) {
-    const start = xml.indexOf(openTag, pos);
-    if (start === -1) break;
-
-    const afterTag = xml[start + openTag.length];
-    if (afterTag !== " " && afterTag !== ">" && afterTag !== "/" && afterTag !== "\n" && afterTag !== "\t") {
-      pos = start + 1;
-      continue;
-    }
-
-    const tagEnd = xml.indexOf(">", start);
-    if (tagEnd === -1) break;
-
-    // Self-closing tag
-    if (xml[tagEnd - 1] === "/") {
-      results.push({ xml: xml.substring(start, tagEnd + 1) });
-      pos = tagEnd + 1;
-      continue;
-    }
-
-    let depth = 1;
-    let searchPos = tagEnd + 1;
-    let foundEnd = false;
-    while (depth > 0 && searchPos < xml.length) {
-      const nextOpen = xml.indexOf(openTag, searchPos);
-      const nextClose = xml.indexOf(closeTag, searchPos);
-      if (nextClose === -1) break;
-
-      if (nextOpen !== -1 && nextOpen < nextClose) {
-        const nc = xml[nextOpen + openTag.length];
-        if (nc === " " || nc === ">" || nc === "/" || nc === "\n" || nc === "\t") {
-          depth++;
-        }
-        searchPos = nextOpen + 1;
-      } else {
-        depth--;
-        if (depth === 0) {
-          const end = nextClose + closeTag.length;
-          results.push({ xml: xml.substring(start, end) });
-          pos = end;
-          foundEnd = true;
-        }
-        searchPos = nextClose + 1;
-      }
-    }
-
-    // If no matching close tag found, skip past this open tag to avoid infinite loop
-    if (!foundEnd) {
-      pos = tagEnd + 1;
-    }
-  }
-
-  return results;
 }
 
 /**
