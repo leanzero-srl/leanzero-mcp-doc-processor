@@ -73,11 +73,15 @@ export async function computeFingerprint(filePath) {
   // Classify
   const classification = classifyDocument("", text);
 
+  // Store paragraph text for semantic diff (capped for storage)
+  const paragraphs = lines.filter(l => l.trim().length > 0).map(l => l.trim()).slice(0, 500);
+
   return {
     fingerprint: {
       capturedAt: new Date().toISOString(),
       wordCount: words.length,
-      paragraphCount: lines.filter(l => l.trim().length > 0).length,
+      paragraphCount: paragraphs.length,
+      paragraphs,
       tableCount,
       headingTree,
       headingCount: headingTree.length,
@@ -90,6 +94,99 @@ export async function computeFingerprint(filePath) {
     },
     wordSet,
   };
+}
+
+/**
+ * Compute a line-level diff between two arrays of strings using LCS.
+ * Returns an array of change objects.
+ *
+ * @param {string[]} oldLines - Baseline paragraphs
+ * @param {string[]} newLines - Current paragraphs
+ * @returns {Array<{type: 'added'|'removed'|'unchanged', text: string}>}
+ */
+function computeLineDiff(oldLines, newLines) {
+  const a = oldLines.slice(0, 500);
+  const b = newLines.slice(0, 500);
+
+  const m = a.length;
+  const n = b.length;
+
+  // Build LCS DP table
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // Backtrace to produce diff
+  const diff = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+      diff.unshift({ type: "unchanged", text: a[i - 1] });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      diff.unshift({ type: "added", text: b[j - 1] });
+      j--;
+    } else {
+      diff.unshift({ type: "removed", text: a[i - 1] });
+      i--;
+    }
+  }
+
+  return diff;
+}
+
+/**
+ * Compare two heading trees as ordered sequences.
+ * Detects level changes and significant reorderings beyond simple add/remove.
+ *
+ * @param {Array<{text: string, level: number}>} baseline
+ * @param {Array<{text: string, level: number}>} current
+ * @returns {Array<Object>} Heading changes with detail
+ */
+function compareHeadingTrees(baseline, current) {
+  const changes = [];
+
+  const baseMap = new Map(baseline.map((h, i) => [h.text.toLowerCase().trim(), { ...h, index: i }]));
+  const currMap = new Map(current.map((h, i) => [h.text.toLowerCase().trim(), { ...h, index: i }]));
+
+  // Detect level changes (heading exists in both but level changed)
+  for (const [text, baseH] of baseMap) {
+    const currH = currMap.get(text);
+    if (currH && baseH.level !== currH.level) {
+      changes.push({
+        type: "level-change",
+        heading: text,
+        from: baseH.level,
+        to: currH.level,
+      });
+    }
+  }
+
+  // Detect reorderings (heading exists in both but position changed significantly)
+  for (const [text, baseH] of baseMap) {
+    const currH = currMap.get(text);
+    if (currH) {
+      const baseRelPos = baseline.length > 1 ? baseH.index / (baseline.length - 1) : 0;
+      const currRelPos = current.length > 1 ? currH.index / (current.length - 1) : 0;
+      if (Math.abs(baseRelPos - currRelPos) > 0.3) {
+        changes.push({
+          type: "reordered",
+          heading: text,
+          fromPosition: baseH.index,
+          toPosition: currH.index,
+        });
+      }
+    }
+  }
+
+  return changes;
 }
 
 /**
@@ -154,6 +251,35 @@ export function compareFingerprintsDrift(baseline, current) {
     });
   }
 
+  // Heading tree structural comparison (level changes and reorderings)
+  const headingTreeChanges = compareHeadingTrees(
+    baseline.headingTree || [],
+    current.headingTree || []
+  );
+
+  if (headingTreeChanges.length > 0) {
+    const levelChanges = headingTreeChanges.filter(c => c.type === "level-change");
+    const reorders = headingTreeChanges.filter(c => c.type === "reordered");
+
+    if (levelChanges.length > 0) {
+      changes.push({
+        type: "heading-level-changes",
+        severity: "medium",
+        detail: `${levelChanges.length} heading(s) changed level: ${levelChanges.map(c => `"${c.heading}" h${c.from}\u2192h${c.to}`).join(", ")}`,
+        headingChanges: levelChanges,
+      });
+    }
+
+    if (reorders.length > 0) {
+      changes.push({
+        type: "heading-reorder",
+        severity: "medium",
+        detail: `${reorders.length} heading(s) significantly repositioned: ${reorders.map(c => `"${c.heading}"`).join(", ")}`,
+        reorderedHeadings: reorders,
+      });
+    }
+  }
+
   // Table count change
   if (current.tableCount !== baseline.tableCount) {
     const tableDelta = current.tableCount - baseline.tableCount;
@@ -175,6 +301,30 @@ export function compareFingerprintsDrift(baseline, current) {
       baseline: baseline.category,
       current: current.category,
     });
+  }
+
+  // Paragraph-level diff (only when both fingerprints have paragraph text)
+  if (baseline.paragraphs && current.paragraphs) {
+    const lineDiff = computeLineDiff(baseline.paragraphs, current.paragraphs);
+    const added = lineDiff.filter(d => d.type === "added");
+    const removed = lineDiff.filter(d => d.type === "removed");
+
+    if (added.length > 0 || removed.length > 0) {
+      // Compact the diff for the response: show up to 20 change lines
+      const compactDiff = lineDiff
+        .filter(d => d.type !== "unchanged")
+        .slice(0, 20)
+        .map(d => `${d.type === "added" ? "+" : "-"} ${d.text.substring(0, 100)}${d.text.length > 100 ? "..." : ""}`);
+
+      changes.push({
+        type: "paragraph-diff",
+        severity: (added.length + removed.length) > 10 ? "high" : (added.length + removed.length) > 3 ? "medium" : "low",
+        detail: `${added.length} paragraph(s) added, ${removed.length} paragraph(s) removed`,
+        added: added.length,
+        removed: removed.length,
+        diff: compactDiff,
+      });
+    }
   }
 
   // Determine overall severity

@@ -7,7 +7,7 @@
  * Backward-compatible aliases: init-dna, get-dna, evolve-dna, save-memory, delete-memory, memory
  */
 
-import { loadDNA, createDNAFile, analyzeProjectProfile, analyzeTrends, applyEvolution } from "../utils/dna-manager.js";
+import { loadDNA, createDNAFile, analyzeProjectProfile, analyzeTrends, applyEvolution, detectRecurringStructures } from "../utils/dna-manager.js";
 import { log } from "../utils/logger.js";
 
 /**
@@ -120,16 +120,28 @@ export async function handleDNA(params, toolName) {
         const topSuggestion = trends.suggestions.find(s => s.mutation);
         if (topSuggestion) {
           const evolutionResult = applyEvolution(topSuggestion.mutation);
+          // Also check for recurring structures
+          const structureAnalysis = detectRecurringStructures();
+          const result = { ...trends, applied: evolutionResult, message: `Evolution applied: ${evolutionResult.message}` };
+          if (structureAnalysis.found) {
+            result.recurringStructures = structureAnalysis.suggestions;
+          }
           return {
             content: [{
               type: "text",
-              text: JSON.stringify({ ...trends, applied: evolutionResult, message: `Evolution applied: ${evolutionResult.message}` }, null, 2),
+              text: JSON.stringify(result, null, 2),
             }],
           };
         }
       }
 
-      return { content: [{ type: "text", text: JSON.stringify(trends, null, 2) }] };
+      // Also check for recurring structures
+      const structureAnalysis = detectRecurringStructures();
+      const evolveResult = { ...trends };
+      if (structureAnalysis.found) {
+        evolveResult.recurringStructures = structureAnalysis.suggestions;
+      }
+      return { content: [{ type: "text", text: JSON.stringify(evolveResult, null, 2) }] };
     } catch (err) {
       return {
         content: [{ type: "text", text: JSON.stringify({ success: false, error: err.message }, null, 2) }],
