@@ -14,9 +14,7 @@ import { setupLogging, log } from "./utils/logger.js";
 import { visionService } from "./services/vision-factory.js";
 
 // Import tool handlers
-import { handleSummary } from "./tools/summary-tool.js";
-import { handleInDepth } from "./tools/indepth-tool.js";
-import { handleFocused } from "./tools/focused-tool.js";
+import { handleReadDoc } from "./tools/read-doc-tool.js";
 import { createDoc } from "./tools/create-doc.js";
 import { createExcel } from "./tools/create-excel.js";
 import { editDoc } from "./tools/edit-doc.js";
@@ -50,7 +48,8 @@ const server = new Server(
 /**
  * Handler for listing available tools.
  *
- * Consolidated from 21 to 11 active tools:
+ * Consolidated from 21 to 9 active tools:
+ *   - get-doc-summary + get-doc-indepth + get-doc-focused → read-doc
  *   - init-dna + get-dna + evolve-dna + save-memory + delete-memory → dna
  *   - watch-document + check-drift → drift-monitor
  *   - learn-blueprint + list-blueprints → blueprint
@@ -96,41 +95,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
   return {
     tools: [
-      // === DOCUMENT READING (3) ===
+      // === DOCUMENT READING (1 unified tool) ===
       {
-        name: "get-doc-summary",
+        name: "read-doc",
         description:
-          "Get a high-level summary of a document including structure, sections, and content overview. Supports PDF, DOCX, Excel files. Extracts embedded images and includes them in the response. IMPORTANT: Use this tool to read existing documents BEFORE creating or editing them. Understanding current content prevents duplication and ensures new documents build on existing work rather than duplicating it.",
+          "Read and analyze a document. Supports PDF, DOCX, Excel files with embedded images. " +
+          "Modes: 'summary' (default) — high-level overview with content preview; " +
+          "'indepth' — full text, structure, formatting, and metadata (use before editing); " +
+          "'focused' — query-based analysis that finds relevant sections or generates clarification questions. " +
+          "IMPORTANT: Use this tool to read existing documents BEFORE creating or editing them.",
         inputSchema: {
           type: "object",
           properties: {
             filePath: { type: "string", description: "Local file path to the document" },
-          },
-          required: ["filePath"],
-        },
-      },
-      {
-        name: "get-doc-indepth",
-        description:
-          "Get a detailed analysis of the document including full text, structure, formatting, metadata, and embedded images. Best used after focused analysis for more detail. Supports PDF, DOCX, Excel files. IMPORTANT: Use this tool to read existing documents BEFORE creating or editing them. Understanding current content prevents duplication and ensures new documents build on existing work. When you need to edit a document, ALWAYS read it first with this tool to understand what is already there.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            filePath: { type: "string", description: "Local file path to the document" },
-          },
-          required: ["filePath"],
-        },
-      },
-      {
-        name: "get-doc-focused",
-        description:
-          "Perform a focused analysis based on user-specific query. This tool automatically generates clarification questions to understand what aspects interest you, then processes the document accordingly. Supports PDF, DOCX, Excel files with extracted images. IMPORTANT: Use this tool to read existing documents BEFORE creating or editing them. Understanding current content prevents duplication and ensures new documents build on existing work.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            filePath: { type: "string", description: "Local file path to the document" },
-            userQuery: { type: "string", description: "User's query to clarify the focus of analysis (e.g., 'tell me about liability clauses')" },
-            context: { type: "string", description: "Additional context from previous questions/responses to refine the analysis" },
+            mode: { type: "string", enum: ["summary", "indepth", "focused"], description: "Read mode (default: 'summary'). Use 'indepth' before editing a document." },
+            userQuery: { type: "string", description: "User's query for focused analysis (e.g., 'tell me about liability clauses'). Only used with mode 'focused'." },
+            context: { type: "string", description: "Additional context from previous questions/responses. Only used with mode 'focused'." },
           },
           required: ["filePath"],
         },
@@ -211,7 +191,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "edit-doc",
         description:
           "Edits an existing Word DOCX document by appending or replacing content. USER CONFIRMATION REQUIRED. " +
-          "ALWAYS read the document first with get-doc-indepth before editing. " +
+          "ALWAYS read the document first with read-doc mode 'indepth' before editing. " +
           "Do NOT include markdown syntax — use headingLevel/bold for formatting. Append mode preserves existing formatting via XML patching.",
         inputSchema: {
           type: "object",
@@ -231,7 +211,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "edit-excel",
         description:
-          "Edits an existing Excel XLSX workbook. USER CONFIRMATION REQUIRED. ALWAYS read the spreadsheet first with get-doc-indepth. " +
+          "Edits an existing Excel XLSX workbook. USER CONFIRMATION REQUIRED. ALWAYS read the spreadsheet first with read-doc mode 'indepth'. " +
           "Actions: 'append-rows' adds rows, 'append-sheet' adds a sheet, 'replace-sheet' replaces a sheet's data.",
         inputSchema: {
           type: "object",
@@ -368,14 +348,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     switch (name) {
+      case "read-doc":
+        return await handleReadDoc(params);
+
+      // Backward-compatible aliases for the old 3-tool read API
       case "get-doc-summary":
-        return await handleSummary(params);
+        return await handleReadDoc({ ...params, mode: "summary" });
 
       case "get-doc-indepth":
-        return await handleInDepth(params);
+        return await handleReadDoc({ ...params, mode: "indepth" });
 
       case "get-doc-focused":
-        return await handleFocused(params, params.userQuery, params.context);
+        return await handleReadDoc({ ...params, mode: "focused" });
 
       case "create-doc": {
         const docResult = await createDoc(params);
