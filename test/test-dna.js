@@ -89,7 +89,7 @@ function testGetDefaultDNA() {
   assert(typeof defaults.defaults === "object", "has defaults object");
   assert(typeof defaults.defaults.stylePreset === "string", "has defaults.stylePreset");
   assert(typeof defaults.header === "object", "has header object");
-  assert(defaults.header.enabled === true, "header enabled by default");
+  assert(defaults.header.enabled === false, "header disabled by default (no generic placeholder)");
   assert(typeof defaults.header.text === "string", "has header.text");
   assert(typeof defaults.footer === "object", "has footer object");
   assert(defaults.footer.enabled === true, "footer enabled by default");
@@ -108,7 +108,7 @@ function testCreateDNAFile() {
   assert(fs.existsSync(DNA_PATH), "creates .document-dna.json file");
   assert(result.path === DNA_PATH, "returns correct path");
   assert(result.config.version === 1, "config has version");
-  assert(result.config.company.name === "My Project", "uses default company name");
+  assert(result.config.company.name === "", "uses empty default company name (no generic placeholder)");
 
   // Test: custom values override defaults
   const result2 = createDNAFile({
