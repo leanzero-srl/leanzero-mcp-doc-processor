@@ -14,7 +14,7 @@ import { classifyDocument } from "../utils/categorizer.js";
 /**
  * Compute Jaccard similarity between two word sets.
  */
-function computeJaccard(setA, setB) {
+export function computeJaccard(setA, setB) {
   const intersection = [...setA].filter(w => setB.has(w)).length;
   const union = new Set([...setA, ...setB]).size;
   return union > 0 ? intersection / union : 1;
@@ -73,14 +73,17 @@ export async function computeFingerprint(filePath) {
   // Classify
   const classification = classifyDocument("", text);
 
-  // Store paragraph text for semantic diff (capped for storage)
-  const paragraphs = lines.filter(l => l.trim().length > 0).map(l => l.trim()).slice(0, 500);
+  // Paragraph text for semantic diff (capped at 500 for LCS performance)
+  const allParagraphs = lines.filter(l => l.trim().length > 0).map(l => l.trim());
+  const paragraphs = allParagraphs.slice(0, 500);
+  const truncated = allParagraphs.length > 500;
 
   return {
     fingerprint: {
       capturedAt: new Date().toISOString(),
       wordCount: words.length,
       paragraphCount: paragraphs.length,
+      totalParagraphCount: allParagraphs.length,
       paragraphs,
       tableCount,
       headingTree,
@@ -93,6 +96,7 @@ export async function computeFingerprint(filePath) {
       textLength: text.length,
     },
     wordSet,
+    truncated,
   };
 }
 
@@ -104,7 +108,7 @@ export async function computeFingerprint(filePath) {
  * @param {string[]} newLines - Current paragraphs
  * @returns {Array<{type: 'added'|'removed'|'unchanged', text: string}>}
  */
-function computeLineDiff(oldLines, newLines) {
+export function computeLineDiff(oldLines, newLines) {
   const a = oldLines.slice(0, 500);
   const b = newLines.slice(0, 500);
 
@@ -150,7 +154,7 @@ function computeLineDiff(oldLines, newLines) {
  * @param {Array<{text: string, level: number}>} current
  * @returns {Array<Object>} Heading changes with detail
  */
-function compareHeadingTrees(baseline, current) {
+export function compareHeadingTrees(baseline, current) {
   const changes = [];
 
   const baseMap = new Map(baseline.map((h, i) => [h.text.toLowerCase().trim(), { ...h, index: i }]));
@@ -353,7 +357,7 @@ export function compareFingerprintsDrift(baseline, current) {
  */
 export async function watchDocument(filePath, name) {
   // Single document read — computeFingerprint returns both fingerprint and word set
-  const { fingerprint, wordSet } = await computeFingerprint(filePath);
+  const { fingerprint, wordSet, truncated } = await computeFingerprint(filePath);
 
   // Store word set hash for compact Jaccard comparison (NOT the full word array)
   const registry = await loadRegistry();
@@ -381,12 +385,17 @@ export async function watchDocument(filePath, name) {
 
   await saveRegistry(registry);
 
+  const truncationWarning = truncated
+    ? ` WARNING: Document has ${fingerprint.totalParagraphCount} paragraphs but drift detection only covers the first 500. Changes beyond paragraph 500 will not be detected.`
+    : "";
+
   return {
     success: true,
     filePath,
     name: watchEntry.name,
     fingerprint,
-    message: `Document "${watchEntry.name}" is now being watched. Use drift-monitor action:'check' to detect changes.`,
+    truncated,
+    message: `Document "${watchEntry.name}" is now being watched. Use drift-monitor action:'check' to detect changes.${truncationWarning}`,
   };
 }
 
