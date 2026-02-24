@@ -120,13 +120,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "create-doc",
         description:
           "Creates a Word DOCX document on DISK. USER CONFIRMATION REQUIRED: describe what you plan to create and get approval first. Use dryRun: true for previews. " +
+          "IMPORTANT: The title MUST be specific and descriptive (e.g., 'Q1 2026 Budget Report', 'API Design Guidelines'). Generic titles like 'Document' or 'Untitled' will be rejected. " +
           "Do NOT include markdown syntax in paragraph text — use headingLevel, bold, etc. for formatting. " +
           "Use paragraph objects with headingLevel for document hierarchy. " +
           "If Document DNA (.document-dna.json) exists, headers/footers/style are applied automatically unless overridden.",
         inputSchema: {
           type: "object",
           properties: {
-            title: { type: "string", description: "Document title (appears as Heading 1)" },
+            title: { type: "string", description: "Document title (appears as Heading 1). MUST be specific and descriptive — generic titles like 'Document' or 'Untitled' are rejected." },
             paragraphs: { type: "array", items: PARAGRAPH_ITEMS_SCHEMA, description: "Array of paragraphs (strings or objects with headingLevel/formatting)." },
             tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Array of tables (each is a 2D array)" },
             stylePreset: STYLE_PRESET_SCHEMA,
@@ -157,13 +158,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "create-excel",
         description:
           "Creates an Excel XLSX workbook on DISK. USER CONFIRMATION REQUIRED: describe what you plan to create and get approval first. Use dryRun: true for previews. " +
+          "IMPORTANT: Provide a descriptive 'title' for the workbook (e.g., 'Q1 2026 Budget Breakdown'). Sheet names must also be descriptive (e.g., 'Monthly Revenue', not 'Sheet1'). " +
           "Do NOT include markdown in cell values. Enforces .xlsx extension and docs/ folder by default.",
         inputSchema: {
           type: "object",
           properties: {
+            title: { type: "string", description: "Workbook title for filename and registry. Must be descriptive (e.g., 'Q1 2026 Budget Breakdown')." },
             sheets: {
               type: "array",
-              items: { type: "object", properties: { name: { type: "string" }, data: { type: "array", items: { type: "array" } } }, required: ["name", "data"] },
+              items: { type: "object", properties: { name: { type: "string", description: "Descriptive sheet name (e.g., 'Monthly Revenue', not 'Sheet1')" }, data: { type: "array", items: { type: "array" } } }, required: ["name", "data"] },
               description: "Array of sheet definitions with plain data values.",
             },
             stylePreset: STYLE_PRESET_SCHEMA,
@@ -456,7 +459,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (extractResult.sheets.length === 0) {
           return { content: [{ type: "text", text: JSON.stringify({ success: true, message: extractResult.message, sheets: [] }, null, 2) }] };
         }
-        const excelResult = await createExcel({ sheets: extractResult.sheets, title: params.outputTitle || "Data Extract", stylePreset: params.stylePreset || "minimal" });
+        const derivedTitle = params.outputTitle || `Data Extract from ${path.basename(params.sourcePath || "document", path.extname(params.sourcePath || ""))}`;
+        const excelResult = await createExcel({ sheets: extractResult.sheets, title: derivedTitle, stylePreset: params.stylePreset || "minimal" });
         return {
           content: [{ type: "text", text: JSON.stringify({ ...excelResult, extractionInfo: { sourcePath: params.sourcePath, mode: params.mode, sheetsExtracted: extractResult.sheets.length } }, null, 2) }],
           isError: !excelResult.success,

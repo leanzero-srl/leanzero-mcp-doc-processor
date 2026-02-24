@@ -203,9 +203,18 @@ export function validateAndNormalizeInput(
     }
   }
 
-  // Set default output path if not provided
+  // Set default output path if not provided — derive from title when available
   if (!normalized.outputPath) {
-    const defaultFilename = `document.${defaultExtension}`;
+    const slug = normalized.title
+      ? normalized.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")   // non-alphanumeric → hyphen
+          .replace(/^-+|-+$/g, "")         // trim leading/trailing hyphens
+          .slice(0, 80)                    // cap length
+      : null;
+    const defaultFilename = slug
+      ? `${slug}.${defaultExtension}`
+      : `document.${defaultExtension}`;
     normalized.outputPath = path.join(process.cwd(), "output", defaultFilename);
   } else {
     // Force correct extension on provided path

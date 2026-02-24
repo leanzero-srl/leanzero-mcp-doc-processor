@@ -46,6 +46,11 @@ import {
  */
 export async function createExcel(input) {
   try {
+    // Inject title into normalized input so filename can be derived from it
+    if (input.title && !input.outputPath) {
+      input = { ...input };  // shallow clone to avoid mutating caller's object
+    }
+
     // Step 1: Validate and normalize input
     const normalized = validateAndNormalizeInput(input, ["sheets"], "xlsx");
 
@@ -54,9 +59,22 @@ export async function createExcel(input) {
       throw new Error("'sheets' must be an array");
     }
 
+    // Validate sheet names are meaningful
+    const GENERIC_SHEET_NAMES = new Set([
+      "sheet1", "sheet2", "sheet3", "sheet", "data", "new sheet", "untitled",
+    ]);
     for (const sheet of normalized.sheets) {
       if (!sheet.name || typeof sheet.name !== "string") {
         throw new Error("Each sheet must have a valid string 'name'");
+      }
+      if (GENERIC_SHEET_NAMES.has(sheet.name.toLowerCase().trim())) {
+        return {
+          success: false,
+          error: "GENERIC_SHEET_NAME",
+          message: `Sheet name "${sheet.name}" is too generic. Please provide a descriptive name that reflects the sheet's content.\n\n` +
+            `Good examples: "Budget Overview", "Monthly Breakdown", "Employee Directory"\n` +
+            `Bad examples: "Sheet1", "Data", "New Sheet"`,
+        };
       }
       if (!Array.isArray(sheet.data)) {
         throw new Error(`Sheet '${sheet.name}' data must be an array`);
@@ -226,12 +244,13 @@ export async function createExcel(input) {
     await fs.promises.writeFile(outputPath, wbout);
 
     // Register document in registry (non-blocking, failure is non-fatal)
+    const registryTitle = input.title || normalized.sheets.map(s => s.name).join(" + ");
     const registryEntry = await registerDocumentInRegistry({
-      title: normalized.sheets[0]?.name || "Untitled Workbook",
+      title: registryTitle,
       filePath: path.resolve(outputPath),
       category: category || "misc",
       tags: tags,
-      description: input.description || "",
+      description: input.description || `Excel workbook with sheets: ${normalized.sheets.map(s => s.name).join(", ")}`,
     });
 
     // Build message with enforcement information

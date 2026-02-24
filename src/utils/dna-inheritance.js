@@ -25,7 +25,7 @@ export function getSystemDefaults() {
   return {
     version: 1,
     company: {
-      name: "My Project",
+      name: "",
       department: "",
     },
     defaults: {
@@ -33,8 +33,8 @@ export function getSystemDefaults() {
       category: null,
     },
     header: {
-      enabled: true,
-      text: "My Project",
+      enabled: false,
+      text: "",
       alignment: "right",
     },
     footer: {
