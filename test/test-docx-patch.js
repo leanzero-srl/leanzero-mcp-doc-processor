@@ -39,19 +39,20 @@ describe("Test 1-4: Create, inspect, append, and verify formatted document", () 
 
   test("Test 1: Create formatted document", async () => {
     const result = await createDoc({
-      title: "Test Document",
+      title: "Infrastructure Capacity Planning — Q1 2026",
       paragraphs: [
-        "This is a test document with formatting.",
-        "It has **bold** and *italic* text.",
-        { text: "A styled paragraph", headingLevel: "heading1" },
+        "This report covers current infrastructure utilization and projected growth for the next quarter.",
+        "Resource allocation decisions should reference the **capacity thresholds** and *scaling triggers* outlined below.",
+        { text: "Resource Utilization Summary", headingLevel: "heading1" },
       ],
       tables: [
         [
-          ["Header 1", "Header 2"],
-          ["Cell 1", "Cell 2"],
+          ["Resource", "Current Utilization"],
+          ["Compute (EC2)", "72%"],
+          ["Database (RDS)", "58%"],
         ],
       ],
-      header: { text: "Test Header", alignment: "center" },
+      header: { text: "Infrastructure Planning — Confidential", alignment: "center" },
       footer: { text: "Page {{page}}", alignment: "center" },
       stylePreset: "professional",
       outputPath: path.join(testDir, "formatted-test.docx"),
@@ -134,9 +135,9 @@ describe("Test 5: Edit DOC with new approach (default)", () => {
   test("Edit using new approach preserves formatting", async () => {
     // Create a test document
     const createResult = await createDoc({
-      title: "Edit Test Document",
-      paragraphs: ["Original content here."],
-      header: { text: "Original Header" },
+      title: "Marketing Campaign Brief — Spring 2026 Product Launch",
+      paragraphs: ["This brief outlines the campaign strategy for the upcoming spring product launch targeting enterprise customers."],
+      header: { text: "Marketing — Confidential" },
       footer: { text: "Page {{page}}" },
       stylePreset: "business",
       outputPath: path.join(testDir, "edit-test-new.docx"),
@@ -171,9 +172,9 @@ describe("Test 6: Edit DOC with legacy approach", () => {
   test("Edit using legacy mode sets legacy flag", async () => {
     // Create a test document
     const createResult = await createDoc({
-      title: "Legacy Edit Test",
-      paragraphs: ["Original content."],
-      header: { text: "Will be lost" },
+      title: "Internal Process Documentation — Legacy Workflow Migration",
+      paragraphs: ["This document describes the existing legacy workflow before migration to the new system."],
+      header: { text: "Process Documentation" },
       footer: { text: "Page {{page}}" },
       stylePreset: "minimal",
       outputPath: path.join(testDir, "edit-test-legacy.docx"),
@@ -200,9 +201,9 @@ describe("Test 7: Replace with structure preservation", () => {
   test("Replace content preserves headers and footers", async () => {
     // Create a test document
     const createResult = await createDoc({
-      title: "Replace Test",
-      paragraphs: ["Old content that will be replaced."],
-      header: { text: "Persistent Header" },
+      title: "API Versioning Strategy — Platform Engineering RFC",
+      paragraphs: ["This RFC proposes a URI-based versioning strategy for all public-facing REST endpoints."],
+      header: { text: "RFC-2026-003 — Platform Engineering" },
       footer: { text: "Page {{page}}" },
       stylePreset: "technical",
       outputPath: path.join(testDir, "replace-test.docx"),
@@ -247,23 +248,24 @@ describe("Test 8: Complex document structure", () => {
   test("Append to complex document preserves all structure", async () => {
     // Create a more complex document
     const createResult = await createDoc({
-      title: "Complex Document",
+      title: "Annual Cloud Infrastructure Cost Analysis — FY2025 Review",
       paragraphs: [
-        { text: "Introduction", headingLevel: "heading1" },
-        "This document has multiple sections.",
-        { text: "Main Content", headingLevel: "heading2" },
-        "With various formatting options.",
-        { text: "Conclusion", headingLevel: "heading1" },
-        "The end.",
+        { text: "Executive Summary", headingLevel: "heading1" },
+        "This analysis reviews cloud infrastructure spending for fiscal year 2025, identifying cost optimization opportunities across compute, storage, and networking.",
+        { text: "Cost Breakdown by Service", headingLevel: "heading2" },
+        "The largest cost drivers were EC2 on-demand instances and cross-region data transfer fees.",
+        { text: "Optimization Recommendations", headingLevel: "heading1" },
+        "Switching to reserved instances for predictable workloads would reduce compute costs by approximately 35%.",
       ],
       tables: [
         [
-          ["Metric", "Value", "Status"],
-          ["Revenue", "$10,000", "Good"],
-          ["Expenses", "$5,000", "OK"],
+          ["Service", "Annual Spend", "YoY Change"],
+          ["EC2 Compute", "$487,000", "+12%"],
+          ["S3 Storage", "$124,000", "+8%"],
+          ["Data Transfer", "$89,000", "+23%"],
         ],
       ],
-      header: { text: "Complex Document - Confidential", alignment: "right" },
+      header: { text: "Cloud Cost Analysis — Finance Internal", alignment: "right" },
       footer: {
         text: "Page {{page}} of {{total}}",
         alignment: "center",

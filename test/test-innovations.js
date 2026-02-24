@@ -316,7 +316,7 @@ describe("Innovation Features", async () => {
   describe("Test 4: Extract-to-Excel Pipeline", () => {
     before(async () => {
       const tableDocResult = await createDoc({
-        title: "Data Source Document",
+        title: "Financial Performance and Team Composition — Data Source",
         paragraphs: [
           "This document contains data for extraction.",
           { text: "Financial Summary", headingLevel: "heading1" },
@@ -420,7 +420,7 @@ describe("Innovation Features", async () => {
   describe("Test 6: Composite Document Assembly", () => {
     before(async () => {
       const srcAResult = await createDoc({
-        title: "Source Document A",
+        title: "Research Methodology and Introduction — Part A",
         paragraphs: [
           { text: "Introduction", headingLevel: "heading1" },
           "This is the introduction from document A.",
@@ -434,7 +434,7 @@ describe("Innovation Features", async () => {
       srcA = srcAResult.filePath;
 
       const srcBResult = await createDoc({
-        title: "Source Document B",
+        title: "Research Findings and Conclusion — Part B",
         paragraphs: [
           { text: "Results", headingLevel: "heading1" },
           "The results were positive.",
@@ -609,7 +609,7 @@ describe("Innovation Features", async () => {
 
     before(async () => {
       const metadataDocResult = await createDoc({
-        title: "Metadata Test Document",
+        title: "Blueprint Metadata Validation — Section Depth Analysis",
         paragraphs: [
           { text: "Overview Section", headingLevel: "heading1" },
           "This is a short overview paragraph.",
@@ -719,7 +719,7 @@ describe("Innovation Features", async () => {
       recordRead("/test/lineage-source-2.pdf", "get-doc-summary");
 
       const lineageDocResult = await createDoc({
-        title: "Lineage Test Output",
+        title: "Consolidated Analysis — Derived from Multiple Sources",
         paragraphs: ["Content derived from two sources."],
         outputPath: path.join(TEST_DIR, "lineage-output.docx"),
         enforceDocsFolder: false,
@@ -736,7 +736,7 @@ describe("Innovation Features", async () => {
 
     test("no lineage when nothing was read before create", async () => {
       const noLineageDoc = await createDoc({
-        title: "No Lineage Doc",
+        title: "Standalone Technical Specification — No Prior Sources",
         paragraphs: ["Created from scratch, no reads."],
         outputPath: path.join(TEST_DIR, "no-lineage.docx"),
         enforceDocsFolder: false,
