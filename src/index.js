@@ -30,8 +30,6 @@ import { handleDNA } from "./tools/dna-tool.js";
 import { handleBlueprint } from "./tools/blueprint-tool.js";
 import { handleDriftMonitor } from "./tools/drift-tool.js";
 import { handleGetLineage } from "./tools/lineage-tool.js";
-import { handleExtractToExcel } from "./tools/extract-to-excel-tool.js";
-import { handleAssembleDocument } from "./tools/assemble-tool.js";
 
 // Initialize logging
 setupLogging();
@@ -467,17 +465,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "get-lineage":
         return await handleGetLineage(params);
 
-      // Kept as backward-compatible aliases (removed from tool listing in Phase 3)
-      case "extract-to-excel":
-        return await handleExtractToExcel(params);
+      // Backward-compatible aliases (removed from tool listing, kept for legacy clients)
+      case "extract-to-excel": {
+        const { extractData } = await import("./services/data-extractor.js");
+        const extractResult = await extractData({ sourcePath: params.sourcePath, mode: params.mode, pattern: params.pattern });
+        if (extractResult.sheets.length === 0) {
+          return { content: [{ type: "text", text: JSON.stringify({ success: true, message: extractResult.message, sheets: [] }, null, 2) }] };
+        }
+        const excelResult = await createExcel({ sheets: extractResult.sheets, title: params.outputTitle || "Data Extract", stylePreset: params.stylePreset || "minimal" });
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ...excelResult, extractionInfo: { sourcePath: params.sourcePath, mode: params.mode, sheetsExtracted: extractResult.sheets.length } }, null, 2) }],
+          isError: !excelResult.success,
+        };
+      }
 
-      case "assemble-document":
-        return await handleAssembleDocument(params);
+      case "assemble-document": {
+        const { assembleDocument } = await import("./services/document-assembler.js");
+        const assembleResult = await assembleDocument({ sources: params.sources, outputTitle: params.outputTitle, mode: params.mode || "concatenate", blueprint: params.blueprint, stylePreset: params.stylePreset, outputPath: params.outputPath, category: params.category, tags: params.tags });
+        return { content: [{ type: "text", text: JSON.stringify(assembleResult, null, 2) }], isError: !assembleResult.success };
+      }
 
-      // Legacy alias kept for backward compatibility
       case "check-document": {
-        const { handleCheckDocument } = await import("./tools/guidance-tools.js");
-        return await handleCheckDocument(params);
+        const { checkForExistingDocument } = await import("./services/ai-guidance-system.js");
+        const check = await checkForExistingDocument(params.title, params.category);
+        return { content: [{ type: "text", text: JSON.stringify({ action: check.action, existingPath: check.existing?.filePath || null }, null, 2) }] };
       }
 
       default:
