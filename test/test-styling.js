@@ -172,18 +172,19 @@ describe("buildDocumentStyles", () => {
 describe("DOCX styling demonstrations", () => {
   test("creates DOCX with minimal styling (default)", async () => {
     const result = await createDoc({
-      title: "Document with Minimal Styling",
+      title: "Internal Meeting Notes — February 2026 All-Hands",
       paragraphs: [
-        "This is a simple paragraph with default styling.",
-        "Another paragraph to show spacing and formatting.",
+        { text: "Agenda Items", headingLevel: "heading1" },
+        "Review of Q4 delivery milestones and discussion of Q1 priorities.",
+        { text: "Key Decisions", headingLevel: "heading2" },
+        "The team agreed to adopt a two-week sprint cycle starting March 1st.",
       ],
       tables: [
         [
-          ["Column A", "Column B", "Column C"],
-          ["Data 1", "Data 2", "Data 3"],
-          ["Data 4", "Data 5", "Data 6"],
-          ["Data 7", "Data 8", "Data 9"],
-          ["Data 10", "Data 11", "Data 12"],
+          ["Action Item", "Owner", "Due Date"],
+          ["Migrate CI to GitHub Actions", "Platform Team", "2026-03-15"],
+          ["Draft API versioning RFC", "Backend Lead", "2026-03-01"],
+          ["Update onboarding docs", "DevEx Team", "2026-02-28"],
         ],
       ],
       outputPath: "./output/doc-minimal.docx",
@@ -196,28 +197,27 @@ describe("DOCX styling demonstrations", () => {
 
   test("creates DOCX with professional styling preset", async () => {
     const result = await createDoc({
-      title: "Document with Professional Styling",
+      title: "Annual Compensation Review — Engineering Department 2026",
       paragraphs: [
+        { text: "Executive Summary", headingLevel: "heading1" },
         {
-          text: "This paragraph uses the professional preset.",
-          bold: false,
+          text: "This review presents the annual compensation benchmarking analysis for the engineering department, covering base salary, equity, and bonus structures.",
           italics: true,
           color: "336699",
         },
+        { text: "Methodology", headingLevel: "heading2" },
         {
-          text: "Centered paragraph with custom spacing.",
-          alignment: "center",
-          spacingBefore: 300,
-          spacingAfter: 250,
+          text: "Compensation data was sourced from Levels.fyi, Glassdoor, and internal HR records. All figures are adjusted for geographic cost-of-living.",
+          alignment: "both",
         },
       ],
       tables: [
         [
-          ["Name", "Department", "Salary"],
-          ["John Doe", "Engineering", "$75,000"],
-          ["Jane Smith", "Marketing", "$82,500"],
-          ["Bob Wilson", "Finance", "$71,200"],
-          ["Alice Chen", "Design", "$79,900"],
+          ["Role", "Department", "Median Salary", "Market P50"],
+          ["Senior Engineer", "Backend", "$185,000", "$178,000"],
+          ["Staff Engineer", "Platform", "$225,000", "$215,000"],
+          ["Engineering Manager", "Frontend", "$210,000", "$205,000"],
+          ["Principal Engineer", "Infrastructure", "$275,000", "$268,000"],
         ],
       ],
       stylePreset: "professional",
@@ -231,26 +231,26 @@ describe("DOCX styling demonstrations", () => {
 
   test("creates DOCX with colorful styling preset", async () => {
     const result = await createDoc({
-      title: "COLORFUL DOCUMENT TITLE",
+      title: "2026 Product Launch Announcement — CloudSync Platform",
       paragraphs: [
+        { text: "Introducing CloudSync 3.0", headingLevel: "heading1" },
         {
-          text: "This document uses the colorful preset.",
+          text: "We are thrilled to announce the next generation of our real-time collaboration platform, featuring end-to-end encryption and offline-first architecture.",
           bold: true,
-          underline: true,
         },
+        { text: "Release Timeline", headingLevel: "heading2" },
         {
-          text: "Right-aligned paragraph with red color.",
-          alignment: "right",
-          color: "FF0000",
+          text: "Beta access begins March 15, 2026. General availability is scheduled for Q2.",
+          alignment: "center",
         },
       ],
       tables: [
         [
-          ["Category", "Value", "Status"],
-          ["High Priority", "Critical", "Pending"],
-          ["Low Priority", "Normal", "Complete"],
-          ["Medium Priority", "Warning", "In Progress"],
-          ["Urgent", "Severe", "Escalated"],
+          ["Feature", "Status", "Priority"],
+          ["End-to-End Encryption", "Complete", "P0"],
+          ["Offline Mode", "In Beta", "P0"],
+          ["Custom Workflows", "In Development", "P1"],
+          ["Analytics Dashboard", "Planned", "P2"],
         ],
       ],
       stylePreset: "colorful",
@@ -264,35 +264,32 @@ describe("DOCX styling demonstrations", () => {
 
   test("creates DOCX with custom styling overrides", async () => {
     const result = await createDoc({
-      title: "CUSTOM STYLE DOCUMENT",
+      title: "Brand Identity Guidelines — Custom Typography Study",
       paragraphs: [
+        { text: "Typography Overview", headingLevel: "heading1" },
         {
-          text: "Paragraph with bold and italic styling.",
+          text: "This document demonstrates custom font pairing and spacing configurations for brand consistency across all external communications.",
           bold: true,
           italics: true,
-          color: "AABBCC",
-          size: 14,
         },
+        { text: "Spacing and Alignment Standards", headingLevel: "heading2" },
         {
-          text: "Paragraph with specific alignment and spacing.",
-          alignment: "left",
-          spacingBefore: 400,
-          spacingAfter: 300,
-          lineSpacing: 1.2,
+          text: "All body text uses generous paragraph spacing with centered alignment for maximum visual impact in presentation materials.",
+          alignment: "center",
         },
       ],
       tables: [
         [
-          ["ID", "Description", "Count"],
-          ["001", "First item", "5"],
-          ["002", "Second item", "10"],
+          ["Element", "Specification", "Usage"],
+          ["Headings", "Times New Roman 14pt", "Section titles"],
+          ["Body Text", "Times New Roman 12pt", "Paragraph content"],
         ],
       ],
       stylePreset: "minimal",
       style: {
         font: {
           size: 12,
-          color: "D9D9D9",
+          color: "444444",
           fontFamily: "Times New Roman",
         },
         paragraph: {
@@ -318,13 +315,14 @@ describe("DOCX styling demonstrations", () => {
 describe("Excel styling demonstrations", () => {
   test("creates Excel with minimal styling (default)", async () => {
     const result = await createExcel({
+      title: "Inventory Snapshot — February 2026",
       sheets: [
         {
-          name: "Minimal Sheet",
+          name: "Warehouse Inventory",
           data: [
-            ["ID", "Name", "Value"],
-            [1, "Item A", 100],
-            [2, "Item B", 200],
+            ["SKU", "Product Name", "Quantity in Stock"],
+            ["SKU-001", "Wireless Keyboard", 342],
+            ["SKU-002", "USB-C Hub Adapter", 187],
           ],
         },
       ],
@@ -337,14 +335,15 @@ describe("Excel styling demonstrations", () => {
 
   test("creates Excel with professional styling preset", async () => {
     const result = await createExcel({
+      title: "Engineering Headcount and Compensation Summary",
       sheets: [
         {
-          name: "Professional Data",
+          name: "Headcount by Department",
           data: [
-            ["Employee ID", "Name", "Department", "Salary"],
-            [101, "John Doe", "Engineering", "$75,000"],
-            [102, "Jane Smith", "Marketing", "$82,500"],
-            [103, "Brown Lee", "IT Administration", "$68,750"],
+            ["Employee ID", "Name", "Department", "Annual Salary"],
+            [101, "John Doe", "Backend Engineering", "$185,000"],
+            [102, "Jane Smith", "Product Marketing", "$142,500"],
+            [103, "Brown Lee", "IT Operations", "$128,750"],
           ],
         },
       ],
@@ -358,14 +357,15 @@ describe("Excel styling demonstrations", () => {
 
   test("creates Excel with colorful styling preset", async () => {
     const result = await createExcel({
+      title: "Incident Tracker — Production Alerts February 2026",
       sheets: [
         {
-          name: "Colorful Data",
+          name: "Active Incidents",
           data: [
-            ["Status", "Message", "Priority"],
-            ["Pending", "Task in progress", "High"],
-            ["Complete", "Task finished", "Low"],
-            ["Failed", "Error occurred", "Critical"],
+            ["Incident ID", "Description", "Severity"],
+            ["INC-4821", "API gateway latency spike", "P1 — Critical"],
+            ["INC-4819", "Database replication lag resolved", "P2 — High"],
+            ["INC-4815", "CDN cache invalidation timeout", "P3 — Medium"],
           ],
         },
       ],
@@ -379,14 +379,15 @@ describe("Excel styling demonstrations", () => {
 
   test("creates Excel with custom styling overrides", async () => {
     const result = await createExcel({
+      title: "Product Catalog — Retail Pricing Q1 2026",
       sheets: [
         {
-          name: "Custom Styling",
+          name: "Retail Price List",
           data: [
-            ["Product", "Price", "Stock"],
-            ["Widget A", "$50.00", true],
-            ["Widget B", "$75.00", false],
-            ["Widget C", "$100.00", true],
+            ["Product", "Unit Price", "In Stock"],
+            ["Ergonomic Standing Desk", "$549.00", true],
+            ["Noise-Cancelling Headset", "$179.00", false],
+            ["4K Webcam Pro", "$129.00", true],
           ],
         },
       ],
@@ -394,11 +395,11 @@ describe("Excel styling demonstrations", () => {
       style: {
         font: {
           bold: true,
-          color: "FF00AA",
+          color: "333333",
           size: 14,
         },
         columnWidths: {
-          0: 25,
+          0: 28,
           1: 15,
           2: 10,
         },
@@ -416,23 +417,24 @@ describe("Excel styling demonstrations", () => {
 
   test("creates Excel with multiple sheets and different styling", async () => {
     const result = await createExcel({
+      title: "Q1 2026 Revenue and Expense Breakdown",
       sheets: [
         {
-          name: "Sales Data",
+          name: "Monthly Revenue Summary",
           data: [
-            ["Month", "Revenue", "Profit"],
+            ["Month", "Gross Revenue", "Net Profit"],
             ["January", "$150,000", "$30,000"],
             ["February", "$180,000", "$40,000"],
             ["March", "$200,000", "$50,000"],
           ],
         },
         {
-          name: "Expenses",
+          name: "Operating Expenses",
           data: [
-            ["Category", "Cost"],
-            ["Marketing", "$10,000"],
-            ["Production", "$15,000"],
-            ["Shipping", "$5,000"],
+            ["Expense Category", "Monthly Cost"],
+            ["Digital Marketing", "$10,000"],
+            ["Manufacturing", "$15,000"],
+            ["Logistics and Shipping", "$5,000"],
           ],
         },
       ],
@@ -443,9 +445,9 @@ describe("Excel styling demonstrations", () => {
           color: "336699",
         },
         columnWidths: {
-          0: 20,
-          1: 25,
-          2: 20,
+          0: 22,
+          1: 20,
+          2: 18,
         },
         headerBold: true,
       },

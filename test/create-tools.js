@@ -71,14 +71,29 @@ describe("create-excel tool", () => {
 describe("custom inputs", () => {
   test("should create a DOCX document with custom inline input", async () => {
     const customDocInput = {
-      title: "Custom Document",
+      title: "Employee Onboarding Handbook — Engineering Division",
       paragraphs: [
-        "This is a custom paragraph.",
-        "Another paragraph with multiple lines."
+        { text: "Welcome to Engineering", headingLevel: "heading1" },
+        "This handbook outlines the onboarding process for new engineers joining our team. It covers environment setup, coding standards, and team workflows.",
+        { text: "Development Environment Setup", headingLevel: "heading2" },
+        "All engineers are expected to set up their local development environment within the first week. This includes installing Node.js 20+, configuring Docker, and cloning the monorepo.",
+        { text: "Code Review Process", headingLevel: "heading2" },
+        "Every pull request requires at least two approvals before merging. Use conventional commit messages and ensure all CI checks pass.",
       ],
-      tables: [],
+      tables: [
+        [
+          ["Tool", "Version", "Purpose"],
+          ["Node.js", "20.x LTS", "Runtime environment"],
+          ["Docker", "24.x", "Containerization"],
+          ["PostgreSQL", "16", "Primary database"],
+        ],
+      ],
+      stylePreset: "technical",
+      category: "technical",
+      tags: ["onboarding", "engineering", "handbook"],
+      description: "Engineering division onboarding handbook covering dev setup and workflows",
       outputPath: "./output/custom.docx",
-      preventDuplicates: false
+      preventDuplicates: false,
     };
 
     console.error("Testing create-doc with custom input...");
@@ -92,21 +107,24 @@ describe("custom inputs", () => {
 
   test("should create an Excel file with custom inline input", async () => {
     const customExcelInput = {
+      title: "Engineering Team Roster and Allocation",
       sheets: [
         {
-          name: "Custom Sheet",
+          name: "Team Roster",
           data: [
-            ["ID", "Name"],
-            [1, "Alice"],
-            [2, "Bob"]
-          ]
-        }
+            ["Employee ID", "Name", "Role", "Start Date"],
+            [1001, "Alice Chen", "Senior Engineer", "2024-03-15"],
+            [1002, "Bob Martinez", "Staff Engineer", "2023-08-01"],
+            [1003, "Carol Wu", "Engineering Manager", "2022-11-20"],
+          ],
+        },
       ],
+      stylePreset: "professional",
       style: {
-        columnWidths: { "0": 10, "1": 20 },
-        headerBold: true
+        columnWidths: { "0": 12, "1": 20, "2": 18, "3": 14 },
+        headerBold: true,
       },
-      outputPath: "./output/custom.xlsx"
+      outputPath: "./output/custom.xlsx",
     };
 
     console.error("Testing create-excel with custom input...");
