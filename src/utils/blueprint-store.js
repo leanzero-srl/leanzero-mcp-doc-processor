@@ -104,6 +104,8 @@ export function listBlueprints() {
     learnedFrom: bp.learnedFrom,
     sectionCount: bp.sections?.length || 0,
     stylePreset: bp.stylePreset,
+    autoLearned: bp.autoLearned || false,
+    signature: bp.signature || null,
     createdAt: bp.createdAt,
   }));
 }

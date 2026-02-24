@@ -25,10 +25,10 @@ import {
   getCategoryPath,
   classifyDocumentContent,
 } from "./utils.js";
-import { applyDNAToInput, loadDNA, recordUsage } from "../utils/dna-manager.js";
+import { applyDNAToInput, loadDNA, recordUsage, signatureSimilarity } from "../utils/dna-manager.js";
 import { checkForExistingDocument, cleanupExcessVersions, buildGuidanceMessage } from "../services/ai-guidance-system.js";
 import { recordWrite } from "../services/lineage-tracker.js";
-import { loadBlueprint } from "../utils/blueprint-store.js";
+import { loadBlueprint, listBlueprints } from "../utils/blueprint-store.js";
 import { validateAgainstBlueprint } from "../services/blueprint-extractor.js";
 // Import shared utilities from doc-utils.js
 import {
@@ -593,14 +593,45 @@ export async function createDoc(input) {
       console.warn("Failed to register document:", err.message);
     }
 
+    // Compute structure signature (pure function, no side effects)
+    const structSig = computeStructureSignature(processedParagraphs);
+
     // Record usage in DNA for auto-learning with override tracking (non-fatal)
     if (hasDNA) {
-      const structSig = computeStructureSignature(processedParagraphs);
       recordUsage(category || "misc", stylePreset, {
         stylePreset: userExplicitlySetStyle,
         header: !!input.header,
         footer: !!input.footer,
       }, structSig);
+    }
+
+    // Auto-match against auto-learned blueprints (non-fatal, soft hint)
+    let blueprintMatch = null;
+    if (structSig) {
+      try {
+        const allBlueprints = listBlueprints();
+        const autoBlueprints = allBlueprints.filter(bp => bp.autoLearned && bp.signature);
+        let bestMatch = null;
+        let bestSimilarity = 0;
+
+        for (const bp of autoBlueprints) {
+          const sim = signatureSimilarity(structSig, bp.signature);
+          if (sim >= 0.6 && sim > bestSimilarity) {
+            bestSimilarity = sim;
+            bestMatch = bp;
+          }
+        }
+
+        if (bestMatch) {
+          blueprintMatch = {
+            name: bestMatch.name,
+            similarity: Math.round(bestSimilarity * 100) / 100,
+            message: `This document matches auto-learned blueprint "${bestMatch.name}" (${Math.round(bestSimilarity * 100)}% similarity). Use blueprint: "${bestMatch.name}" in future create-doc calls to enforce this structure.`,
+          };
+        }
+      } catch {
+        // Blueprint matching is non-fatal
+      }
     }
 
     // Record lineage (track which read documents informed this creation)
@@ -656,11 +687,13 @@ export async function createDoc(input) {
         categoryApplied: category || null,
       },
       memoriesApplied: memories ? Object.keys(memories).length : 0,
+      blueprintMatch: blueprintMatch || null,
       lineage: lineageRecord ? {
         sourceCount: lineageRecord.sources.length,
         sources: lineageRecord.sources.map(s => s.filePath),
       } : null,
       message: `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
+        (blueprintMatch ? `\nBLUEPRINT MATCH: ${blueprintMatch.message}\n` : "") +
         (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : ""),
     };
   } catch (err) {

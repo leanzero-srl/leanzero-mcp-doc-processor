@@ -682,3 +682,75 @@ export function applyEvolution(mutation) {
     message: `DNA evolved: ${mutation.path} changed from "${oldValue}" to "${mutation.value}"`,
   };
 }
+
+/**
+ * Convert a recurring-structure suggestion (from detectRecurringStructures)
+ * into a blueprint object suitable for saveBlueprint().
+ *
+ * Pure function — no file I/O.
+ *
+ * @param {Object} suggestion - A suggestion from detectRecurringStructures()
+ * @returns {Object} Blueprint object with sections, signature, autoLearned flag
+ */
+export function convertSignatureToBlueprint(suggestion) {
+  const headings = (suggestion.signature || "")
+    .split("|")
+    .filter(h => h.length > 0);
+
+  const sections = headings.map(h => {
+    const [level, ...textParts] = h.split(":");
+    const text = textParts.join(":");
+    return {
+      headingLevel: level.replace("h", "heading"),
+      pattern: text,
+      required: true,
+    };
+  });
+
+  return {
+    sections,
+    signature: suggestion.signature,
+    dominantCategory: suggestion.dominantCategory || null,
+    occurrences: suggestion.occurrences,
+    autoLearned: true,
+    learnedFrom: `auto-detected from ${suggestion.occurrences} similar documents`,
+  };
+}
+
+/**
+ * Generate a deterministic name for an auto-learned blueprint.
+ *
+ * Format: "auto-{category}-{headingCount}h" (e.g., "auto-technical-3h").
+ * If an auto-blueprint already exists with the same signature, reuses
+ * that name (update, not duplicate). Appends "-2", "-3" on true collisions.
+ *
+ * @param {Object} suggestion - A suggestion from detectRecurringStructures()
+ * @param {Object} existingBlueprints - Map of name → blueprint from listBlueprints()
+ * @returns {string} Blueprint name
+ */
+export function generateAutoBlueprintName(suggestion, existingBlueprints) {
+  const category = suggestion.dominantCategory || "general";
+  const headingCount = suggestion.headingCount || 0;
+  const baseName = `auto-${category}-${headingCount}h`;
+
+  // Check if an existing auto-blueprint has the same signature — reuse its name
+  const bpList = Array.isArray(existingBlueprints)
+    ? existingBlueprints
+    : Object.values(existingBlueprints || {});
+
+  for (const bp of bpList) {
+    if (bp.autoLearned && bp.signature === suggestion.signature) {
+      return bp.name;
+    }
+  }
+
+  // No existing match — find an unused name
+  const existingNames = new Set(bpList.map(bp => bp.name));
+  if (!existingNames.has(baseName)) return baseName;
+
+  let suffix = 2;
+  while (existingNames.has(`${baseName}-${suffix}`)) {
+    suffix++;
+  }
+  return `${baseName}-${suffix}`;
+}

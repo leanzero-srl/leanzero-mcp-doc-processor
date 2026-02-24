@@ -121,6 +121,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         description:
           "Creates a Word DOCX document on DISK. USER CONFIRMATION REQUIRED: describe what you plan to create and get approval first. Use dryRun: true for previews. " +
           "IMPORTANT: The title MUST be specific and descriptive (e.g., 'Q1 2026 Budget Report', 'API Design Guidelines'). Generic titles like 'Document' or 'Untitled' will be rejected. " +
+          "Blueprints are auto-learned from recurring patterns — check blueprintMatch in the response for structural template suggestions. " +
           "Do NOT include markdown syntax in paragraph text — use headingLevel, bold, etc. for formatting. " +
           "Use paragraph objects with headingLevel for document hierarchy. " +
           "If Document DNA (.document-dna.json) exists, headers/footers/style are applied automatically unless overridden.",
@@ -249,7 +250,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "dna",
         description:
           "Manage Document DNA (.document-dna.json) — the project's document identity system. " +
-          "Actions: 'init' creates DNA with defaults, 'get' returns current config/memories/usage, 'evolve' analyzes usage patterns and suggests improvements (use apply: true to auto-apply), " +
+          "Actions: 'init' creates DNA with defaults, 'get' returns current config/memories/usage, " +
+          "'evolve' analyzes usage patterns, suggests improvements (use apply: true to auto-apply), and auto-learns blueprints from recurring document structures, " +
           "'save-memory' stores a document preference, 'delete-memory' removes one by key.",
         inputSchema: {
           type: "object",
@@ -273,7 +275,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "blueprint",
         description:
           "Manage document blueprints — structural templates extracted from existing documents. " +
-          "Actions: 'learn' extracts a blueprint from DOCX/PDF, 'list' shows all saved blueprints, 'delete' removes one. Use blueprint name in create-doc to enforce structure.",
+          "Blueprints are auto-learned from recurring document patterns during 'dna evolve' — 'learn' is only needed for external documents you haven't created through this server. " +
+          "Actions: 'learn' extracts a blueprint from DOCX/PDF, 'list' shows all saved blueprints (including auto-learned ones), 'delete' removes one. Use blueprint name in create-doc to enforce structure.",
         inputSchema: {
           type: "object",
           properties: {

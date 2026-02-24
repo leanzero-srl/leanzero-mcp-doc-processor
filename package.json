@@ -15,6 +15,7 @@
     "test:dna": "node test/test-dna.js",
     "test:innovations": "node --test test/test-innovations.js",
     "test:drift": "node --test test/test-drift-internals.js",
+    "test:auto-blueprint": "node --test test/test-auto-blueprint.js",
     "lint:no-console-log": "! grep -rn 'console\\.log(' src/ --include='*.js'"
   },
   "dependencies": {
