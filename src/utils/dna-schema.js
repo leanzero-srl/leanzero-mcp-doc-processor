@@ -1,7 +1,14 @@
-import fs from "fs";
-import path from "path";
-
-const DNA_FILENAME = ".document-dna.json";
+/**
+ * DNA Schema Definition, Validation, and Migration
+ *
+ * This module is ONLY responsible for:
+ *   - Schema definition (DNA_SCHEMA)
+ *   - Validation (validateDNA)
+ *   - Migration (applyMigration, validateAndMigrateDNA)
+ *
+ * All DNA I/O (loading, saving, caching, applying defaults) lives in dna-manager.js.
+ * Do NOT add loadDNA, createDNAFile, applyDNAToInput, or cache logic here.
+ */
 
 // Valid style presets
 const VALID_STYLE_PRESETS = [
@@ -109,6 +116,11 @@ export const DNA_SCHEMA = {
     required: false,
     description: "Auto-tracked usage statistics. Categories and styles used, total document count. Updated automatically by create-doc.",
   },
+  blueprints: {
+    type: "object",
+    required: false,
+    description: "Learned document blueprints. Each key is a blueprint name, value contains sections, stylePreset, and metadata.",
+  },
 };
 
 // Migration system for version upgrades
@@ -200,23 +212,18 @@ export function validateDNA(dna) {
     if (typeof dna.header !== "object" || dna.header === null) {
       errors.push("header must be an object if provided");
     } else {
-      // Validate header.enabled
       if (
         dna.header.enabled !== undefined &&
         typeof dna.header.enabled !== "boolean"
       ) {
         errors.push("header.enabled must be a boolean if provided");
       }
-
-      // Validate header.text
       if (
         dna.header.text !== undefined &&
         typeof dna.header.text !== "string"
       ) {
         errors.push("header.text must be a string if provided");
       }
-
-      // Validate header.alignment
       if (
         dna.header.alignment !== undefined &&
         !DNA_SCHEMA.header.properties.alignment.validValues.includes(
@@ -235,23 +242,18 @@ export function validateDNA(dna) {
     if (typeof dna.footer !== "object" || dna.footer === null) {
       errors.push("footer must be an object if provided");
     } else {
-      // Validate footer.enabled
       if (
         dna.footer.enabled !== undefined &&
         typeof dna.footer.enabled !== "boolean"
       ) {
         errors.push("footer.enabled must be a boolean if provided");
       }
-
-      // Validate footer.text
       if (
         dna.footer.text !== undefined &&
         typeof dna.footer.text !== "string"
       ) {
         errors.push("footer.text must be a string if provided");
       }
-
-      // Validate footer.alignment
       if (
         dna.footer.alignment !== undefined &&
         !DNA_SCHEMA.footer.properties.alignment.validValues.includes(
@@ -326,198 +328,12 @@ export function validateAndMigrateDNA(dna) {
   };
 }
 
-// Module-level cache for DNA config (preserving existing functionality)
-let _cache = { path: null, mtime: 0, data: null };
-
-/**
- * Returns the default DNA configuration template (preserving existing functionality)
- * @returns {Object} Default DNA config
- */
-export function getDefaultDNA() {
-  return {
-    version: 1,
-    company: {
-      name: "My Project",
-      department: "",
-    },
-    defaults: {
-      stylePreset: "professional",
-      category: null,
-    },
-    header: {
-      enabled: true,
-      text: "My Project",
-      alignment: "right",
-    },
-    footer: {
-      enabled: true,
-      text: "Page {current} of {total}",
-      alignment: "center",
-    },
-  };
-}
-
-/**
- * Loads the .document-dna.json file from the project root.
- * Uses an in-memory cache with mtime checking for performance.
- *
- * @param {string} [projectRoot] - Project root directory (default: process.cwd())
- * @returns {Object|null} Parsed DNA config, or null if file doesn't exist
- */
-export function loadDNA(projectRoot) {
-  const root = projectRoot || process.cwd();
-  const filePath = path.join(root, DNA_FILENAME);
-
-  try {
-    const stat = fs.statSync(filePath);
-    const mtime = stat.mtimeMs;
-
-    // Return cached data if file hasn't changed
-    if (_cache.path === filePath && _cache.mtime === mtime) {
-      return _cache.data;
-    }
-
-    const content = fs.readFileSync(filePath, "utf-8");
-    const data = JSON.parse(content);
-
-    // Validate loaded DNA
-    const validation = validateAndMigrateDNA(data);
-
-    if (!validation.valid) {
-      console.warn(
-        `[dna-schema] DNA validation failed: ${validation.errors.join(", ")}`
-      );
-      return null;
-    }
-
-    // Update cache
-    _cache = { path: filePath, mtime, data: validation.dna };
-
-    return validation.dna;
-  } catch (err) {
-    if (err.code === "ENOENT") {
-      return null;
-    }
-    console.warn(`[dna-manager] Failed to load ${DNA_FILENAME}:`, err.message);
-    return null;
-  }
-}
-
-/**
- * Creates a .document-dna.json file by merging provided config with defaults.
- *
- * @param {Object} config - Partial DNA config to merge with defaults
- * @param {string} [projectRoot] - Project root directory (default: process.cwd())
- * @returns {Object} Result with path and final config
- */
-export function createDNAFile(config = {}, projectRoot) {
-  const root = projectRoot || process.cwd();
-  const filePath = path.join(root, DNA_FILENAME);
-  const defaults = getDefaultDNA();
-
-  // Deep merge: config wins over defaults
-  const merged = {
-    version: config.version || defaults.version,
-    company: {
-      ...defaults.company,
-      ...stripUndefined(config.company || {}),
-    },
-    defaults: {
-      ...defaults.defaults,
-      ...stripUndefined(config.defaults || {}),
-    },
-    header: {
-      ...defaults.header,
-      ...stripUndefined(config.header || {}),
-    },
-    footer: {
-      ...defaults.footer,
-      ...stripUndefined(config.footer || {}),
-    },
-  };
-
-  // Preserve memories if provided (not part of defaults, user-managed)
-  if (config.memories && typeof config.memories === "object") {
-    merged.memories = config.memories;
-  }
-
-  // Preserve usage stats if provided (auto-tracked, not user-managed)
-  if (config.usage && typeof config.usage === "object") {
-    merged.usage = config.usage;
-  }
-
-  // Validate merged DNA
-  const validation = validateDNA(merged);
-
-  if (!validation.valid) {
-    throw new Error(
-      `DNA validation failed: ${validation.errors.join(", ")}`
-    );
-  }
-
-  fs.writeFileSync(filePath, JSON.stringify(merged, null, 2), "utf-8");
-
-  // Invalidate cache
-  _cache = { path: null, mtime: 0, data: null };
-
-  return { path: filePath, config: merged };
-}
-
-/**
- * Applies DNA defaults to a tool input object.
- * Only injects values for fields that are NOT explicitly provided.
- * Explicit user values always win.
- *
- * @param {Object} input - The tool input (e.g., create-doc params)
- * @returns {Object} The input with DNA defaults injected where missing
- */
-export function applyDNAToInput(input) {
-  const dna = loadDNA();
-  if (!dna) {
-    return input;
-  }
-
-  // Inject header if not explicitly provided and DNA header is enabled
-  if (!input.header && dna.header && dna.header.enabled !== false && dna.header.text) {
-    input.header = {
-      text: dna.header.text,
-      alignment: dna.header.alignment || "right",
-    };
-  }
-
-  // Inject footer if not explicitly provided and DNA footer is enabled
-  if (!input.footer && dna.footer && dna.footer.enabled !== false && dna.footer.text) {
-    input.footer = {
-      text: dna.footer.text,
-      alignment: dna.footer.alignment || "center",
-    };
-  }
-
-  // Inject stylePreset if not explicitly provided
-  if (!input.stylePreset && dna.defaults && dna.defaults.stylePreset) {
-    input.stylePreset = dna.defaults.stylePreset;
-  }
-
-  return input;
-}
-
-/**
- * Removes undefined values from an object (shallow).
- * Prevents undefined from overwriting defaults during merge.
- */
-function stripUndefined(obj) {
-  const result = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (value !== undefined) {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-/**
- * Clears the DNA cache. Useful for testing.
- */
-export function clearDNACache() {
-  _cache = { path: null, mtime: 0, data: null };
-}
+// Re-export from dna-manager for backward compatibility with test imports
+// These are the SINGLE source of truth — do NOT reimplement here
+export {
+  loadDNA,
+  createDNAFile,
+  applyDNAToInput,
+  clearDNACache,
+  getDefaultDNA,
+} from "./dna-manager.js";

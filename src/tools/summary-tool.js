@@ -1,6 +1,7 @@
 import { documentProcessor } from "../services/document-processor.js";
 import { imageProcessor } from "../utils/image-processor.js";
 import { log, logFunctionCall } from "../utils/logger.js";
+import { recordRead } from "../services/lineage-tracker.js";
 
 /**
  * Handle document summary request
@@ -84,6 +85,9 @@ export async function handleSummary(params) {
       summary += `\n\n${imageSummary}`;
     }
   }
+
+  // Record this read for lineage tracking
+  recordRead(params.filePath, "get-doc-summary");
 
   log("info", "handleSummary completed successfully");
   return {

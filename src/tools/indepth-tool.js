@@ -1,6 +1,7 @@
 import { documentProcessor } from "../services/document-processor.js";
 import { imageProcessor } from "../utils/image-processor.js";
 import { log, logFunctionCall } from "../utils/logger.js";
+import { recordRead } from "../services/lineage-tracker.js";
 
 /**
  * Handle in-depth analysis request
@@ -86,6 +87,9 @@ export async function handleInDepth(params) {
       output += imageSummary;
     }
   }
+
+  // Record this read for lineage tracking
+  recordRead(params.filePath, "get-doc-indepth");
 
   log("info", "handleInDepth completed successfully");
   return {

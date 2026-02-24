@@ -704,7 +704,7 @@ export async function inspectDocx(filePath) {
       result.structure.hasTables = tables.length > 0;
 
       // Log for debugging
-      console.log(
+      console.error(
         `[inspectDocx] Found ${paragraphs.length} paragraphs and ${tables.length} tables`,
       );
     }

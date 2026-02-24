@@ -130,6 +130,11 @@ export function createDNAFile(config = {}, projectRoot) {
     merged.usage = config.usage;
   }
 
+  // Preserve blueprints if provided (learned from documents)
+  if (config.blueprints && typeof config.blueprints === "object") {
+    merged.blueprints = config.blueprints;
+  }
+
   // Validate merged DNA
   const validation = validateDNA(merged);
   
@@ -173,16 +178,17 @@ export function applyDNAToInput(input) {
     return input;
   }
 
-  // Inject header if not explicitly provided and DNA header is enabled
-  if (!input.header && effectiveDNA.header && effectiveDNA.header.enabled !== false && effectiveDNA.header.text) {
+  // Inject header if not explicitly provided and DNA header is enabled.
+  // Check for key existence (not truthiness) so callers can pass header: null to suppress.
+  if (!("header" in input) && effectiveDNA.header && effectiveDNA.header.enabled !== false && effectiveDNA.header.text) {
     input.header = {
       text: effectiveDNA.header.text,
       alignment: effectiveDNA.header.alignment || "right",
     };
   }
 
-  // Inject footer if not explicitly provided and DNA footer is enabled
-  if (!input.footer && effectiveDNA.footer && effectiveDNA.footer.enabled !== false && effectiveDNA.footer.text) {
+  // Inject footer if not explicitly provided and DNA footer is enabled.
+  if (!("footer" in input) && effectiveDNA.footer && effectiveDNA.footer.enabled !== false && effectiveDNA.footer.text) {
     input.footer = {
       text: effectiveDNA.footer.text,
       alignment: effectiveDNA.footer.alignment || "center",
@@ -242,21 +248,48 @@ export function loadUserDNA(projectRoot) {
  *
  * @param {string} category - Document category used
  * @param {string} stylePreset - Style preset used
+ * @param {Object} [overrides] - Which DNA defaults the user explicitly overrode
+ * @param {boolean} [overrides.stylePreset] - User overrode style preset
+ * @param {boolean} [overrides.header] - User overrode header
+ * @param {boolean} [overrides.footer] - User overrode footer
  */
-export function recordUsage(category, stylePreset) {
+export function recordUsage(category, stylePreset, overrides = {}) {
   try {
     const dna = loadDNA();
     if (!dna) return; // No DNA file, nothing to update
 
-    const usage = dna.usage || { categories: {}, styles: {}, totalDocs: 0 };
+    const usage = dna.usage || {
+      categories: {},
+      styles: {},
+      totalDocs: 0,
+      overrides: {},
+      correlations: {},
+    };
 
     usage.totalDocs = (usage.totalDocs || 0) + 1;
 
     if (category) {
+      usage.categories = usage.categories || {};
       usage.categories[category] = (usage.categories[category] || 0) + 1;
     }
     if (stylePreset) {
+      usage.styles = usage.styles || {};
       usage.styles[stylePreset] = (usage.styles[stylePreset] || 0) + 1;
+    }
+
+    // Track overrides (when user explicitly overrode DNA defaults)
+    usage.overrides = usage.overrides || {};
+    for (const [key, wasOverridden] of Object.entries(overrides)) {
+      if (wasOverridden) {
+        usage.overrides[key] = (usage.overrides[key] || 0) + 1;
+      }
+    }
+
+    // Track category+style correlations
+    if (category && stylePreset) {
+      usage.correlations = usage.correlations || {};
+      const corrKey = `${category}+${stylePreset}`;
+      usage.correlations[corrKey] = (usage.correlations[corrKey] || 0) + 1;
     }
 
     // Write updated DNA with usage stats
@@ -315,5 +348,178 @@ export function analyzeProjectProfile() {
     suggestion: topCategory && topCategoryCount >= 3
       ? `This project mostly creates ${topCategory} documents. Consider setting defaults.category to "${topCategory}" in DNA.`
       : null
+  };
+}
+
+/**
+ * Analyze usage trends and generate evolution suggestions.
+ * Detects patterns in document creation and proposes DNA mutations
+ * that would better match the project's actual behavior.
+ *
+ * @param {number} [threshold=5] - Minimum documents before suggesting changes
+ * @returns {Object} Analysis with suggestions
+ */
+export function analyzeTrends(threshold = 5) {
+  const dna = loadDNA();
+  if (!dna || !dna.usage) {
+    return { ready: false, message: "No usage data yet. Create more documents to enable evolution." };
+  }
+
+  const { totalDocs, categories, styles, overrides, correlations } = dna.usage;
+
+  if (!totalDocs || totalDocs < threshold) {
+    return {
+      ready: false,
+      totalDocs: totalDocs || 0,
+      threshold,
+      message: `Need ${threshold - (totalDocs || 0)} more document(s) before evolution suggestions are available.`,
+    };
+  }
+
+  const suggestions = [];
+
+  // Thresholds rationale:
+  //   70% for style: high bar since changing default style affects all new docs
+  //   60% for category: lower bar since category defaults are less disruptive
+  //   50% for override warnings: alerts when DNA doesn't match actual use
+  //   90% for category-style affinity: very high bar for informational correlation
+
+  // Suggestion: default style preset
+  if (styles) {
+    const entries = Object.entries(styles).sort((a, b) => b[1] - a[1]);
+    if (entries.length > 0) {
+      const [topStyle, topCount] = entries[0];
+      const pct = Math.round((topCount / totalDocs) * 100);
+
+      if (pct >= 70 && dna.defaults?.stylePreset !== topStyle) {
+        suggestions.push({
+          type: "default-style",
+          confidence: pct >= 85 ? "high" : "medium",
+          reason: `${pct}% of documents use "${topStyle}" style (${topCount}/${totalDocs})`,
+          mutation: { path: "defaults.stylePreset", value: topStyle },
+          currentValue: dna.defaults?.stylePreset || "professional",
+        });
+      }
+    }
+  }
+
+  // Suggestion: default category
+  if (categories) {
+    const entries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+    if (entries.length > 0) {
+      const [topCat, topCount] = entries[0];
+      const pct = Math.round((topCount / totalDocs) * 100);
+
+      if (pct >= 60 && dna.defaults?.category !== topCat) {
+        suggestions.push({
+          type: "default-category",
+          confidence: pct >= 80 ? "high" : "medium",
+          reason: `${pct}% of documents are "${topCat}" category (${topCount}/${totalDocs})`,
+          mutation: { path: "defaults.category", value: topCat },
+          currentValue: dna.defaults?.category || null,
+        });
+      }
+    }
+  }
+
+  // Suggestion: stop overriding defaults (indicates DNA doesn't match actual use)
+  if (overrides) {
+    const overrideEntries = Object.entries(overrides);
+    for (const [key, count] of overrideEntries) {
+      const pct = Math.round((count / totalDocs) * 100);
+      if (pct >= 50) {
+        suggestions.push({
+          type: "frequent-override",
+          confidence: pct >= 70 ? "high" : "medium",
+          reason: `"${key}" is overridden in ${pct}% of documents (${count}/${totalDocs}), suggesting DNA defaults don't match actual use`,
+          mutation: null, // No auto-fix — this is diagnostic
+          recommendation: `Review and update the DNA default for "${key}" to match your most common usage.`,
+        });
+      }
+    }
+  }
+
+  // Suggestion: strong category-style correlations
+  if (correlations) {
+    const entries = Object.entries(correlations).sort((a, b) => b[1] - a[1]);
+    for (const [corrKey, count] of entries) {
+      const [cat, style] = corrKey.split("+");
+      const catTotal = categories?.[cat] || 0;
+      if (catTotal >= 3) {
+        const corrPct = Math.round((count / catTotal) * 100);
+        if (corrPct >= 90) {
+          suggestions.push({
+            type: "category-style-affinity",
+            confidence: "high",
+            reason: `${corrPct}% of "${cat}" documents use "${style}" style (${count}/${catTotal})`,
+            mutation: null, // Informational
+            recommendation: `The "${cat}" → "${style}" mapping is strongly confirmed by usage.`,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    ready: true,
+    totalDocs,
+    suggestions,
+    lastEvolutionAt: dna.usage.lastEvolutionAt || null,
+    message: suggestions.length > 0
+      ? `${suggestions.length} evolution suggestion(s) available based on ${totalDocs} documents.`
+      : `No evolution suggestions at this time. Current DNA defaults match usage patterns well.`,
+  };
+}
+
+/**
+ * Apply an evolution mutation to the DNA configuration.
+ *
+ * @param {Object} mutation - Mutation to apply
+ * @param {string} mutation.path - Dot-separated path (e.g., "defaults.stylePreset")
+ * @param {*} mutation.value - New value
+ * @returns {Object} Result
+ */
+export function applyEvolution(mutation) {
+  if (!mutation || !mutation.path || mutation.value === undefined) {
+    return { success: false, error: "Invalid mutation: requires path and value." };
+  }
+
+  const dna = loadDNA();
+  if (!dna) {
+    return { success: false, error: "DNA not initialized." };
+  }
+
+  // Apply the mutation by path
+  const parts = mutation.path.split(".");
+  let target = dna;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (!target[parts[i]] || typeof target[parts[i]] !== "object") {
+      target[parts[i]] = {};
+    }
+    target = target[parts[i]];
+  }
+
+  const lastKey = parts[parts.length - 1];
+  const oldValue = target[lastKey];
+  target[lastKey] = mutation.value;
+
+  // Record evolution timestamp
+  if (!dna.usage) dna.usage = {};
+  dna.usage.lastEvolutionAt = new Date().toISOString();
+
+  // Write back
+  const root = process.cwd();
+  const filePath = path.join(root, DNA_FILENAME);
+  fs.writeFileSync(filePath, JSON.stringify(dna, null, 2), "utf-8");
+
+  // Invalidate cache
+  _cache = { path: null, mtime: 0, data: null };
+
+  return {
+    success: true,
+    path: mutation.path,
+    oldValue,
+    newValue: mutation.value,
+    message: `DNA evolved: ${mutation.path} changed from "${oldValue}" to "${mutation.value}"`,
   };
 }

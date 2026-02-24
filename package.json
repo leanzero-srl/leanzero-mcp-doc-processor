@@ -12,7 +12,9 @@
     "test:create": "node test/create-tools.js",
     "test:patch": "node test/test-docx-patch.js",
     "test:category": "node test/test-category-registry.js",
-    "test:dna": "node test/test-dna.js"
+    "test:dna": "node test/test-dna.js",
+    "test:innovations": "node tests/test-innovations.js",
+    "lint:no-console-log": "! grep -rn 'console\\.log(' src/ --include='*.js'"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
