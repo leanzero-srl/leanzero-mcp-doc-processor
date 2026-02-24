@@ -1,32 +1,71 @@
 /**
  * Blueprint Store
  *
- * Stores and retrieves document blueprints from .document-dna.json
- * under a "blueprints" key. Blueprints are structural schemas
+ * Stores and retrieves document blueprints in a dedicated
+ * .document-blueprints.json file. Blueprints are structural schemas
  * extracted from existing documents.
+ *
+ * Previously stored in .document-dna.json under "blueprints" key,
+ * now separated to avoid bloating the DNA config.
  */
 
-import { loadDNA, createDNAFile } from "./dna-manager.js";
+import fs from "fs";
+import path from "path";
+
+const BLUEPRINT_FILENAME = ".document-blueprints.json";
+
+let _cache = null;
+let _cacheMtime = 0;
 
 /**
- * Save a blueprint to DNA storage.
+ * Get the blueprint file path.
+ */
+function getBlueprintPath(projectRoot) {
+  return path.join(projectRoot || process.cwd(), BLUEPRINT_FILENAME);
+}
+
+/**
+ * Load blueprints from disk with mtime caching.
+ */
+function loadBlueprints(projectRoot) {
+  const filePath = getBlueprintPath(projectRoot);
+
+  try {
+    const stat = fs.statSync(filePath);
+    if (_cache && _cacheMtime === stat.mtimeMs) {
+      return _cache;
+    }
+    const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    _cache = data;
+    _cacheMtime = stat.mtimeMs;
+    return data;
+  } catch (err) {
+    if (err.code === "ENOENT") return {};
+    console.error(`[blueprint-store] Failed to load ${BLUEPRINT_FILENAME}:`, err.message);
+    return {};
+  }
+}
+
+/**
+ * Write blueprints to disk and invalidate cache.
+ */
+function writeBlueprints(blueprints, projectRoot) {
+  const filePath = getBlueprintPath(projectRoot);
+  fs.writeFileSync(filePath, JSON.stringify(blueprints, null, 2), "utf-8");
+  _cache = blueprints;
+  _cacheMtime = fs.statSync(filePath).mtimeMs;
+}
+
+/**
+ * Save a blueprint.
  *
  * @param {string} name - Blueprint name (e.g., "quarterly-report")
  * @param {Object} blueprint - Blueprint data
- * @param {string} blueprint.learnedFrom - Source file path
- * @param {Array} blueprint.sections - Section definitions
- * @param {string} blueprint.stylePreset - Detected style preset
- * @param {number} blueprint.avgParagraphsPerSection - Average paragraph count
  * @param {string} [description] - Optional description
  * @returns {Object} Result
  */
 export function saveBlueprint(name, blueprint, description) {
-  const dna = loadDNA();
-  if (!dna) {
-    throw new Error("Document DNA is not initialized. Use init-dna first.");
-  }
-
-  const blueprints = dna.blueprints || {};
+  const blueprints = loadBlueprints();
 
   blueprints[name] = {
     ...blueprint,
@@ -35,11 +74,7 @@ export function saveBlueprint(name, blueprint, description) {
     createdAt: new Date().toISOString(),
   };
 
-  // Write back to DNA (preserve everything else)
-  createDNAFile({
-    ...dna,
-    blueprints,
-  });
+  writeBlueprints(blueprints);
 
   return { success: true, name, blueprint: blueprints[name] };
 }
@@ -51,9 +86,8 @@ export function saveBlueprint(name, blueprint, description) {
  * @returns {Object|null} Blueprint or null if not found
  */
 export function loadBlueprint(name) {
-  const dna = loadDNA();
-  if (!dna || !dna.blueprints) return null;
-  return dna.blueprints[name] || null;
+  const blueprints = loadBlueprints();
+  return blueprints[name] || null;
 }
 
 /**
@@ -62,10 +96,9 @@ export function loadBlueprint(name) {
  * @returns {Array<Object>} Array of blueprint summaries
  */
 export function listBlueprints() {
-  const dna = loadDNA();
-  if (!dna || !dna.blueprints) return [];
+  const blueprints = loadBlueprints();
 
-  return Object.entries(dna.blueprints).map(([name, bp]) => ({
+  return Object.entries(blueprints).map(([name, bp]) => ({
     name,
     description: bp.description,
     learnedFrom: bp.learnedFrom,
@@ -82,14 +115,19 @@ export function listBlueprints() {
  * @returns {boolean} True if deleted, false if not found
  */
 export function deleteBlueprint(name) {
-  const dna = loadDNA();
-  if (!dna || !dna.blueprints || !dna.blueprints[name]) return false;
+  const blueprints = loadBlueprints();
+  if (!blueprints[name]) return false;
 
-  delete dna.blueprints[name];
-
-  createDNAFile({
-    ...dna,
-  });
+  delete blueprints[name];
+  writeBlueprints(blueprints);
 
   return true;
+}
+
+/**
+ * Clear the blueprint cache. Useful for testing.
+ */
+export function clearBlueprintCache() {
+  _cache = null;
+  _cacheMtime = 0;
 }

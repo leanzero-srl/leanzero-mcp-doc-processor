@@ -25,22 +25,19 @@ import { editExcel } from "./tools/edit-excel.js";
 // Import registry query tools
 import { listDocuments } from "./tools/utils.js";
 
-// Import DNA manager
-import { loadDNA, createDNAFile, getDefaultDNA, analyzeProjectProfile, analyzeTrends, applyEvolution } from "./utils/dna-manager.js";
-
 // Import AI guidance tools
 import {
   handleSaveMemory,
   handleDeleteMemory
 } from "./tools/guidance-tools.js";
 
-// Import innovation features
-import { getLineage } from "./services/lineage-tracker.js";
-import { extractBlueprintFromDocx, extractBlueprintFromPdf } from "./services/blueprint-extractor.js";
-import { saveBlueprint, listBlueprints, deleteBlueprint } from "./utils/blueprint-store.js";
-import { extractData } from "./services/data-extractor.js";
-import { watchDocument, checkDrift } from "./services/drift-detector.js";
-import { assembleDocument } from "./services/document-assembler.js";
+// Import extracted tool handlers
+import { handleDNA } from "./tools/dna-tool.js";
+import { handleBlueprint } from "./tools/blueprint-tool.js";
+import { handleDriftMonitor } from "./tools/drift-tool.js";
+import { handleGetLineage } from "./tools/lineage-tool.js";
+import { handleExtractToExcel } from "./tools/extract-to-excel-tool.js";
+import { handleAssembleDocument } from "./tools/assemble-tool.js";
 
 // Initialize logging
 setupLogging();
@@ -511,111 +508,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "dna":
       case "init-dna":
       case "get-dna":
-      case "evolve-dna": {
-        const dnaAction = params.action || (name === "init-dna" ? "init" : name === "get-dna" ? "get" : name === "evolve-dna" ? "evolve" : null);
-
-        if (dnaAction === "init") {
-          try {
-            const result = createDNAFile({
-              company: { name: params.companyName },
-              defaults: { stylePreset: params.stylePreset },
-              header: { text: params.headerText || params.companyName, alignment: params.headerAlignment },
-              footer: { text: params.footerText, alignment: params.footerAlignment },
-            });
-            return {
-              content: [{
-                type: "text",
-                text: JSON.stringify({
-                  success: true,
-                  path: result.path,
-                  config: result.config,
-                  message:
-                    `Document DNA initialized at: ${result.path}\n\n` +
-                    `All future documents will automatically include:\n` +
-                    `- Header: "${result.config.header.text}" (${result.config.header.alignment}-aligned)\n` +
-                    `- Footer: "${result.config.footer.text}" (${result.config.footer.alignment}-aligned)\n` +
-                    `- Style: ${result.config.defaults.stylePreset}\n\n` +
-                    `Override any of these by explicitly passing header, footer, or stylePreset to create-doc.`,
-                }, null, 2),
-              }],
-            };
-          } catch (err) {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ success: false, error: err.message }, null, 2) }],
-              isError: true,
-            };
-          }
-        }
-
-        if (dnaAction === "get") {
-          const dna = loadDNA();
-          const memoriesList = dna && dna.memories
-            ? Object.entries(dna.memories).map(([key, val]) => `  - ${key}: "${val.text}"`)
-            : [];
-          const profile = analyzeProjectProfile();
-
-          let profileMsg = "";
-          if (profile) {
-            profileMsg = `\n\nProject profile (${profile.totalDocs} documents created):`;
-            if (profile.dominantCategory) profileMsg += `\n  Most used category: ${profile.dominantCategory} (${profile.dominantCategoryPct}%)`;
-            if (profile.dominantStyle) profileMsg += `\n  Most used style: ${profile.dominantStyle} (${profile.dominantStylePct}%)`;
-            if (profile.suggestion) profileMsg += `\n  Suggestion: ${profile.suggestion}`;
-          }
-
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({
-                initialized: dna !== null,
-                config: dna || null,
-                memoriesCount: memoriesList.length,
-                projectProfile: profile,
-                message: dna
-                  ? "Document DNA is configured." +
-                    (memoriesList.length > 0
-                      ? `\n\nActive memories (${memoriesList.length}):\n${memoriesList.join("\n")}`
-                      : "\n\nNo document memories stored yet.") +
-                    profileMsg
-                  : "Document DNA is not initialized. Use dna action:'init' to set up.",
-              }, null, 2),
-            }],
-          };
-        }
-
-        if (dnaAction === "evolve") {
-          try {
-            const trends = analyzeTrends(params.threshold || 5);
-            if (!trends.ready) {
-              return { content: [{ type: "text", text: JSON.stringify(trends, null, 2) }] };
-            }
-
-            if (params.apply && trends.suggestions && trends.suggestions.length > 0) {
-              const topSuggestion = trends.suggestions.find(s => s.mutation);
-              if (topSuggestion) {
-                const evolutionResult = applyEvolution(topSuggestion.mutation);
-                return {
-                  content: [{
-                    type: "text",
-                    text: JSON.stringify({ ...trends, applied: evolutionResult, message: `Evolution applied: ${evolutionResult.message}` }, null, 2),
-                  }],
-                };
-              }
-            }
-
-            return { content: [{ type: "text", text: JSON.stringify(trends, null, 2) }] };
-          } catch (err) {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ success: false, error: err.message }, null, 2) }],
-              isError: true,
-            };
-          }
-        }
-
-        return {
-          content: [{ type: "text", text: JSON.stringify({ success: false, error: `Unknown dna action: ${dnaAction}. Use 'init', 'get', or 'evolve'.` }, null, 2) }],
-          isError: true,
-        };
-      }
+      case "evolve-dna":
+        return await handleDNA(params, name);
 
       // === CONSOLIDATED: memory (was save-memory + delete-memory) ===
       case "memory":
@@ -635,208 +529,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // === CONSOLIDATED: blueprint (was learn-blueprint + list-blueprints) ===
       case "blueprint":
       case "learn-blueprint":
-      case "list-blueprints": {
-        const bpAction = params.action || (name === "learn-blueprint" ? "learn" : name === "list-blueprints" ? "list" : null);
-
-        if (bpAction === "learn") {
-          try {
-            const detected = params.filePath.toLowerCase();
-            let blueprintData;
-
-            if (detected.endsWith(".docx")) {
-              blueprintData = await extractBlueprintFromDocx(params.filePath);
-            } else if (detected.endsWith(".pdf")) {
-              blueprintData = await extractBlueprintFromPdf(params.filePath);
-            } else {
-              return {
-                content: [{ type: "text", text: JSON.stringify({ success: false, error: "Only DOCX and PDF files are supported for blueprint extraction." }, null, 2) }],
-                isError: true,
-              };
-            }
-
-            blueprintData.learnedFrom = params.filePath;
-            const result = saveBlueprint(params.name, blueprintData, params.description);
-            return {
-              content: [{
-                type: "text",
-                text: JSON.stringify({
-                  ...result,
-                  message: `Blueprint "${params.name}" learned from ${params.filePath}.\nSections: ${blueprintData.sections.length}\nStyle: ${blueprintData.stylePreset}\nUse blueprint: "${params.name}" in create-doc.`,
-                }, null, 2),
-              }],
-            };
-          } catch (err) {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ success: false, error: err.message }, null, 2) }],
-              isError: true,
-            };
-          }
-        }
-
-        if (bpAction === "list") {
-          const bpList = listBlueprints();
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({
-                success: true,
-                count: bpList.length,
-                blueprints: bpList,
-                message: bpList.length > 0
-                  ? `${bpList.length} blueprint(s) available.`
-                  : "No blueprints yet. Use blueprint action:'learn' to extract from an existing document.",
-              }, null, 2),
-            }],
-          };
-        }
-
-        if (bpAction === "delete") {
-          if (!params.name) {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ success: false, error: "Blueprint name is required for delete." }, null, 2) }],
-              isError: true,
-            };
-          }
-          const deleted = deleteBlueprint(params.name);
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({
-                success: deleted,
-                message: deleted ? `Blueprint "${params.name}" deleted.` : `Blueprint "${params.name}" not found.`,
-              }, null, 2),
-            }],
-          };
-        }
-
-        return {
-          content: [{ type: "text", text: JSON.stringify({ success: false, error: `Unknown blueprint action: ${bpAction}. Use 'learn', 'list', or 'delete'.` }, null, 2) }],
-          isError: true,
-        };
-      }
+      case "list-blueprints":
+        return await handleBlueprint(params, name);
 
       // === CONSOLIDATED: drift-monitor (was watch-document + check-drift) ===
       case "drift-monitor":
       case "watch-document":
-      case "check-drift": {
-        const driftAction = params.action || (name === "watch-document" ? "watch" : name === "check-drift" ? "check" : null);
+      case "check-drift":
+        return await handleDriftMonitor(params, name);
 
-        if (driftAction === "watch") {
-          try {
-            const watchResult = await watchDocument(params.filePath, params.name);
-            return {
-              content: [{ type: "text", text: JSON.stringify(watchResult, null, 2) }],
-              isError: !watchResult.success,
-            };
-          } catch (err) {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ success: false, error: err.message }, null, 2) }],
-              isError: true,
-            };
-          }
-        }
+      case "get-lineage":
+        return await handleGetLineage(params);
 
-        if (driftAction === "check") {
-          try {
-            const driftResult = await checkDrift(params.filePath);
-            return {
-              content: [{ type: "text", text: JSON.stringify(driftResult, null, 2) }],
-              isError: !driftResult.success,
-            };
-          } catch (err) {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ success: false, error: err.message }, null, 2) }],
-              isError: true,
-            };
-          }
-        }
+      case "extract-to-excel":
+        return await handleExtractToExcel(params);
 
-        return {
-          content: [{ type: "text", text: JSON.stringify({ success: false, error: `Unknown drift-monitor action: ${driftAction}. Use 'watch' or 'check'.` }, null, 2) }],
-          isError: true,
-        };
-      }
-
-      case "get-lineage": {
-        try {
-          const lineageResult = await getLineage(params.filePath, params.depth || 3);
-          return {
-            content: [{ type: "text", text: JSON.stringify(lineageResult, null, 2) }],
-            isError: !lineageResult.success,
-          };
-        } catch (err) {
-          return {
-            content: [{ type: "text", text: JSON.stringify({ success: false, error: err.message }, null, 2) }],
-            isError: true,
-          };
-        }
-      }
-
-      case "extract-to-excel": {
-        try {
-          const extractResult = await extractData({
-            sourcePath: params.sourcePath,
-            mode: params.mode,
-            pattern: params.pattern,
-          });
-
-          if (extractResult.sheets.length === 0) {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ success: true, message: extractResult.message, sheets: [] }, null, 2) }],
-            };
-          }
-
-          const excelResult = await createExcel({
-            sheets: extractResult.sheets,
-            title: params.outputTitle || "Data Extract",
-            stylePreset: params.stylePreset || "minimal",
-          });
-
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({
-                ...excelResult,
-                extractionInfo: { sourcePath: params.sourcePath, mode: params.mode, pattern: params.pattern || null, sheetsExtracted: extractResult.sheets.length },
-                message: excelResult.success
-                  ? `${extractResult.message}\nExcel file written to: ${excelResult.filePath}`
-                  : excelResult.message,
-              }, null, 2),
-            }],
-            isError: !excelResult.success,
-          };
-        } catch (err) {
-          return {
-            content: [{ type: "text", text: JSON.stringify({ success: false, error: err.message }, null, 2) }],
-            isError: true,
-          };
-        }
-      }
-
-      case "assemble-document": {
-        try {
-          const assembleResult = await assembleDocument({
-            sources: params.sources,
-            outputTitle: params.outputTitle,
-            mode: params.mode || "concatenate",
-            blueprint: params.blueprint,
-            stylePreset: params.stylePreset,
-            outputPath: params.outputPath,
-            category: params.category,
-            tags: params.tags,
-          });
-
-          return {
-            content: [{ type: "text", text: JSON.stringify(assembleResult, null, 2) }],
-            isError: !assembleResult.success,
-          };
-        } catch (err) {
-          return {
-            content: [{ type: "text", text: JSON.stringify({ success: false, error: err.message }, null, 2) }],
-            isError: true,
-          };
-        }
-      }
+      case "assemble-document":
+        return await handleAssembleDocument(params);
 
       // Legacy alias kept for backward compatibility
       case "check-document": {

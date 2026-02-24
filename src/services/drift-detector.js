@@ -292,12 +292,18 @@ export async function checkDrift(filePath) {
           // For now, use the word sets we have (current) vs re-read baseline
           // This is the one unavoidable re-read for Jaccard when content differs
           if (drift.hasDrift) {
-            // Only compute Jaccard when we already know there's drift (avoids extra I/O on no-change)
-            // We'd need to re-read the baseline doc, which we can't do (it may have changed)
-            // Instead, use word count ratio as a rough similarity proxy
-            const minWords = Math.min(watched.fingerprint.wordCount, currentFingerprint.wordCount);
-            const maxWords = Math.max(watched.fingerprint.wordCount, currentFingerprint.wordCount);
-            jaccardSimilarity = maxWords > 0 ? minWords / maxWords : 1;
+            // Content changed and hashes differ — compute real Jaccard from current vs baseline word sets
+            // We have the current word set; for baseline, we store unique word count + hash
+            // Since the baseline doc may have changed, use unique word counts to bound Jaccard:
+            //   Jaccard = |A ∩ B| / |A ∪ B|
+            // We know |A| (baseline unique) and |B| (current unique), but not |A ∩ B|.
+            // Use the overlap estimator: min(|A|,|B|) / max(|A|,|B|) bounds the Jaccard from above.
+            // This is a reasonable proxy when we can't re-read the baseline.
+            const baselineUnique = watched.baselineUniqueWordCount || watched.fingerprint.uniqueWordCount || 0;
+            const currentUnique = currentWordSet.size;
+            const minUnique = Math.min(baselineUnique, currentUnique);
+            const maxUnique = Math.max(baselineUnique, currentUnique);
+            jaccardSimilarity = maxUnique > 0 ? minUnique / maxUnique : 1;
           }
         }
       } else if (watched.baselineWords && watched.baselineWords.length > 0) {
