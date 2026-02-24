@@ -50,7 +50,7 @@ export function enforceDocsFolder(
     relativePath.split(path.sep)[0] === "docs";
 
   if (alreadyInDocs) {
-    console.log(
+    console.error(
       `[enforceDocsFolder] Path already in docs/: ${outputPath}, no enforcement needed`,
     );
     return { outputPath: resolvedPath, wasEnforced: false };
@@ -59,7 +59,7 @@ export function enforceDocsFolder(
   // Enforce docs/ folder for paths not already in docs/
   const parsedPath = path.parse(path.basename(resolvedPath));
   const docsPath = path.join(projectRoot, "docs", parsedPath.base);
-  console.log(
+  console.error(
     `[enforceDocsFolder] Input: ${outputPath}, Output: ${docsPath}, Was enforced: true`,
   );
   return { outputPath: docsPath, wasEnforced: true };

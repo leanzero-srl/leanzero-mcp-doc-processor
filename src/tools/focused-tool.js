@@ -2,6 +2,7 @@ import { documentProcessor } from "../services/document-processor.js";
 import { analysisService } from "../services/analysis-service.js";
 import { imageProcessor } from "../utils/image-processor.js";
 import { log, logFunctionCall, logPath } from "../utils/logger.js";
+import { recordRead } from "../services/lineage-tracker.js";
 
 // Store context for documents to support follow-up queries
 const documentContext = new Map();
@@ -46,6 +47,9 @@ export async function handleFocused(params, userQuery, context) {
       ],
     };
   }
+
+  // Record this read for lineage tracking
+  recordRead(params.filePath, "get-doc-focused");
 
   const images = Array.isArray(result.images) ? result.images : [];
   const textContent = result.text || "";

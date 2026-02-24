@@ -25,8 +25,11 @@ import {
   getCategoryPath,
   classifyDocumentContent,
 } from "./utils.js";
-import { applyDNAToInput, loadDNA, recordUsage } from "../utils/dna-manager.js";
+import { applyDNAToInput, loadDNA, recordUsage, analyzeTrends } from "../utils/dna-manager.js";
 import { checkForExistingDocument, cleanupExcessVersions, buildGuidanceMessage } from "../services/ai-guidance-system.js";
+import { recordWrite } from "../services/lineage-tracker.js";
+import { loadBlueprint } from "../utils/blueprint-store.js";
+import { validateAgainstBlueprint } from "../services/blueprint-extractor.js";
 // Import shared utilities from doc-utils.js
 import {
   stripMarkdownLinePrefixes,
@@ -114,7 +117,7 @@ export async function createDoc(input) {
       const classification = classifyDocumentContent(input.title, "");
       if (classification.category !== "misc") {
         category = classification.category;
-        console.log(
+        console.error(
           `[create-doc] Auto-classified document as "${category}" (confidence: ${classification.confidence})`,
         );
       }
@@ -155,6 +158,28 @@ export async function createDoc(input) {
           message: `TOO MANY VERSIONS of "${title}" detected. Old versions have been cleaned up.\n\n` +
             `Use edit-doc with filePath "${duplicateCheck.existing.filePath}" and action "replace" to write the correct content.\n` +
             `DO NOT create another version.` + guidance,
+        };
+      }
+    }
+
+    // Validate against blueprint if specified
+    if (parsedInput.blueprint) {
+      const blueprint = loadBlueprint(parsedInput.blueprint);
+      if (!blueprint) {
+        return {
+          success: false,
+          error: `Blueprint "${parsedInput.blueprint}" not found. Use list-blueprints to see available blueprints.`,
+        };
+      }
+
+      const validation = validateAgainstBlueprint(processedParagraphs, blueprint);
+      if (!validation.valid) {
+        return {
+          success: false,
+          blueprintValidation: validation,
+          message: `Document does not match blueprint "${parsedInput.blueprint}".\n\n` +
+            `Missing required sections:\n${validation.errors.map(e => `  - ${e.expectedPattern} (${e.heading})`).join("\n")}\n\n` +
+            `Please add the missing sections and try again.`,
         };
       }
     }
@@ -230,7 +255,7 @@ export async function createDoc(input) {
 
     // Log enforcement actions to teach AI models
     if (docsEnforced) {
-      console.log(
+      console.error(
         `[create-doc] Enforced docs/ folder structure. File placed in: ${path.relative(
           process.cwd(),
           outputPath,
@@ -238,7 +263,7 @@ export async function createDoc(input) {
       );
     }
     if (wasDuplicatePrevented) {
-      console.log(
+      console.error(
         `[create-doc] Prevented duplicate file. Created: ${path.basename(
           outputPath,
         )}`,
@@ -259,7 +284,7 @@ export async function createDoc(input) {
     } else if (category) {
       stylePreset = selectStyleBasedOnCategory(category);
       styleReason = `auto-selected for "${category}" category`;
-      console.log(
+      console.error(
         `[create-doc] Auto-selected style "${stylePreset}" for category "${category}"`,
       );
     } else if (input.stylePreset) {
@@ -516,9 +541,35 @@ export async function createDoc(input) {
       console.warn("Failed to register document:", err.message);
     }
 
-    // Record usage in DNA for auto-learning (non-fatal)
+    // Record usage in DNA for auto-learning with override tracking (non-fatal)
     if (hasDNA) {
-      recordUsage(category || "misc", stylePreset);
+      recordUsage(category || "misc", stylePreset, {
+        stylePreset: userExplicitlySetStyle,
+        header: !!input.header,
+        footer: !!input.footer,
+      });
+    }
+
+    // Record lineage (track which read documents informed this creation)
+    let lineageRecord = null;
+    try {
+      lineageRecord = await recordWrite(outputPath);
+    } catch {
+      // Lineage tracking is non-fatal
+    }
+
+    // Check for evolution suggestions after recording usage
+    let evolutionHint = null;
+    if (hasDNA) {
+      try {
+        const trends = analyzeTrends();
+        if (trends.ready && trends.suggestions && trends.suggestions.length > 0) {
+          const topSuggestion = trends.suggestions[0];
+          evolutionHint = `DNA evolution available: ${topSuggestion.reason}. Use evolve-dna tool to review and apply.`;
+        }
+      } catch {
+        // Non-fatal
+      }
     }
 
     // Build message with enforcement information
@@ -566,8 +617,14 @@ export async function createDoc(input) {
         categoryApplied: category || null,
       },
       memoriesApplied: memories ? Object.keys(memories).length : 0,
+      lineage: lineageRecord ? {
+        sourceCount: lineageRecord.sources.length,
+        sources: lineageRecord.sources.map(s => s.filePath),
+      } : null,
+      evolutionHint: evolutionHint || null,
       message: `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
-        (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : ""),
+        (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : "") +
+        (evolutionHint ? `\n\n${evolutionHint}` : ""),
     };
   } catch (err) {
     return {
