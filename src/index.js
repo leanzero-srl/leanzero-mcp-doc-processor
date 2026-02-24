@@ -25,12 +25,6 @@ import { editExcel } from "./tools/edit-excel.js";
 // Import registry query tools
 import { listDocuments } from "./tools/utils.js";
 
-// Import AI guidance tools
-import {
-  handleSaveMemory,
-  handleDeleteMemory
-} from "./tools/guidance-tools.js";
-
 // Import extracted tool handlers
 import { handleDNA } from "./tools/dna-tool.js";
 import { handleBlueprint } from "./tools/blueprint-tool.js";
@@ -58,12 +52,12 @@ const server = new Server(
 /**
  * Handler for listing available tools.
  *
- * Consolidated from 21 to 14 tools:
- *   - init-dna + get-dna + evolve-dna → dna (action: init/get/evolve)
- *   - save-memory + delete-memory → memory (action: save/delete)
- *   - watch-document + check-drift → drift-monitor (action: watch/check)
- *   - learn-blueprint + list-blueprints → blueprint (action: learn/list/delete)
+ * Consolidated from 21 to 11 active tools:
+ *   - init-dna + get-dna + evolve-dna + save-memory + delete-memory → dna
+ *   - watch-document + check-drift → drift-monitor
+ *   - learn-blueprint + list-blueprints → blueprint
  *   - check-document removed (create-doc checks internally)
+ *   - extract-to-excel and assemble-document removed from listing (kept as aliases)
  *
  * All old tool names are still accepted as backward-compatible aliases in the handler.
  */
@@ -274,11 +268,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "dna",
         description:
           "Manage Document DNA (.document-dna.json) — the project's document identity system. " +
-          "Actions: 'init' creates DNA with defaults, 'get' returns current config/memories/usage, 'evolve' analyzes usage patterns and suggests improvements (use apply: true to auto-apply).",
+          "Actions: 'init' creates DNA with defaults, 'get' returns current config/memories/usage, 'evolve' analyzes usage patterns and suggests improvements (use apply: true to auto-apply), " +
+          "'save-memory' stores a document preference, 'delete-memory' removes one by key.",
         inputSchema: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["init", "get", "evolve"], description: "DNA action to perform" },
+            action: { type: "string", enum: ["init", "get", "evolve", "save-memory", "delete-memory"], description: "DNA action to perform" },
             companyName: { type: "string", description: "Company or project name for default header (init only)." },
             stylePreset: STYLE_PRESET_SCHEMA,
             headerText: { type: "string", description: "Default header text (init only)." },
@@ -287,21 +282,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             footerAlignment: { type: "string", enum: ["left", "center", "right"], description: "Footer alignment (init only, default: 'center')" },
             apply: { type: "boolean", description: "Auto-apply top evolution suggestion (evolve only, default: false)" },
             threshold: { type: "number", description: "Minimum documents before suggesting evolution (evolve only, default: 5)" },
-          },
-          required: ["action"],
-        },
-      },
-      {
-        name: "memory",
-        description:
-          "Manage document preferences that persist across sessions (stored in .document-dna.json). " +
-          "Actions: 'save' stores a preference, 'delete' removes one by key. Use dna action:'get' to view current memories.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            action: { type: "string", enum: ["save", "delete"], description: "Memory action to perform" },
-            memory: { type: "string", description: "The preference to remember (save only)" },
-            key: { type: "string", description: "Memory key — required for delete, optional for save (auto-generated if omitted)." },
+            memory: { type: "string", description: "The preference to remember (save-memory only)" },
+            key: { type: "string", description: "Memory key — required for delete-memory, optional for save-memory (auto-generated if omitted)." },
           },
           required: ["action"],
         },
@@ -322,7 +304,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["action"],
         },
       },
-      // === INNOVATION TOOLS (3) ===
+      // === INNOVATION TOOLS (2) ===
       {
         name: "drift-monitor",
         description:
@@ -349,53 +331,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             depth: { type: "number", description: "Traversal depth (default: 3)" },
           },
           required: ["filePath"],
-        },
-      },
-      {
-        name: "extract-to-excel",
-        description:
-          "Extract structured data from a document (PDF, DOCX) into an Excel workbook. " +
-          "Modes: 'tables' (extract all tables), 'pattern' (regex match on lines), 'sections' (heading+content pairs). Runs server-side.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            sourcePath: { type: "string", description: "Path to the source document" },
-            mode: { type: "string", enum: ["tables", "pattern", "sections"], description: "Extraction mode" },
-            pattern: { type: "string", description: "Regex pattern (for 'pattern' mode)" },
-            outputTitle: { type: "string", description: "Title for the output Excel file" },
-            stylePreset: STYLE_PRESET_SCHEMA,
-          },
-          required: ["sourcePath", "mode"],
-        },
-      },
-      {
-        name: "assemble-document",
-        description:
-          "Assemble a new document from multiple sources. 'concatenate' joins all sequentially, 'cherry-pick' selects specific sections. Optionally validates against a blueprint. Respects DNA defaults.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            sources: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  filePath: { type: "string", description: "Path to source document" },
-                  sections: { description: "'all' or array of section heading names", oneOf: [{ type: "string", enum: ["all"] }, { type: "array", items: { type: "string" } }] },
-                },
-                required: ["filePath"],
-              },
-              description: "Source documents and section selections.",
-            },
-            outputTitle: { type: "string", description: "Title for the assembled document" },
-            mode: { type: "string", enum: ["concatenate", "cherry-pick"], description: "Assembly mode (default: concatenate)" },
-            blueprint: { type: "string", description: "Blueprint name to validate against" },
-            stylePreset: STYLE_PRESET_SCHEMA,
-            outputPath: { type: "string", description: "Output file path" },
-            category: CATEGORY_SCHEMA,
-            tags: TAGS_SCHEMA,
-          },
-          required: ["sources", "outputTitle"],
         },
       },
     ],
@@ -511,20 +446,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "evolve-dna":
         return await handleDNA(params, name);
 
-      // === CONSOLIDATED: memory (was save-memory + delete-memory) ===
+      // === CONSOLIDATED: memory folded into dna ===
       case "memory":
       case "save-memory":
-      case "delete-memory": {
-        const memAction = params.action || (name === "save-memory" ? "save" : name === "delete-memory" ? "delete" : null);
-
-        if (memAction === "save") return await handleSaveMemory({ memory: params.memory, key: params.key });
-        if (memAction === "delete") return await handleDeleteMemory({ key: params.key });
-
-        return {
-          content: [{ type: "text", text: JSON.stringify({ success: false, error: `Unknown memory action: ${memAction}. Use 'save' or 'delete'.` }, null, 2) }],
-          isError: true,
-        };
-      }
+      case "delete-memory":
+        return await handleDNA(params, name);
 
       // === CONSOLIDATED: blueprint (was learn-blueprint + list-blueprints) ===
       case "blueprint":
@@ -541,6 +467,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "get-lineage":
         return await handleGetLineage(params);
 
+      // Kept as backward-compatible aliases (removed from tool listing in Phase 3)
       case "extract-to-excel":
         return await handleExtractToExcel(params);
 
