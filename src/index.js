@@ -29,6 +29,15 @@ import { handleBlueprint } from "./tools/blueprint-tool.js";
 import { handleDriftMonitor } from "./tools/drift-tool.js";
 import { handleGetLineage } from "./tools/lineage-tool.js";
 
+// Tool description section markers (shared constants)
+const TOOL_DESCRIPTION_SECTIONS = {
+  ROLE: "[ROLE]",
+  CONTEXT: "[CONTEXT]",
+  TASK: "[TASK]",
+  CONSTRAINTS: "[CONSTRAINTS]",
+  FORMAT: "[FORMAT]",
+};
+
 // Initialize logging
 setupLogging();
 
@@ -99,11 +108,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "read-doc",
         description:
-          "Read and analyze a document. Supports PDF, DOCX, Excel files with embedded images. " +
-          "Modes: 'summary' (default) — high-level overview with content preview; " +
-          "'indepth' — full text, structure, formatting, and metadata (use before editing); " +
-          "'focused' — query-based analysis that finds relevant sections or generates clarification questions. " +
-          "IMPORTANT: Use this tool to read existing documents BEFORE creating or editing them.",
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a document analysis expert specializing in extracting and analyzing content from various file formats.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User needs to understand the content, structure, and metadata of existing documents before editing or referencing them.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} Read and analyze a document using the appropriate mode:\n` +
+          "  - 'summary': High-level overview with content preview (default)\n" +
+          "  - 'indepth': Full text, structure, formatting, and metadata extraction\n" +
+          "  - 'focused': Query-based analysis finding relevant sections\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+          "  - ALWAYS read existing documents BEFORE creating or editing them\n" +
+          "  - Use 'indepth' mode before editing to understand current formatting\n" +
+          "  - Provide context from previous responses when using 'focused' mode\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns structured analysis with content, metadata, and formatting information.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -119,12 +134,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "create-doc",
         description:
-          "Creates a Word DOCX document on DISK. USER CONFIRMATION REQUIRED: describe what you plan to create and get approval first. Use dryRun: true for previews. " +
-          "IMPORTANT: The title MUST be specific and descriptive (e.g., 'Q1 2026 Budget Report', 'API Design Guidelines'). Generic titles like 'Document' or 'Untitled' will be rejected. " +
-          "Blueprints are auto-learned from recurring patterns — check blueprintMatch in the response for structural template suggestions. " +
-          "Do NOT include markdown syntax in paragraph text — use headingLevel, bold, etc. for formatting. " +
-          "Use paragraph objects with headingLevel for document hierarchy. " +
-          "If Document DNA (.document-dna.json) exists, headers/footers/style are applied automatically unless overridden.",
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a professional document creation expert, specializing in creating well-structured DOCX files with professional formatting.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create a Word document with professional styling, proper hierarchy, and consistent formatting.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} Create a Word DOCX document with the following requirements:\n` +
+          "  1. Provide a specific, descriptive title (e.g., 'Q1 2026 Budget Report', not 'Document')\n" +
+          "  2. Use paragraph objects with headingLevel for document hierarchy\n" +
+          "  3. Apply style preset or let auto-selection based on category\n" +
+          "  4. Configure header/footer if needed (or use Document DNA defaults)\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+          "  - Title MUST be specific and descriptive — generic titles are rejected\n" +
+          "  - Do NOT include markdown syntax in paragraph text — use headingLevel, bold, etc.\n" +
+          "  - USER CONFIRMATION REQUIRED: describe what you plan to create and get approval first\n" +
+          "  - Use dryRun: true for previews before actual creation\n" +
+          "  - Check blueprintMatch in response for structural template suggestions\n" +
+          "  - Document DNA automatically applies headers/footers/style if .document-dna.json exists\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns JSON with filePath, success status, and confirmation message.`,
         inputSchema: {
           type: "object",
           properties: {
