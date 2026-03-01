@@ -1,0 +1,15 @@
+{
+  "name": "drift-watch",
+  "description": "Test the drift-monitor tool with watch action to verify document baseline setup",
+  "steps": [
+    {
+      "tool": "drift-monitor",
+      "expected": "Success - Document registered with baseline fingerprint",
+      "params": {
+        "action": "watch",
+        "filePath": "./docs/documents/source-document.docx",
+        "name": "Test Document"
+      }
+    }
+  ]
+}

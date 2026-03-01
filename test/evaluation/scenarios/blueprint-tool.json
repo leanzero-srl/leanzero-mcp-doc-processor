@@ -1,0 +1,13 @@
+{
+  "name": "blueprint-tool",
+  "description": "Test the blueprint tool to verify blueprint management functionality",
+  "steps": [
+    {
+      "tool": "blueprint",
+      "expected": "Success - Returns list of saved blueprints",
+      "params": {
+        "action": "list"
+      }
+    }
+  ]
+}
