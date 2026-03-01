@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "company": {
+    "name": "",
+    "department": ""
+  },
+  "defaults": {
+    "stylePreset": "professional",
+    "category": null
+  },
+  "header": {
+    "enabled": false,
+    "text": "",
+    "alignment": "right"
+  },
+  "footer": {
+    "enabled": true,
+    "text": "Page {current} of {total}",
+    "alignment": "center"
+  },
+  "memories": {
+    "test-preference": {
+      "text": "Test preference for document styling",
+      "createdAt": "2026-03-01T19:00:06.783Z"
+    }
+  },
+  "usage": {
+    "categories": {
+      "engineering": 1,
+      "business": 1,
+      "executive": 1
+    },
+    "styles": {
+      "business": 3
+    },
+    "totalDocs": 3,
+    "overrides": {
+      "stylePreset": 3,
+      "footer": 3
+    },
+    "correlations": {
+      "engineering+business": 1,
+      "business+business": 1,
+      "executive+business": 1
+    },
+    "structures": [
+      {
+        "signature": "h1:executive summary|h1:key metrics",
+        "category": "engineering",
+        "style": "business",
+        "createdAt": "2026-03-01T19:00:21.701Z"
+      },
+      {
+        "signature": "h1:q1 2026 engineering summary|h1:key accomplishments",
+        "category": "business",
+        "style": "business",
+        "createdAt": "2026-03-01T19:00:21.709Z"
+      },
+      {
+        "signature": "h1:q1 2026 executive summary|h1:key highlights",
+        "category": "executive",
+        "style": "business",
+        "createdAt": "2026-03-01T19:00:21.717Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "list-templates",
+  "description": "Test the list-templates tool to verify template listing functionality",
+  "steps": [
+    {
+      "tool": "list-templates",
+      "expected": "Success - Returns list of available templates and blueprints",
+      "params": {}
+    }
+  ]
+}

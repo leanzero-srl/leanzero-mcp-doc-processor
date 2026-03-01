@@ -1,0 +1,15 @@
+{
+  "name": "dna-save-memory",
+  "description": "Test the dna tool with save-memory action to verify memory storage functionality",
+  "steps": [
+    {
+      "tool": "dna",
+      "expected": "Success - Memory saved successfully",
+      "params": {
+        "action": "save-memory",
+        "memory": "Test preference for document styling",
+        "key": "test-preference"
+      }
+    }
+  ]
+}
