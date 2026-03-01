@@ -69,6 +69,11 @@ docs/registry.json
 docs/.registry.lock
 docs/technical/document-registry.md
 
+# DNA and blueprint configuration (auto-generated)
+.document-dna.json
+.document-blueprints.json
+.document-user.json
+
 # Compiled Java class files
 *.class
 
