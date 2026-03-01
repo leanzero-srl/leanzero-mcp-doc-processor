@@ -1,1 +1,39 @@
-{}
+{
+  "test-styling-blueprint": {
+    "sections": [
+      {
+        "heading": "title",
+        "pattern": "Test Document for Styling Review",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 2,
+        "charCount": 96,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 1
+      },
+      {
+        "heading": "heading1",
+        "pattern": "This is a heading",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 0,
+        "charCount": 0,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 0
+      }
+    ],
+    "stylePreset": "minimal",
+    "avgParagraphsPerSection": 2,
+    "totalParagraphs": 4,
+    "totalTables": 0,
+    "totalCharacters": 96,
+    "learnedFrom": "/Users/mihaiperdum/Projects/mcp-doc-processor/docs/technical/test-styling.docx",
+    "name": "test-styling-blueprint",
+    "description": "Blueprint extracted from test-styling.docx",
+    "createdAt": "2026-03-01T19:09:24.110Z"
+  }
+}
