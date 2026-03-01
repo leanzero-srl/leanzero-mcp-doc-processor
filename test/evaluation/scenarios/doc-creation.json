@@ -1,0 +1,61 @@
+{
+  "name": "doc-creation",
+  "description": "Model creates a document using create-doc tool",
+  "steps": [
+    {
+      "name": "Tool selection",
+      "check": "Tool name is 'create-doc'",
+      "validate": "toolName === 'create-doc'"
+    },
+    {
+      "name": "Title validation",
+      "check": "Title is descriptive and specific",
+      "validate": "params.title && params.title.length > 5 && !params.title.toLowerCase().includes('untitled') && !params.title.toLowerCase().includes('document')"
+    },
+    {
+      "name": "Output format",
+      "check": "Response contains filePath and success status",
+      "validate": "result.success === true && result.filePath && result.filePath.endsWith('.docx')"
+    },
+    {
+      "name": "Enforcement info",
+      "check": "Response includes enforcement details",
+      "validate": "result.enforcement && result.enforcement.docsFolderEnforced !== undefined && result.enforcement.duplicatePrevented !== undefined"
+    },
+    {
+      "name": "Category info",
+      "check": "Response includes category information",
+      "validate": "result.category !== undefined && result.category !== null"
+    },
+    {
+      "name": "Style info",
+      "check": "Response includes style configuration",
+      "validate": "result.stylePreset !== undefined && result.styleConfig !== undefined"
+    },
+    {
+      "name": "Message format",
+      "check": "Message contains 'WRITTEN TO DISK' and file path",
+      "validate": "result.message && result.message.includes('WRITTEN TO DISK') && result.message.includes('docx')"
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "filePath": "string ending with .docx",
+    "category": "string (optional)",
+    "stylePreset": "string",
+    "enforcement": {
+      "docsFolderEnforced": "boolean",
+      "duplicatePrevented": "boolean",
+      "categorized": "boolean"
+    },
+    "message": "string containing 'WRITTEN TO DISK'"
+  },
+  "qualityMetrics": {
+    "messageContainsDisk": true,
+    "filePathIsAbsolute": true,
+    "hasEnforcementStructure": true,
+    "hasStyleConfig": true,
+    "hasCategoryInfo": true
+  },
+  "baseline": "doc-creation"
+}

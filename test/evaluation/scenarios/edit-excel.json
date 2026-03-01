@@ -1,0 +1,193 @@
+{
+  "name": "edit-excel",
+  "description": "Model edits an existing Excel workbook using edit-excel tool with append-rows, append-sheet, and replace-sheet actions",
+  "steps": [
+    {
+      "name": "Tool selection",
+      "check": "Tool name is 'edit-excel'",
+      "validate": "toolName === 'edit-excel'"
+    },
+    {
+      "name": "File path validation",
+      "check": "File path is provided and exists",
+      "validate": "params.filePath && params.filePath.endsWith('.xlsx') && result.filePath === params.filePath"
+    },
+    {
+      "name": "Action validation",
+      "check": "Action is one of the valid types (append-rows, append-sheet, replace-sheet)",
+      "validate": "['append-rows', 'append-sheet', 'replace-sheet'].includes(params.action)"
+    },
+    {
+      "name": "Output format",
+      "check": "Response contains filePath, success status, and action type",
+      "validate": "result.success === true && result.filePath && result.action === params.action"
+    },
+    {
+      "name": "Enforcement info",
+      "check": "Response includes enforcement details",
+      "validate": "result.enforcement && result.enforcement.docsFolderEnforced !== undefined"
+    },
+    {
+      "name": "Category info",
+      "check": "Response includes category information",
+      "validate": "result.category !== undefined"
+    },
+    {
+      "name": "Message format",
+      "check": "Message contains 'UPDATED' or 'WRITTEN TO DISK' and describes the action performed",
+      "validate": "result.message && (result.message.includes('UPDATED') || result.message.includes('WRITTEN TO DISK')) && result.message.includes(params.action || '')"
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "filePath": "string ending with .xlsx",
+    "action": "string (append-rows, append-sheet, or replace-sheet)",
+    "category": "string (optional)",
+    "enforcement": {
+      "docsFolderEnforced": "boolean",
+      "duplicatePrevented": "boolean",
+      "categorized": "boolean"
+    },
+    "message": "string containing 'UPDATED' or 'WRITTEN TO DISK'"
+  },
+  "qualityMetrics": {
+    "messageContainsUpdated": true,
+    "filePathIsAbsolute": true,
+    "hasEnforcementStructure": true,
+    "hasCategoryInfo": true,
+    "actionTypeValid": true
+  },
+  "baseline": "edit-excel",
+  "testScenarios": [
+    {
+      "name": "test-append-rows",
+      "description": "Test appending rows to an existing sheet",
+      "setup": "Create an Excel file with initial data using create-excel",
+      "params": {
+        "filePath": "./test/output/edit-excel-test.xlsx",
+        "action": "append-rows",
+        "sheetName": "Test Sheet",
+        "rows": [
+          ["New Row 1", "100", "200"],
+          ["New Row 2", "150", "250"]
+        ],
+        "stylePreset": "professional"
+      },
+      "expected": {
+        "success": true,
+        "action": "append-rows",
+        "sheetName": "Test Sheet",
+        "rowsAdded": 2
+      }
+    },
+    {
+      "name": "test-append-sheet",
+      "description": "Test appending a new sheet to an existing workbook",
+      "setup": "Create an Excel file with initial data using create-excel",
+      "params": {
+        "filePath": "./test/output/edit-excel-test.xlsx",
+        "action": "append-sheet",
+        "sheetData": {
+          "name": "New Data",
+          "data": [
+            ["Product", "Sales", "Quarter"],
+            ["Widget A", "1000", "Q1"],
+            ["Widget B", "1500", "Q1"],
+            ["Widget C", "1200", "Q1"]
+          ]
+        },
+        "stylePreset": "professional"
+      },
+      "expected": {
+        "success": true,
+        "action": "append-sheet",
+        "sheetName": "New Data",
+        "totalSheets": 3
+      }
+    },
+    {
+      "name": "test-replace-sheet",
+      "description": "Test replacing an existing sheet with new data",
+      "setup": "Create an Excel file with initial data using create-excel",
+      "params": {
+        "filePath": "./test/output/edit-excel-test.xlsx",
+        "action": "replace-sheet",
+        "sheetName": "Test Sheet",
+        "sheetData": {
+          "data": [
+            ["Updated Col A", "Updated Col B"],
+            ["Data 1", "Data 2"],
+            ["Data 3", "Data 4"]
+          ]
+        },
+        "stylePreset": "professional"
+      },
+      "expected": {
+        "success": true,
+        "action": "replace-sheet",
+        "sheetName": "Test Sheet"
+      }
+    },
+    {
+      "name": "test-append-sheet-with-category",
+      "description": "Test append-sheet action with category and tags",
+      "setup": "Create an Excel file with initial data using create-excel",
+      "params": {
+        "filePath": "./test/output/edit-excel-test.xlsx",
+        "action": "append-sheet",
+        "sheetData": {
+          "name": "Budget Data",
+          "data": [
+            ["Category", "Budget", "Spent", "Variance"],
+            ["Marketing", "5000", "4500", "500"],
+            ["Development", "10000", "9800", "200"],
+            ["Operations", "3000", "2900", "100"]
+          ]
+        },
+        "category": "finance",
+        "tags": ["budget", "finance", "q1-2026"],
+        "stylePreset": "professional"
+      },
+      "expected": {
+        "success": true,
+        "action": "append-sheet",
+        "category": "finance",
+        "tags": ["budget", "finance", "q1-2026"]
+      }
+    },
+    {
+      "name": "test-append-rows-with-category",
+      "description": "Test append-rows action with category and tags",
+      "setup": "Create an Excel file with initial data using create-excel",
+      "params": {
+        "filePath": "./test/output/edit-excel-test.xlsx",
+        "action": "append-rows",
+        "sheetName": "Test Sheet",
+        "rows": [
+          ["Q4 Data", "500", "600"],
+          ["Q5 Data", "700", "800"]
+        ],
+        "category": "sales",
+        "tags": ["sales", "q4", "2026"],
+        "stylePreset": "professional"
+      },
+      "expected": {
+        "success": true,
+        "action": "append-rows",
+        "category": "sales",
+        "tags": ["sales", "q4", "2026"]
+      }
+    }
+  ],
+  "setupInstructions": [
+    "1. Create test directory: mkdir -p test/output",
+    "2. Create initial Excel file using create-excel tool with test data",
+    "3. Run edit-excel tool with different actions (append-rows, append-sheet, replace-sheet)",
+    "4. Verify each action produces expected output",
+    "5. Check that enforcement and category info are properly set"
+  ],
+  "cleanupInstructions": [
+    "1. Remove test Excel files: rm -f test/output/edit-excel-test.xlsx",
+    "2. Clear any temporary registry entries"
+  ]
+}

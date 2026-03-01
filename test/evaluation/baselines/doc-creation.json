@@ -1,0 +1,8 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/docs/technical/report.docx\",\"category\":\"technical\",\"tags\":[\"report\",\"technical\"],\"wasCategorized\":true,\"registryEntry\":null,\"stylePreset\":\"professional\",\"styleReason\":\"user-specified\",\"styleConfig\":{\"preset\":\"professional\",\"description\":\"Professional style for business documents\",\"font\":{\"family\":\"Arial\",\"size\":11,\"color\":\"000000\",\"bold\":false,\"italics\":false,\"underline\":false},\"paragraph\":{\"alignment\":\"left\",\"spacingBefore\":0,\"spacingAfter\":8,\"lineSpacing\":1.15},\"table\":{\"borderColor\":\"000000\",\"borderStyle\":\"single\",\"borderWidth\":0.5,\"headerFill\":\"e0e0e0\",\"headerFontColor\":\"000000\",\"zebraFill\":\"f0f0f0\",\"zebraInterval\":2}},\"dnaApplied\":false,\"header\":null,\"footer\":null,\"enforcement\":{\"docsFolderEnforced\":true,\"duplicatePrevented\":false,\"categorized\":true,\"categoryApplied\":\"technical\"},\"memoriesApplied\":0,\"blueprintMatch\":null,\"lineage\":null,\"message\":\"DOCX FILE WRITTEN TO DISK at: /path/to/docs/technical/report.docx\\n\\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\\n\\nNOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\\nNOTE: Document categorized as \\\"technical\\\" and placed in docs/technical/.\"}"
+    }
+  ]
+}

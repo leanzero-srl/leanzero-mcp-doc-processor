@@ -1,0 +1,61 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/docs/{category}/filename.docx\",\"category\":\"{category}\"," tags\":[\"tag1\",\"tag2\"],\"wasCategorized\":true,\"registryEntry\":{\"id\":\"unique-id\",\"title\":\"Document Title\",\"category\":\"{category}\",\"filePath\":\"/path/to/docs/{category}/filename.docx\",\"tags\":[\"tag1\",\"tag2\"],\"description\":\"Document description\",\"createdAt\":\"2026-01-15T10:30:00.000Z\",\"updatedAt\":\"2026-01-15T10:30:00.000Z\"},\"stylePreset\":\"professional\",\"styleReason\":\"user-specified\",\"styleConfig\":{\"preset\":\"professional\",\"description\":\"Professional style for business documents\",\"font\":{\"family\":\"Arial\",\"size\":11,\"color\":\"000000\",\"bold\":false,\"italics\":false,\"underline\":false},\"paragraph\":{\"alignment\":\"left\",\"spacingBefore\":0,\"spacingAfter\":8,\"lineSpacing\":1.15},\"table\":{\"borderColor\":\"000000\",\"borderStyle\":\"single\",\"borderWidth\":0.5,\"headerFill\":\"e0e0e0\",\"headerFontColor\":\"000000\",\"zebraFill\":\"f0f0f0\",\"zebraInterval\":2}},\"dnaApplied\":false,\"header\":null,\"footer\":null,\"enforcement\":{\"docsFolderEnforced\":true,\"duplicatePrevented\":true,\"categorized\":true,\"categoryApplied\":\"{category}\"},\"memoriesApplied\":0,\"blueprintMatch\":null,\"lineage\":null,\"message\":\"DOCX FILE WRITTEN TO DISK at: /path/to/docs/{category}/filename.docx\\n\\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\\n\\nNOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\\nNOTE: Document categorized as \\\"{category}\\\" and placed in docs/{category}/.\"}"
+    }
+  ],
+  "organization": {
+    "docsFolderEnforced": true,
+    "categoryApplied": true,
+    "categoryPathCorrect": true,
+    "registryTracking": true,
+    "duplicatePrevention": true,
+    "all6CategoriesTested": true
+  },
+  "categories": {
+    "contracts": {
+      "path": "docs/contracts/",
+      "description": "Contract documents and agreements"
+    },
+    "technical": {
+      "path": "docs/technical/",
+      "description": "Technical documentation and specifications"
+    },
+    "business": {
+      "path": "docs/business/",
+      "description": "Business reports and financial documents"
+    },
+    "legal": {
+      "path": "docs/legal/",
+      "description": "Legal documents and compliance materials"
+    },
+    "meeting": {
+      "path": "docs/meetings/",
+      "description": "Meeting minutes and agendas"
+    },
+    "research": {
+      "path": "docs/research/",
+      "description": "Research findings and analysis"
+    }
+  },
+  "registry": {
+    "enabled": true,
+    "entryFormat": {
+      "id": "string (unique identifier)",
+      "title": "string",
+      "category": "string",
+      "filePath": "string",
+      "tags": "array",
+      "description": "string (optional)",
+      "createdAt": "string (ISO 8601 date)",
+      "updatedAt": "string (ISO 8601 date)"
+    },
+    "queryMethods": [
+      "findDocuments",
+      "getDocument",
+      "findDuplicateCandidates",
+      "getRegistryStats"
+    ]
+  }
+}

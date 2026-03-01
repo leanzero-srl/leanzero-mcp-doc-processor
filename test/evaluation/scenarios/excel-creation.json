@@ -1,0 +1,61 @@
+{
+  "name": "excel-creation",
+  "description": "Model creates an Excel workbook using create-excel tool",
+  "steps": [
+    {
+      "name": "Tool selection",
+      "check": "Tool name is 'create-excel'",
+      "validate": "toolName === 'create-excel'"
+    },
+    {
+      "name": "Sheet names",
+      "check": "Sheet names are descriptive",
+      "validate": "params.sheets && params.sheets.length > 0 && !params.sheets[0].name.toLowerCase().includes('sheet1') && !params.sheets[0].name.toLowerCase().includes('sheet2')"
+    },
+    {
+      "name": "Output format",
+      "check": "Response contains filePath and success status",
+      "validate": "result.success === true && result.filePath && result.filePath.endsWith('.xlsx')"
+    },
+    {
+      "name": "Enforcement info",
+      "check": "Response includes enforcement details",
+      "validate": "result.enforcement && result.enforcement.docsFolderEnforced !== undefined"
+    },
+    {
+      "name": "Category info",
+      "check": "Response includes category information",
+      "validate": "result.category !== undefined"
+    },
+    {
+      "name": "Style info",
+      "check": "Response includes style configuration",
+      "validate": "result.stylePreset !== undefined && result.styleConfig !== undefined"
+    },
+    {
+      "name": "Message format",
+      "check": "Message contains 'WRITTEN TO DISK' and file path",
+      "validate": "result.message && result.message.includes('WRITTEN TO DISK') && result.message.includes('xlsx')"
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "filePath": "string ending with .xlsx",
+    "category": "string (optional)",
+    "stylePreset": "string",
+    "enforcement": {
+      "docsFolderEnforced": "boolean",
+      "duplicatePrevented": "boolean",
+      "categorized": "boolean"
+    },
+    "message": "string containing 'WRITTEN TO DISK'"
+  },
+  "qualityMetrics": {
+    "messageContainsDisk": true,
+    "filePathIsAbsolute": true,
+    "hasEnforcementStructure": true,
+    "hasStyleConfig": true,
+    "hasCategoryInfo": true
+  },
+  "baseline": "excel-creation"
+}
