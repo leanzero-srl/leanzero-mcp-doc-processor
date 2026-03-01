@@ -1,0 +1,345 @@
+{
+  "name": "dna-inheritance",
+  "description": "Comprehensive test of DNA inheritance system with multiple configuration levels",
+  "version": "2.0.0",
+  "author": "MCP Test Framework",
+  "created": "2024-01-15",
+  "tags": ["dna", "inheritance", "configuration", "merging", "priority"],
+  "scenarioType": "inheritance-test",
+  "descriptionLong": "This test validates the DNA inheritance system that merges configuration from multiple levels (system defaults, project DNA, user DNA, and explicit parameters) with proper priority. It tests deep merging, inheritance priority, and override behavior.",
+  "objectives": [
+    "Verify DNA inheritance from system defaults (fallback level)",
+    "Verify DNA inheritance from project DNA (.document-dna.json)",
+    "Verify DNA inheritance from user DNA (.document-user.json)",
+    "Verify explicit parameters override all inherited values",
+    "Verify inheritance priority: user > project > system",
+    "Verify deep merging of nested objects (header, footer, company, defaults)",
+    "Verify undefined values don't overwrite inherited values",
+    "Verify cache invalidation when files change",
+    "Verify getAllDNALevels returns all inheritance levels",
+    "Verify mergeDNALevels correctly prioritizes inheritance",
+    "Verify applyDNAToInput injects DNA where parameters are missing",
+    "Verify backward compatibility with legacy DNA functions"
+  ],
+  "testSetup": {
+    "testDir": "test/_tmp_dna_inheritance_test",
+    "cleanupBeforeTest": true,
+    "cleanupAfterTest": true,
+    "cacheClearBeforeTest": true
+  },
+  "steps": [
+    {
+      "name": "Setup: Clean test environment",
+      "check": "Test directory is clean with no DNA files",
+      "action": "cleanup",
+      "validate": "testDirCleaned === true",
+      "expected": "No .document-dna.json or .document-user.json files exist"
+    },
+    {
+      "name": "Test 1: System defaults inheritance",
+      "check": "System defaults are applied when no DNA files exist",
+      "action": "create_doc",
+      "validate": "result.dnaApplied === false && result.stylePreset === 'professional'",
+      "expected": "DNA not applied, uses professional style from system defaults"
+    },
+    {
+      "name": "Test 2: Project DNA inheritance",
+      "check": "Project DNA overrides system defaults",
+      "action": "create_doc",
+      "setup": "Create .document-dna.json with project-specific settings",
+      "validate": "result.dnaApplied === true && result.stylePreset === 'business' && result.header.text === 'Project Header'",
+      "expected": "Project DNA overrides system defaults"
+    },
+    {
+      "name": "Test 3: User DNA inheritance",
+      "check": "User DNA overrides project DNA",
+      "action": "create_doc",
+      "setup": "Create .document-user.json with user-specific settings",
+      "validate": "result.dnaApplied === true && result.stylePreset === 'colorful' && result.header.text === 'User Header'",
+      "expected": "User DNA overrides project DNA"
+    },
+    {
+      "name": "Test 4: DNA merging - partial override",
+      "check": "Merging preserves non-overridden values from lower levels",
+      "action": "create_doc",
+      "setup": "Create DNA files with partial overlapping configurations",
+      "validate": "result.header.text === 'User Header' && result.footer.text === 'Project Footer'",
+      "expected": "User header text preserved, project footer text preserved"
+    },
+    {
+      "name": "Test 5: Deep merging",
+      "check": "Deep merge combines nested objects correctly",
+      "action": "create_doc",
+      "setup": "Create DNA files with nested object configurations",
+      "validate": "result.header.alignment === 'left' && result.footer.alignment === 'center'",
+      "expected": "Nested properties from different levels are merged"
+    },
+    {
+      "name": "Test 6: Explicit parameter override",
+      "check": "Explicit parameters override inherited DNA values",
+      "action": "create_doc",
+      "setup": "Create DNA files and pass explicit parameters",
+      "validate": "result.header.text === 'Explicit Header' && result.stylePreset === 'professional'",
+      "expected": "Explicit parameters override all inherited values"
+    },
+    {
+      "name": "Test 7: Undefined doesn't overwrite",
+      "check": "Undefined values don't overwrite inherited values",
+      "action": "create_doc",
+      "setup": "Create DNA files with undefined values in merge",
+      "validate": "result.header.alignment === 'left' (inherited from project)",
+      "expected": "Undefined values don't overwrite inherited values"
+    },
+    {
+      "name": "Test 8: getAllDNALevels",
+      "check": "Returns all inheritance levels for debugging",
+      "action": "get_dna_levels",
+      "setup": "Create DNA files and call getAllDNALevels",
+      "validate": "result.system && result.project && result.user && result.merged",
+      "expected": "All four DNA levels are returned"
+    },
+    {
+      "name": "Test 9: Inheritance priority verification",
+      "check": "Priority chain is correctly enforced",
+      "action": "create_doc",
+      "setup": "Create all three DNA levels with conflicting values",
+      "validate": "result.stylePreset === 'colorful' && result.header.text === 'User Header' && result.footer.text === 'Project Footer'",
+      "expected": "Priority: user > project > system"
+    },
+    {
+      "name": "Test 10: Cache invalidation",
+      "check": "Cache is properly invalidated on file change",
+      "action": "create_doc",
+      "setup": "Modify DNA files and verify new values are loaded",
+      "validate": "result.header.text === 'Modified Header' (new value)",
+      "expected": "Cache invalidation works correctly"
+    },
+    {
+      "name": "Test 11: Backward compatibility",
+      "check": "Legacy functions still work",
+      "action": "load_legacy_dna",
+      "setup": "Test loadDNA, createDNAFile, clearDNACache",
+      "validate": "result.loadDNAWorks === true && result.createDNAFileWorks === true",
+      "expected": "Legacy functions maintain backward compatibility"
+    },
+    {
+      "name": "Cleanup: Restore test environment",
+      "check": "Test directory is cleaned up",
+      "action": "cleanup",
+      "validate": "testDirCleaned === true",
+      "expected": "All DNA files and test documents are removed"
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "filePath": "string ending with .docx or .xlsx",
+    "dnaApplied": "boolean",
+    "stylePreset": "string",
+    "header": {
+      "text": "string or null",
+      "alignment": "string",
+      "color": "string or null"
+    },
+    "footer": {
+      "text": "string or null",
+      "alignment": "string",
+      "color": "string or null",
+      "includeTotal": "boolean"
+    },
+    "enforcement": {
+      "docsFolderEnforced": "boolean",
+      "duplicatePrevented": "boolean",
+      "categorized": "boolean"
+    },
+    "message": "string containing 'WRITTEN TO DISK' or 'DNA levels loaded'"
+  },
+  "qualityMetrics": {
+    "messageContainsDisk": true,
+    "filePathIsAbsolute": true,
+    "hasDnaApplied": true,
+    "hasStyleConfig": true,
+    "headerFooterInheritance": true,
+    "inheritancePriorityVerified": true,
+    "deepMergingVerified": true,
+    "cacheInvalidationVerified": true,
+    "backwardCompatibilityVerified": true
+  },
+  "baseline": "dna-inheritance",
+  "testScenarios": [
+    {
+      "name": "test-system-defaults",
+      "description": "Test DNA inheritance with system defaults (no DNA files)",
+      "setup": "Remove any existing .document-dna.json and .document-user.json files",
+      "params": {
+        "title": "System Defaults Document",
+        "paragraphs": ["Test content"],
+        "outputPath": "./test/output/dna-system-defaults.docx"
+      },
+      "expected": {
+        "dnaApplied": false,
+        "stylePreset": "professional",
+        "hasHeader": false,
+        "hasFooter": false
+      }
+    },
+    {
+      "name": "test-project-dna-only",
+      "description": "Test DNA inheritance with project DNA only",
+      "setup": "Create .document-dna.json with project-level settings",
+      "params": {
+        "title": "Project DNA Document",
+        "paragraphs": ["Test content"],
+        "outputPath": "./test/output/dna-project-only.docx"
+      },
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "business",
+        "header": {
+          "text": "Project Header",
+          "alignment": "left"
+        },
+        "footer": {
+          "text": "Project Footer",
+          "alignment": "center"
+        }
+      }
+    },
+    {
+      "name": "test-user-dna-only",
+      "description": "Test DNA inheritance with user DNA only",
+      "setup": "Create .document-user.json with user-specific settings",
+      "params": {
+        "title": "User DNA Document",
+        "paragraphs": ["Test content"],
+        "outputPath": "./test/output/dna-user-only.docx"
+      },
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "colorful",
+        "header": {
+          "text": "User Header",
+          "alignment": "right"
+        },
+        "footer": {
+          "text": "Page {current} of {total}",
+          "alignment": "center"
+        }
+      }
+    },
+    {
+      "name": "test-dna-merging",
+      "description": "Test merging of DNA levels with partial overrides",
+      "setup": "Create both .document-user.json and .document-dna.json files",
+      "params": {
+        "title": "Merged DNA Document",
+        "paragraphs": ["Test content"],
+        "outputPath": "./test/output/dna-merged.docx"
+      },
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "colorful",
+        "header": {
+          "text": "User Header",
+          "alignment": "left"
+        },
+        "footer": {
+          "text": "Project Footer",
+          "alignment": "center"
+        }
+      }
+    },
+    {
+      "name": "test-explicit-override",
+      "description": "Test explicit parameters overriding DNA inheritance",
+      "setup": "Create DNA files and test explicit parameter override",
+      "params": {
+        "title": "Explicit Override Document",
+        "paragraphs": ["Test content"],
+        "outputPath": "./test/output/dna-override.docx",
+        "header": {
+          "text": "Explicit Header",
+          "alignment": "center"
+        },
+        "stylePreset": "professional"
+      },
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "professional",
+        "header": {
+          "text": "Explicit Header",
+          "alignment": "center"
+        }
+      }
+    },
+    {
+      "name": "test-inheritance-priority",
+      "description": "Test inheritance priority chain (user > project > system)",
+      "setup": "Create all three DNA levels with conflicting values",
+      "params": {
+        "title": "Priority Test Document",
+        "paragraphs": ["Test content"],
+        "outputPath": "./test/output/dna-priority.docx"
+      },
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "colorful",
+        "header": {
+          "text": "User Header",
+          "alignment": "left"
+        },
+        "footer": {
+          "text": "Project Footer",
+          "alignment": "center"
+        }
+      }
+    },
+    {
+      "name": "test-undefined-merging",
+      "description": "Test that undefined values don't overwrite inherited values",
+      "setup": "Test DNA merging with undefined values",
+      "params": {
+        "title": "Undefined Test Document",
+        "paragraphs": ["Test content"],
+        "outputPath": "./test/output/dna-undefined.docx"
+      },
+      "expected": {
+        "dnaApplied": true,
+        "header": {
+          "text": "User Header",
+          "alignment": "left"
+        }
+      }
+    },
+    {
+      "name": "test-deep-merging",
+      "description": "Test deep merging of nested objects",
+      "setup": "Test deep merge behavior with nested configurations",
+      "params": {
+        "title": "Deep Merge Test Document",
+        "paragraphs": ["Test content"],
+        "outputPath": "./test/output/dna-deep-merge.docx"
+      },
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "colorful",
+        "header": {
+          "text": "User Header",
+          "alignment": "left"
+        }
+      }
+    }
+  ],
+  "setupInstructions": [
+    "1. Create test directory: mkdir -p test/_tmp_dna_inheritance_test",
+    "2. Create user DNA file: test/_tmp_dna_inheritance_test/.document-user.json",
+    "3. Create project DNA file: test/_tmp_dna_inheritance_test/.document-dna.json",
+    "4. Run test scenarios using harness",
+    "5. Verify results against baseline"
+  ],
+  "cleanupInstructions": [
+    "1. Remove test DNA files (.document-dna.json, .document-user.json)",
+    "2. Clear DNA cache using clearDNACache()",
+    "3. Remove generated test documents",
+    "4. Verify test directory is clean"
+  ]
+}

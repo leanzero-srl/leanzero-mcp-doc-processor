@@ -1,0 +1,262 @@
+{
+  "name": "auto-blueprint-testing",
+  "description": "Comprehensive MCP harness test scenario for auto-learned blueprints, blueprint matching, and blueprint extraction",
+  "version": "1.0.0",
+  "author": "MCP Test Framework",
+  "created": "2026-01-15",
+  "tags": ["blueprint", "auto-learn", "structure-validation", "blueprint-matching", "blueprint-extraction"],
+  "scenarioType": "blueprint-validation",
+  "descriptionLong": "This test scenario validates the auto-learned blueprint functionality including convertSignatureToBlueprint, generateAutoBlueprintName, end-to-end evolution, auto-matching on create-doc, and manual blueprint independence.",
+  "objectives": [
+    "Verify convertSignatureToBlueprint produces valid sections from suggestions",
+    "Test generateAutoBlueprintName with various scenarios including name reuse and collision handling",
+    "Validate end-to-end blueprint auto-learning through document evolution",
+    "Test auto-matching when creating documents with matching auto-learned blueprints",
+    "Verify no match when no auto-learned blueprints exist",
+    "Verify no match when signatures differ",
+    "Validate manual blueprint learn still works independently",
+    "Test blueprint extraction from documents"
+  ],
+  "testSetup": {
+    "testDir": "test-output-auto-blueprint",
+    "cleanupBeforeTest": true,
+    "cleanupAfterTest": true,
+    "dnaPath": ".document-dna.json",
+    "blueprintPath": ".document-blueprints.json",
+    "autoLearnThreshold": 3,
+    "similarityThreshold": 0.6
+  },
+  "steps": [
+    {
+      "name": "Setup: Clean slate initialization",
+      "check": "DNA and blueprint files are backed up and cleaned",
+      "action": "setup",
+      "validate": "setupComplete === true",
+      "expected": "DNA and blueprint files are backed up and cache cleared"
+    },
+    {
+      "name": "Test 1: convertSignatureToBlueprint - Valid sections",
+      "check": "convertSignatureToBlueprint produces valid sections",
+      "action": "convert_signature",
+      "validate": "convertSignatureToBlueprintOutput.sections.length === 4",
+      "expected": {
+        "sectionsCount": 4,
+        "firstSectionHeadingLevel": "heading1",
+        "firstSectionPattern": "introduction",
+        "secondSectionHeadingLevel": "heading2",
+        "thirdSectionPattern": "methods",
+        "autoLearnedFlag": true,
+        "signaturePreserved": true,
+        "dominantCategory": "research"
+      }
+    },
+    {
+      "name": "Test 1b: convertSignatureToBlueprint - Empty signature",
+      "check": "Empty signature handled gracefully",
+      "action": "convert_signature",
+      "validate": "convertSignatureToBlueprintOutput.sections.length === 0",
+      "expected": {
+        "sectionsCount": 0,
+        "sectionsIsArray": true
+      }
+    },
+    {
+      "name": "Test 2: generateAutoBlueprintName - Base name generation",
+      "check": "Auto blueprint name generation works correctly",
+      "action": "generate_name",
+      "validate": "generatedName === 'auto-technical-3h'",
+      "expected": {
+        "generatedName": "auto-technical-3h",
+        "categoryUsed": "technical",
+        "headingCount": 3
+      }
+    },
+    {
+      "name": "Test 3: generateAutoBlueprintName - Reuse on same signature",
+      "check": "Same signature reuses existing name",
+      "action": "generate_name",
+      "validate": "generatedName === 'auto-technical-3h'",
+      "expected": {
+        "generatedName": "auto-technical-3h",
+        "reusedExisting": true
+      }
+    },
+    {
+      "name": "Test 4: generateAutoBlueprintName - Collision handling",
+      "check": "Collision appends suffix to name",
+      "action": "generate_name",
+      "validate": "generatedName === 'auto-technical-3h-2'",
+      "expected": {
+        "generatedName": "auto-technical-3h-2",
+        "suffixAppended": 2
+      }
+    },
+    {
+      "name": "Test 5: generateAutoBlueprintName - Multiple collisions",
+      "check": "Multiple collisions increment suffix",
+      "action": "generate_name",
+      "validate": "generatedName === 'auto-technical-3h-3'",
+      "expected": {
+        "generatedName": "auto-technical-3h-3",
+        "suffixAppended": 3
+      }
+    },
+    {
+      "name": "Test 6: generateAutoBlueprintName - No category",
+      "check": "Uses 'general' when no category",
+      "action": "generate_name",
+      "validate": "generatedName === 'auto-general-2h'",
+      "expected": {
+        "generatedName": "auto-general-2h",
+        "categoryUsed": "general"
+      }
+    },
+    {
+      "name": "Test 7: End-to-end - Document evolution",
+      "check": "4 similar docs evolve to auto-learn blueprint",
+      "action": "evolve",
+      "validate": "evolveResponse.autoLearnedBlueprints.length >= 1",
+      "expected": {
+        "autoLearnedBlueprints": "array with >= 1 blueprint",
+        "blueprintSaved": true,
+        "blueprintNamePrefix": "auto-",
+        "blueprintHasSignature": true
+      }
+    },
+    {
+      "name": "Test 8: Auto-match - Matching blueprint",
+      "check": "Create doc matching auto-blueprint triggers blueprintMatch",
+      "action": "create_document",
+      "validate": "createDocResponse.blueprintMatch.name === 'auto-technical-3h'",
+      "expected": {
+        "success": true,
+        "blueprintMatch": {
+          "name": "auto-technical-3h",
+          "similarity": ">= 0.6",
+          "messageContains": "auto-technical-3h"
+        },
+        "messageContainsBlueprintMatch": true
+      }
+    },
+    {
+      "name": "Test 9: Auto-match - No blueprints available",
+      "check": "No match when no auto-learned blueprints exist",
+      "action": "create_document",
+      "validate": "createDocResponse.blueprintMatch === null",
+      "expected": {
+        "success": true,
+        "blueprintMatch": null,
+        "messageNoMatch": true
+      }
+    },
+    {
+      "name": "Test 10: Auto-match - Different signature",
+      "check": "No match when signatures differ",
+      "action": "create_document",
+      "validate": "createDocResponse.blueprintMatch === null",
+      "expected": {
+        "success": true,
+        "blueprintMatch": null,
+        "differentStructure": true
+      }
+    },
+    {
+      "name": "Test 11: Manual blueprint independence",
+      "check": "Manual blueprint learn works alongside auto-learned",
+      "action": "create_manual_blueprint",
+      "validate": "manualBlueprintExists && autoBlueprintExists",
+      "expected": {
+        "autoBlueprintExists": true,
+        "manualBlueprintExists": true,
+        "autoBlueprintPrefix": "auto-",
+        "manualBlueprintName": "monthly-report"
+      }
+    },
+    {
+      "name": "Test 12: Blueprint extraction",
+      "check": "Blueprint extraction from documents works",
+      "action": "extract_blueprint",
+      "validate": "extractedBlueprint.sections.length > 0",
+      "expected": {
+        "sectionsExtracted": true,
+        "signatureExtracted": true,
+        "headingStructureValid": true
+      }
+    },
+    {
+      "name": "Cleanup: Restore original files",
+      "check": "Original DNA and blueprint files restored",
+      "action": "cleanup",
+      "validate": "cleanupComplete === true",
+      "expected": "Original files restored, test output cleaned"
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "allTestsPassed": true,
+    "testResults": {
+      "convertSignatureToBlueprint": {
+        "validSections": true,
+        "emptySignatureHandling": true
+      },
+      "generateAutoBlueprintName": {
+        "baseNameGeneration": true,
+        "nameReuse": true,
+        "collisionHandling": true,
+        "noCategoryHandling": true
+      },
+      "endToEndEvolution": {
+        "autoLearnedBlueprintsCreated": true,
+        "blueprintSaved": true
+      },
+      "autoMatch": {
+        "matchingBlueprintTriggered": true,
+        "noBlueprintsNoMatch": true,
+        "differentSignatureNoMatch": true
+      },
+      "manualBlueprintIndependence": {
+        "manualBlueprintWorks": true,
+        "autoBlueprintWorks": true
+      },
+      "blueprintExtraction": {
+        "extractionSuccessful": true,
+        "structureValid": true
+      }
+    },
+    "blueprintStructure": {
+      "sections": [
+        {
+          "headingLevel": "heading1",
+          "pattern": "introduction",
+          "required": true
+        },
+        {
+          "headingLevel": "heading2",
+          "pattern": "data collection",
+          "required": true
+        }
+      ],
+      "signature": "h1:introduction|h2:background|h1:methods|h2:data collection",
+      "autoLearned": true,
+      "dominantCategory": "research"
+    }
+  },
+  "qualityMetrics": {
+    "convertSignatureToBlueprintValid": true,
+    "generateAutoBlueprintNameCorrect": true,
+    "endToEndAutoLearning": true,
+    "blueprintMatchingWorking": true,
+    "noMatchWhenNoBlueprints": true,
+    "noMatchWhenSignatureDiffers": true,
+    "manualBlueprintIndependence": true,
+    "blueprintExtractionWorking": true,
+    "allTestsPassed": true,
+    "testCoverage": 100
+  },
+  "baseline": "auto-blueprint-testing",
+  "passThreshold": {
+    "minTestsPassed": 12,
+    "minBlueprintMatchSimilarity": 0.6,
+    "minAutoLearnedBlueprints": 1
+  }
+}

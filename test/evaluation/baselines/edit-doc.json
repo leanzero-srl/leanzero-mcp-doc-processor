@@ -1,0 +1,12 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/docs/test/edit-doc-test.docx\",\"action\":\"append\",\"paragraphsAppended\":2,\"tablesAppended\":1,\"formattingPreserved\":true,\"documentStructure\":{\"hasHeaders\":false,\"hasFooters\":false,\"hasImages\":false},\"registryEntry\":{\"id\":\"doc-registry-id\",\"category\":\"test\"},\"message\":\"DOCX file UPDATED at: /path/to/docs/test/edit-doc-test.docx\\n\\n✓ FORMATTING PRESERVED: The original document formatting has been maintained.\\n✓ Appended 2 paragraph(s) and 1 table(s).\\n\\nNew content uses the \\\"professional\\\" style preset.\"}"
+    },
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/docs/test/edit-doc-test.docx\",\"action\":\"replace\",\"paragraphsReplaced\":2,\"tablesReplaced\":1,\"structurePreserved\":true,\"registryEntry\":{\"id\":\"doc-registry-id\",\"category\":\"test\"},\"message\":\"DOCX file REPLACED at: /path/to/docs/test/edit-doc-test.docx\\n\\n✓ STRUCTURE PRESERVED: Document headers, footers, and styles remain intact.\\n✓ Replaced content with 2 paragraph(s) and 1 table(s).\\n\\nNew content uses the \\\"professional\\\" style preset.\"}"
+    }
+  ]
+}

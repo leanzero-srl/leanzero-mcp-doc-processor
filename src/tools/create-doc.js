@@ -163,7 +163,10 @@ export async function createDoc(input) {
       if (classification.category !== "misc") {
         category = classification.category;
         console.error(
-          `[create-doc] Auto-classified document as "${category}" (confidence: ${classification.confidence})`,
+          `[create-doc] Auto-classified document as "${category}" (confidence: ${classification.confidence})\n` +
+          `Category scores: ${Object.entries(classification.scores || {})
+            .filter(([_, score]) => score > 0)
+            .map(([cat, score]) => `${cat}: ${score}`).join(", ")}`,
         );
       }
     }

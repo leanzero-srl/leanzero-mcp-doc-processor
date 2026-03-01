@@ -70,6 +70,16 @@ const CATEGORIES = {
  * @returns {Object} Category info with path and confidence
  */
 export function classifyDocument(title, content = "") {
+  return classifyDocumentContent(title, content);
+}
+
+/**
+ * Classify a document based on its title and content
+ * @param {string} title - Document title
+ * @param {string} [content] - Document content for analysis
+ * @returns {Object} Category info with path and confidence
+ */
+export function classifyDocumentContent(title, content = "") {
   if (!title && !content) {
     return { category: "misc", path: "documents" };
   }
@@ -106,11 +116,32 @@ export function classifyDocument(title, content = "") {
 
   const confidence = maxScore >= 3 ? "high" : maxScore === 1 || hasTitleMatch ? "medium" : "low";
 
+  // Calculate total score for relative confidence
+  const totalScore = Object.values(scores).reduce((sum, s) => sum + s, 0);
+  
+  // Return comprehensive classification with confidence
   return {
     category: bestCategory,
     path: CATEGORIES[bestCategory]?.path || "documents",
-    confidence,
-    scores
+    confidence: confidence,
+    scores: scores,
+    confidenceLevel: confidence, // alias for backward compatibility
+    categoryInfo: {
+      name: bestCategory,
+      description: CATEGORIES[bestCategory]?.description || "",
+      path: CATEGORIES[bestCategory]?.path || "documents",
+    },
+    confidenceExplanation: maxScore === 0 
+      ? "No category keywords found in title or content" 
+      : confidence === "high" 
+        ? `Strong match: ${maxScore} keyword matches found` 
+        : confidence === "medium" 
+          ? `Moderate match: ${maxScore} keyword match(es) found` 
+          : `Weak match: ${maxScore} keyword match(es) found`,
+    topCategories: Object.entries(scores)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([cat, score]) => ({ category: cat, score: score, isBest: cat === bestCategory })),
   };
 }
 

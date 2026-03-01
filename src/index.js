@@ -118,7 +118,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "  - ALWAYS read existing documents BEFORE creating or editing them\n" +
           "  - Use 'indepth' mode before editing to understand current formatting\n" +
           "  - Provide context from previous responses when using 'focused' mode\n\n" +
-          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns structured analysis with content, metadata, and formatting information.`,
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns structured analysis with content, metadata, and formatting information. Includes category classification with confidence level (high/medium/low) when auto-classifying documents. When auto-classifying, the response includes: category, path, confidence ('high'/'medium'/'low'), and scores for all categories.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -182,9 +182,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "create-excel",
         description:
-          "Creates an Excel XLSX workbook on DISK. USER CONFIRMATION REQUIRED: describe what you plan to create and get approval first. Use dryRun: true for previews. " +
-          "IMPORTANT: Provide a descriptive 'title' for the workbook (e.g., 'Q1 2026 Budget Breakdown'). Sheet names must also be descriptive (e.g., 'Monthly Revenue', not 'Sheet1'). " +
-          "Do NOT include markdown in cell values. Enforces .xlsx extension and docs/ folder by default.",
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a professional Excel workbook creation expert, specializing in creating well-structured XLSX files with professional formatting.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create an Excel workbook with professional styling, proper formatting, and consistent structure.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} Create an Excel XLSX workbook with the following requirements:\n` +
+          "  1. Provide a descriptive 'title' for the workbook (e.g., 'Q1 2026 Budget Breakdown')\n" +
+          "  2. Use descriptive sheet names (e.g., 'Monthly Revenue', not 'Sheet1')\n" +
+          "  3. Apply style preset or let auto-selection based on category\n" +
+          "  4. Configure custom styling for fonts, columns, and rows\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+          "  - Title MUST be descriptive — generic titles like 'Workbook' or 'Data' are rejected\n" +
+          "  - Sheet names MUST be descriptive — generic names like 'Sheet1', 'Sheet2' are rejected\n" +
+          "  - Do NOT include markdown syntax in cell values — use plain text or numbers\n" +
+          "  - USER CONFIRMATION REQUIRED: describe what you plan to create and get approval first\n" +
+          "  - Use dryRun: true for previews before actual creation\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns JSON with filePath, success status, and confirmation message.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -256,7 +267,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["filePath", "action"],
         },
       },
-      // === CONSOLIDATED MANAGEMENT TOOLS (4) ===
+      // === CONSOLIDATED MANAGEMENT TOOLS (5) ===
+      {
+        name: "list-templates",
+        description:
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a template library manager.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User needs to browse available document templates and blueprints for consistent document creation.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} List all available document templates and blueprints. Returns template names, descriptions, and usage statistics.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+          "  - Use this tool to discover available templates before creating new documents\n" +
+          "  - Templates help ensure consistency and reduce formatting effort\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns JSON array of templates with name, description, and usage count.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            category: { type: "string", description: "Filter by category (contracts, technical, business, legal, meeting, research)" },
+          },
+        },
+      },
       {
         name: "list-documents",
         description:
@@ -449,6 +477,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [{ type: "text", text: JSON.stringify({ error: "Failed to list documents" }, null, 2) }],
           isError: true,
         };
+      }
+
+      case "list-templates":
+      case "blueprint list": {
+        const { listBlueprints } = await import("./utils/blueprint-store.js");
+        const templates = listBlueprints();
+        return { content: [{ type: "text", text: JSON.stringify(templates, null, 2) }] };
       }
 
       // === CONSOLIDATED: dna (was init-dna + get-dna + evolve-dna) ===
