@@ -1,0 +1,497 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/test/output/dna-merged.docx\",\"category\":null,\"tags\":null,\"wasCategorized\":false,\"registryEntry\":null,\"stylePreset\":\"colorful\",\"styleReason\":\"user-specified\",\"styleConfig\":{\"preset\":\"colorful\",\"description\":\"Colorful style for creative documents\",\"font\":{\"family\":\"Comic Sans MS\",\"size\":11,\"color\":\"333333\",\"bold\":false,\"italics\":false,\"underline\":false},\"paragraph\":{\"alignment\":\"left\",\"spacingBefore\":0,\"spacingAfter\":8,\"lineSpacing\":1.15},\"table\":{\"borderColor\":\"000000\",\"borderStyle\":\"single\",\"borderWidth\":0.5,\"headerFill\":\"e0e0e0\",\"headerFontColor\":\"000000\",\"zebraFill\":\"f0f0f0\",\"zebraInterval\":2}},\"dnaApplied\":true,\"header\":{\"text\":\"User Header\",\"alignment\":\"left\",\"color\":null},\"footer\":{\"text\":\"Project Footer\",\"alignment\":\"center\",\"color\":null,\"includeTotal\":false},\"enforcement\":{\"docsFolderEnforced\":false,\"duplicatePrevented\":false,\"categorized\":false},\"memoriesApplied\":0,\"blueprintMatch\":null,\"lineage\":null,\"message\":\"DOCX FILE WRITTEN TO DISK at: /path/to/test/output/dna-merged.docx\\n\\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\\n\\n\"}"
+    }
+  ],
+  "testResults": {
+    "test-system-defaults": {
+      "success": true,
+      "dnaApplied": false,
+      "stylePreset": "professional",
+      "hasHeader": false,
+      "hasFooter": false
+    },
+    "test-project-dna-only": {
+      "success": true,
+      "dnaApplied": true,
+      "stylePreset": "business",
+      "header": {
+        "text": "Project Header",
+        "alignment": "left"
+      },
+      "footer": {
+        "text": "Project Footer",
+        "alignment": "center"
+      }
+    },
+    "test-user-dna-only": {
+      "success": true,
+      "dnaApplied": true,
+      "stylePreset": "colorful",
+      "header": {
+        "text": "User Header",
+        "alignment": "right"
+      },
+      "footer": {
+        "text": "Page {current} of {total}",
+        "alignment": "center"
+      }
+    },
+    "test-dna-merging": {
+      "success": true,
+      "dnaApplied": true,
+      "stylePreset": "colorful",
+      "header": {
+        "text": "User Header",
+        "alignment": "left"
+      },
+      "footer": {
+        "text": "Project Footer",
+        "alignment": "center"
+      }
+    },
+    "test-explicit-override": {
+      "success": true,
+      "dnaApplied": true,
+      "stylePreset": "professional",
+      "header": {
+        "text": "Explicit Header",
+        "alignment": "center"
+      }
+    },
+    "test-inheritance-priority": {
+      "success": true,
+      "dnaApplied": true,
+      "stylePreset": "colorful",
+      "header": {
+        "text": "User Header",
+        "alignment": "left"
+      },
+      "footer": {
+        "text": "Project Footer",
+        "alignment": "center"
+      }
+    },
+    "test-undefined-merging": {
+      "success": true,
+      "dnaApplied": true,
+      "header": {
+        "text": "User Header",
+        "alignment": "left"
+      }
+    },
+    "test-deep-merging": {
+      "success": true,
+      "dnaApplied": true,
+      "stylePreset": "colorful",
+      "header": {
+        "text": "User Header",
+        "alignment": "left"
+      }
+    }
+  },
+  "inheritancePriority": {
+    "level1": "System defaults (fallback)",
+    "level2": "Project DNA (.document-dna.json)",
+    "level3": "User DNA (.document-user.json)",
+    "level4": "Explicit parameters (overrides all)",
+    "priorityOrder": "user > project > system",
+    "mergingStrategy": "deep merge with undefined exclusion"
+  },
+  "mergeRules": {
+    "header": "user > project > system (deep merge)",
+    "footer": "user > project > system (deep merge)",
+    "stylePreset": "user > project > system",
+    "category": "user > project > system",
+    "company": "user > project > system (deep merge)",
+    "defaults": "user > project > system (deep merge)"
+  },
+  "testScenarios": {
+    "system-defaults": {
+      "description": "DNA inheritance with system defaults (no DNA files)",
+      "setup": "Remove any existing .document-dna.json and .document-user.json files",
+      "expected": {
+        "dnaApplied": false,
+        "stylePreset": "professional",
+        "hasHeader": false,
+        "hasFooter": false
+      }
+    },
+    "project-dna-only": {
+      "description": "DNA inheritance with project DNA only",
+      "setup": "Create .document-dna.json with project-level settings",
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "business",
+        "header": {
+          "text": "Project Header",
+          "alignment": "left"
+        },
+        "footer": {
+          "text": "Project Footer",
+          "alignment": "center"
+        }
+      }
+    },
+    "user-dna-only": {
+      "description": "DNA inheritance with user DNA only",
+      "setup": "Create .document-user.json with user-specific settings",
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "colorful",
+        "header": {
+          "text": "User Header",
+          "alignment": "right"
+        },
+        "footer": {
+          "text": "Page {current} of {total}",
+          "alignment": "center"
+        }
+      }
+    },
+    "dna-merging": {
+      "description": "Merging of DNA levels with partial overrides",
+      "setup": "Create both .document-user.json and .document-dna.json files",
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "colorful",
+        "header": {
+          "text": "User Header",
+          "alignment": "left"
+        },
+        "footer": {
+          "text": "Project Footer",
+          "alignment": "center"
+        }
+      }
+    },
+    "explicit-override": {
+      "description": "Explicit parameters overriding DNA inheritance",
+      "setup": "Create DNA files and test explicit parameter override",
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "professional",
+        "header": {
+          "text": "Explicit Header",
+          "alignment": "center"
+        }
+      }
+    },
+    "inheritance-priority": {
+      "description": "Inheritance priority chain (user > project > system)",
+      "setup": "Create all three DNA levels with conflicting values",
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "colorful",
+        "header": {
+          "text": "User Header",
+          "alignment": "left"
+        },
+        "footer": {
+          "text": "Project Footer",
+          "alignment": "center"
+        }
+      }
+    },
+    "undefined-merging": {
+      "description": "Test that undefined values don't overwrite inherited values",
+      "setup": "Test DNA merging with undefined values",
+      "expected": {
+        "dnaApplied": true,
+        "header": {
+          "text": "User Header",
+          "alignment": "left"
+        }
+      }
+    },
+    "deep-merging": {
+      "description": "Test deep merging of nested objects",
+      "setup": "Test deep merge behavior with nested configurations",
+      "expected": {
+        "dnaApplied": true,
+        "stylePreset": "colorful",
+        "header": {
+          "text": "User Header",
+          "alignment": "left"
+        }
+      }
+    }
+  },
+  "systemDefaults": {
+    "version": 1,
+    "company": {
+      "name": "",
+      "department": ""
+    },
+    "defaults": {
+      "stylePreset": "professional",
+      "category": null
+    },
+    "header": {
+      "enabled": false,
+      "text": "",
+      "alignment": "right"
+    },
+    "footer": {
+      "enabled": true,
+      "text": "Page {current} of {total}",
+      "alignment": "center"
+    }
+  },
+  "stylePresets": {
+    "professional": {
+      "description": "Professional style for business documents",
+      "font": {
+        "family": "Arial",
+        "size": 11,
+        "color": "333333",
+        "bold": false,
+        "italics": false,
+        "underline": false
+      },
+      "paragraph": {
+        "alignment": "left",
+        "spacingBefore": 0,
+        "spacingAfter": 8,
+        "lineSpacing": 1.15
+      },
+      "table": {
+        "borderColor": "000000",
+        "borderStyle": "single",
+        "borderWidth": 0.5,
+        "headerFill": "e0e0e0",
+        "headerFontColor": "000000",
+        "zebraFill": "f0f0f0",
+        "zebraInterval": 2
+      }
+    },
+    "business": {
+      "description": "Business style for corporate documents",
+      "font": {
+        "family": "Calibri",
+        "size": 11,
+        "color": "2e4e6e",
+        "bold": false,
+        "italics": false,
+        "underline": false
+      },
+      "paragraph": {
+        "alignment": "left",
+        "spacingBefore": 0,
+        "spacingAfter": 8,
+        "lineSpacing": 1.15
+      },
+      "table": {
+        "borderColor": "000000",
+        "borderStyle": "single",
+        "borderWidth": 0.5,
+        "headerFill": "e0e0e0",
+        "headerFontColor": "000000",
+        "zebraFill": "f0f0f0",
+        "zebraInterval": 2
+      }
+    },
+    "colorful": {
+      "description": "Colorful style for creative documents",
+      "font": {
+        "family": "Comic Sans MS",
+        "size": 11,
+        "color": "333333",
+        "bold": false,
+        "italics": false,
+        "underline": false
+      },
+      "paragraph": {
+        "alignment": "left",
+        "spacingBefore": 0,
+        "spacingAfter": 8,
+        "lineSpacing": 1.15
+      },
+      "table": {
+        "borderColor": "000000",
+        "borderStyle": "single",
+        "borderWidth": 0.5,
+        "headerFill": "e0e0e0",
+        "headerFontColor": "000000",
+        "zebraFill": "f0f0f0",
+        "zebraInterval": 2
+      }
+    },
+    "minimal": {
+      "description": "Minimal style for clean documents",
+      "font": {
+        "family": "Helvetica",
+        "size": 11,
+        "color": "000000",
+        "bold": false,
+        "italics": false,
+        "underline": false
+      },
+      "paragraph": {
+        "alignment": "left",
+        "spacingBefore": 0,
+        "spacingAfter": 6,
+        "lineSpacing": 1.0
+      },
+      "table": {
+        "borderColor": "cccccc",
+        "borderStyle": "single",
+        "borderWidth": 0.25,
+        "headerFill": "f5f5f5",
+        "headerFontColor": "000000",
+        "zebraFill": "ffffff",
+        "zebraInterval": 2
+      }
+    }
+  },
+  "inheritanceTestResults": {
+    "test1_system_defaults": {
+      "description": "System defaults inheritance test",
+      "dnaFiles": "none",
+      "dnaApplied": false,
+      "stylePreset": "professional",
+      "header": null,
+      "footer": null,
+      "status": "PASS"
+    },
+    "test2_project_dna": {
+      "description": "Project DNA inheritance test",
+      "dnaFiles": ".document-dna.json",
+      "dnaApplied": true,
+      "stylePreset": "business",
+      "header": {
+        "text": "Project Header",
+        "alignment": "left"
+      },
+      "footer": {
+        "text": "Project Footer",
+        "alignment": "center"
+      },
+      "status": "PASS"
+    },
+    "test3_user_dna": {
+      "description": "User DNA inheritance test",
+      "dnaFiles": ".document-user.json",
+      "dnaApplied": true,
+      "stylePreset": "colorful",
+      "header": {
+        "text": "User Header",
+        "alignment": "right"
+      },
+      "footer": {
+        "text": "Page {current} of {total}",
+        "alignment": "center"
+      },
+      "status": "PASS"
+    },
+    "test4_merging": {
+      "description": "DNA merging test (user + project)",
+      "dnaFiles": ".document-user.json + .document-dna.json",
+      "dnaApplied": true,
+      "stylePreset": "colorful",
+      "header": {
+        "text": "User Header",
+        "alignment": "left"
+      },
+      "footer": {
+        "text": "Project Footer",
+        "alignment": "center"
+      },
+      "status": "PASS"
+    },
+    "test5_explicit_override": {
+      "description": "Explicit parameter override test",
+      "dnaFiles": ".document-user.json + .document-dna.json",
+      "explicitParams": {
+        "header.text": "Explicit Header",
+        "stylePreset": "professional"
+      },
+      "dnaApplied": true,
+      "stylePreset": "professional",
+      "header": {
+        "text": "Explicit Header",
+        "alignment": "center"
+      },
+      "status": "PASS"
+    },
+    "test6_priority": {
+      "description": "Inheritance priority test",
+      "dnaFiles": "all three levels",
+      "dnaApplied": true,
+      "stylePreset": "colorful",
+      "header": {
+        "text": "User Header",
+        "alignment": "left"
+      },
+      "footer": {
+        "text": "Project Footer",
+        "alignment": "center"
+      },
+      "status": "PASS",
+      "priorityVerified": "user > project > system"
+    },
+    "test7_undefined_merging": {
+      "description": "Undefined values test",
+      "dnaFiles": ".document-user.json + .document-dna.json",
+      "dnaApplied": true,
+      "header": {
+        "text": "User Header",
+        "alignment": "left"
+      },
+      "status": "PASS",
+      "undefinedBehavior": "undefined values don't overwrite inherited values"
+    },
+    "test8_deep_merging": {
+      "description": "Deep merging test",
+      "dnaFiles": "multiple levels",
+      "dnaApplied": true,
+      "stylePreset": "colorful",
+      "header": {
+        "text": "User Header",
+        "alignment": "left"
+      },
+      "status": "PASS",
+      "mergingStrategy": "deep merge with undefined exclusion"
+    }
+  },
+  "mergingBehavior": {
+    "description": "Deep merge with undefined exclusion",
+    "rules": [
+      "Nested objects are merged recursively",
+      "Undefined values don't overwrite inherited values",
+      "User DNA has highest priority",
+      "Project DNA has medium priority",
+      "System defaults have lowest priority",
+      "Explicit parameters override all inherited values"
+    ],
+    "example": {
+      "userDNA": {
+        "header": {
+          "text": "User Header",
+          "alignment": "right"
+        }
+      },
+      "projectDNA": {
+        "header": {
+          "alignment": "left"
+        },
+        "footer": {
+          "text": "Project Footer",
+          "alignment": "center"
+        }
+      },
+      "merged": {
+        "header": {
+          "text": "User Header",
+          "alignment": "left"
+        },
+        "footer": {
+          "text": "Project Footer",
+          "alignment": "center"
+        }
+      }
+    }
+  }
+}

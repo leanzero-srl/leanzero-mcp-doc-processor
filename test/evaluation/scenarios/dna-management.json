@@ -1,0 +1,225 @@
+{
+  "name": "dna-management",
+  "description": "Comprehensive test scenario for DNA management functionality including creation, modification, inheritance, and merging",
+  "version": "1.0.0",
+  "author": "MCP Test Framework",
+  "created": "2024-01-15",
+  "tags": ["dna", "inheritance", "merge", "configuration", "document-management"],
+  "scenarioType": "integration-test",
+  "descriptionLong": "This test scenario validates the complete DNA management system including DNA creation, modification, inheritance hierarchy (user > project > system), and merging functionality. It tests both the low-level DNA manager functions and the high-level inheritance system.",
+  "objectives": [
+    "Verify DNA file creation with default and custom configurations",
+    "Test DNA loading and caching functionality",
+    "Validate DNA schema validation and error handling",
+    "Test DNA inheritance hierarchy (user overrides project, project overrides system)",
+    "Verify DNA merging with partial and complete overrides",
+    "Test explicit parameter override of inherited DNA",
+    "Validate backward compatibility with legacy DNA format",
+    "Test DNA cache invalidation and refresh"
+  ],
+  "testSetup": {
+    "testDir": "test/_tmp_dna_test",
+    "cleanupBeforeTest": true,
+    "cleanupAfterTest": true,
+    "dnaFiles": {
+      "project": ".document-dna.json",
+      "user": ".document-user.json"
+    }
+  },
+  "steps": [
+    {
+      "name": "Setup: Clean test environment",
+      "check": "Test directory is clean and ready for testing",
+      "action": "cleanup",
+      "validate": "testDirCleaned === true",
+      "expected": "No DNA files or temp files in test directory"
+    },
+    {
+      "name": "Test DNA creation with defaults",
+      "check": "DNA file created with default configuration",
+      "action": "create_dna",
+      "validate": "dnaCreated === true && dna.version === 1",
+      "expected": "DNA file created with default values"
+    },
+    {
+      "name": "Test DNA creation with custom values",
+      "check": "DNA file created with custom configuration",
+      "action": "create_dna_custom",
+      "validate": "customDNA.company.name === 'Test Corp' && customDNA.defaults.stylePreset === 'colorful'",
+      "expected": "DNA file created with custom company name and style preset"
+    },
+    {
+      "name": "Test DNA loading from file",
+      "check": "DNA file loaded successfully",
+      "action": "load_dna",
+      "validate": "loadedDNA !== null && loadedDNA.company.name === 'Test Corp'",
+      "expected": "DNA loaded from file"
+    },
+    {
+      "name": "Test DNA schema validation - valid DNA",
+      "check": "Valid DNA passes schema validation",
+      "action": "validate_dna",
+      "validate": "validationResult.valid === true && validationResult.errors.length === 0",
+      "expected": "Valid DNA passes validation"
+    },
+    {
+      "name": "Test DNA schema validation - invalid DNA",
+      "check": "Invalid DNA fails schema validation",
+      "action": "validate_dna_invalid",
+      "validate": "validationResult.valid === false && validationResult.errors.length > 0",
+      "expected": "Invalid DNA fails validation with appropriate errors"
+    },
+    {
+      "name": "Test DNA inheritance - system defaults",
+      "check": "System defaults are applied when no DNA files exist",
+      "action": "inheritance_system",
+      "validate": "inheritedDNA.company.name === '' && inheritedDNA.defaults.stylePreset === 'professional'",
+      "expected": "System defaults applied when no DNA files"
+    },
+    {
+      "name": "Test DNA inheritance - project DNA only",
+      "check": "Project DNA is applied when user DNA doesn't exist",
+      "action": "inheritance_project",
+      "validate": "inheritedDNA.company.name === 'Project Corp' && inheritedDNA.defaults.stylePreset === 'business'",
+      "expected": "Project DNA applied when user DNA missing"
+    },
+    {
+      "name": "Test DNA inheritance - user DNA override",
+      "check": "User DNA overrides project DNA",
+      "action": "inheritance_user_override",
+      "validate": "inheritedDNA.company.name === 'User Corp' && inheritedDNA.defaults.stylePreset === 'colorful'",
+      "expected": "User DNA properly overrides project DNA"
+    },
+    {
+      "name": "Test DNA merging - partial override",
+      "check": "Un-overridden values from project are preserved",
+      "action": "merge_partial",
+      "validate": "mergedDNA.company.name === 'User Corp' && mergedDNA.footer.text === 'Project Footer'",
+      "expected": "Partial merge preserves un-overridden values"
+    },
+    {
+      "name": "Test DNA merging - complete override",
+      "check": "All values properly merged with full override",
+      "action": "merge_complete",
+      "validate": "mergedDNA.company.name === 'User Corp' && mergedDNA.footer.text === 'User Footer'",
+      "expected": "Complete merge with full user override"
+    },
+    {
+      "name": "Test explicit parameter override",
+      "check": "Explicit parameters override inherited DNA",
+      "action": "explicit_override",
+      "validate": "result.header.text === 'Explicit Header' && result.stylePreset === 'professional'",
+      "expected": "Explicit parameters override DNA inheritance"
+    },
+    {
+      "name": "Test DNA cache functionality",
+      "check": "DNA cache returns same data for same file",
+      "action": "cache_test",
+      "validate": "cachedDNA === loadedDNA",
+      "expected": "DNA cache working correctly"
+    },
+    {
+      "name": "Test DNA cache invalidation",
+      "check": "DNA cache refreshes when file changes",
+      "action": "cache_invalidation",
+      "validate": "refreshedDNA.company.name === 'Updated Corp'",
+      "expected": "DNA cache properly invalidates on file change"
+    },
+    {
+      "name": "Test backward compatibility",
+      "check": "Legacy DNA format is supported",
+      "action": "backward_compat",
+      "validate": "legacyDNA.company.name === 'Legacy Corp' && legacyDNA.version === 1",
+      "expected": "Legacy DNA format supported"
+    },
+    {
+      "name": "Test DNA modification",
+      "check": "DNA can be modified after creation",
+      "action": "modify_dna",
+      "validate": "modifiedDNA.footer.text === 'Modified Footer'",
+      "expected": "DNA successfully modified"
+    },
+    {
+      "name": "Test applyDNAToInput - header injection",
+      "check": "Header is injected when not provided",
+      "action": "apply_dna_header",
+      "validate": "result.header.text === 'User Header' && result.footer.text === 'User Footer'",
+      "expected": "Header and footer injected into input"
+    },
+    {
+      "name": "Test applyDNAToInput - no override",
+      "check": "Explicit parameters are not overridden",
+      "action": "apply_dna_no_override",
+      "validate": "result.header.text === 'Explicit Header' && result.stylePreset === 'legal'",
+      "expected": "Explicit parameters preserved, DNA defaults applied elsewhere"
+    },
+    {
+      "name": "Cleanup: Remove test DNA files",
+      "check": "Test DNA files are removed",
+      "action": "cleanup",
+      "validate": "testDirCleaned === true",
+      "expected": "Test DNA files removed"
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "allTestsPassed": true,
+    "dnaCreation": {
+      "defaultCreation": true,
+      "customCreation": true,
+      "fileExists": true
+    },
+    "dnaLoading": {
+      "loadSuccess": true,
+      "cacheEnabled": true,
+      "malformedHandling": true
+    },
+    "schemaValidation": {
+      "validDNA": true,
+      "invalidDNA": false,
+      "errorMessages": true
+    },
+    "inheritanceHierarchy": {
+      "systemDefaults": true,
+      "projectOverride": true,
+      "userOverride": true,
+      "partialMerge": true,
+      "completeMerge": true
+    },
+    "explicitOverride": {
+      "headerOverride": true,
+      "footerOverride": true,
+      "stylePresetOverride": true
+    },
+    "cacheManagement": {
+      "cacheEnabled": true,
+      "cacheInvalidation": true,
+      "fileChangeDetection": true
+    },
+    "backwardCompatibility": {
+      "legacyFormat": true,
+      "apiCompatibility": true
+    }
+  },
+  "qualityMetrics": {
+    "dnaCreationWorking": true,
+    "dnaLoadingWorking": true,
+    "schemaValidationWorking": true,
+    "inheritanceHierarchyCorrect": true,
+    "mergingLogicCorrect": true,
+    "explicitOverrideWorking": true,
+    "cacheManagementWorking": true,
+    "backwardCompatibilityMaintained": true,
+    "errorHandlingRobust": true
+  },
+  "baseline": "dna-management",
+  "passThreshold": {
+    "minTestPassRate": 90,
+    "criticalTests": [
+      "test-dna-creation",
+      "test-dna-inheritance",
+      "test-dna-merging",
+      "test-explicit-override"
+    ]
+  }
+}

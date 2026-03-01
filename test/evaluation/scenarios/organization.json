@@ -1,0 +1,41 @@
+{
+  "name": "organization",
+  "description": "Model creates documents with proper organization (docs/ folder, categories)",
+  "steps": [
+    {
+      "name": "Docs folder enforcement",
+      "check": "File is placed in docs/ folder",
+      "validate": "result.filePath && result.filePath.includes('docs/')"
+    },
+    {
+      "name": "Enforcement flag",
+      "check": "docsFolderEnforced is true",
+      "validate": "result.enforcement && result.enforcement.docsFolderEnforced === true"
+    },
+    {
+      "name": "Category set",
+      "check": "Category is set",
+      "validate": "result.category && result.category.length > 0"
+    },
+    {
+      "name": "Category path",
+      "check": "File is in correct category subfolder",
+      "validate": "result.filePath && result.category && result.filePath.includes('docs/' + result.category)"
+    }
+  ],
+  "expectedOutput": {
+    "filePath": "string containing 'docs/'",
+    "enforcement": {
+      "docsFolderEnforced": true,
+      "duplicatePrevented": "boolean",
+      "categorized": "boolean"
+    },
+    "category": "string"
+  },
+  "qualityMetrics": {
+    "docsFolderEnforced": true,
+    "categoryApplied": true,
+    "categoryPathCorrect": true
+  },
+  "baseline": null
+}

@@ -41,10 +41,10 @@ export async function editExcel(input) {
     }
     if (
       !action ||
-      !["append-rows", "append-sheet", "replace-sheet"].includes(action)
+      !["append-rows", "append-sheet", "replace-sheet", "preview"].includes(action)
     ) {
       throw new Error(
-        "action must be 'append-rows', 'append-sheet', or 'replace-sheet'",
+        `Invalid action. Valid actions: 'append-rows' (add rows to existing sheet), 'append-sheet' (add new sheet), 'replace-sheet' (replace existing sheet), 'preview' (show what would change).`
       );
     }
 
@@ -222,6 +222,22 @@ export async function editExcel(input) {
         message: `Excel file UPDATED at: ${resolvedPath}\n\nReplaced sheet '${sheetName}' with ${cleanedData.length} row(s) of new data.`,
       };
     }
+
+    if (action === "preview") {
+      // Preview mode: show what would change without making any changes
+      return {
+        success: true,
+        filePath: resolvedPath,
+        action: "preview",
+        preview: generateExcelPreview(wb, input),
+        message: `Excel file PREVIEW at: ${resolvedPath}\n\nThis shows what would change if you apply these edits:\n` +
+          `  - Action: ${input.action}\n` +
+          `  - Sheet: ${input.sheetName || '(new sheet)'}\n` +
+          `  - Rows: ${input.rows?.length || (input.sheetData?.data?.length || 0)}\n` +
+          `  - Style preset: ${stylePreset}\n\n` +
+          `To apply these changes, run the same command without preview mode.`
+      };
+    }
   } catch (err) {
     return {
       success: false,
@@ -229,4 +245,72 @@ export async function editExcel(input) {
       message: `Failed to edit Excel file: ${err.message}`,
     };
   }
+}
+
+// ============================================================================
+// EXCEL PREVIEW GENERATION
+// ============================================================================
+
+/**
+ * Generates a preview of what would change if Excel edits are applied
+ * @param {Object} wb - Excel workbook object
+ * @param {Object} input - Edit parameters
+ * @returns {Object} Preview data showing what would change
+ */
+function generateExcelPreview(wb, input) {
+  const preview = {
+    filePath: input.filePath,
+    action: input.action,
+    currentWorkbook: {
+      sheets: wb.SheetNames,
+      sheetCount: wb.SheetNames.length
+    },
+    changes: [],
+    impact: {}
+  };
+
+  if (input.action === "append-rows") {
+    preview.changes.push({
+      type: "append-rows",
+      description: `Adding ${input.rows?.length || 0} row(s) to sheet '${input.sheetName}'`,
+      location: `After existing data in '${input.sheetName}'`
+    });
+    preview.impact = {
+      preservesExisting: true,
+      appliesStyling: true,
+      addsSeparator: input.addSeparator !== false
+    };
+  }
+
+  if (input.action === "append-sheet") {
+    preview.changes.push({
+      type: "append-sheet",
+      description: `Adding new sheet '${input.sheetData?.name || 'unnamed'}'`,
+      location: "New sheet at end of workbook"
+    });
+    preview.impact = {
+      sheetCountAfter: wb.SheetNames.length + 1,
+      willReplaceIfExists: false
+    };
+  }
+
+  if (input.action === "replace-sheet") {
+    preview.changes.push({
+      type: "replace-sheet",
+      description: `Replacing all data in sheet '${input.sheetName}'`,
+      location: `Sheet '${input.sheetName}'`,
+      rowsToReplace: input.rows?.length || (input.sheetData?.data?.length || 0)
+    });
+    preview.impact = {
+      preservesFormatting: false,
+      replacesAllData: true
+    };
+  }
+
+  preview.warnings = [];
+  if (!input.rows && !input.sheetData) {
+    preview.warnings.push("No data provided - no changes will occur");
+  }
+
+  return preview;
 }

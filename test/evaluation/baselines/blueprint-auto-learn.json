@@ -1,0 +1,108 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/test/output/blueprint-test/new-document-using-blueprint.docx\",\"category\":\"legal\",\"tags\":null,\"wasCategorized\":true,\"registryEntry\":null,\"stylePreset\":\"legal\",\"styleReason\":\"user-specified\",\"styleConfig\":{\"preset\":\"legal\",\"description\":\"Legal style for contracts and agreements\",\"font\":{\"family\":\"Garamond\",\"size\":11,\"color\":\"000000\",\"bold\":false,\"italics\":false,\"underline\":false},\"paragraph\":{\"alignment\":\"left\",\"spacingBefore\":0,\"spacingAfter\":8,\"lineSpacing\":1.15},\"table\":{\"borderColor\":\"000000\",\"borderStyle\":\"single\",\"borderWidth\":0.5,\"headerFill\":\"e0e0e0\",\"headerFontColor\":\"000000\",\"zebraFill\":\"f0f0f0\",\"zebraInterval\":2}},\"dnaApplied\":false,\"header\":null,\"footer\":null,\"enforcement\":{\"docsFolderEnforced\":true,\"duplicatePrevented\":false,\"categorized\":true,\"categoryApplied\":\"legal\"},\"memoriesApplied\":0,\"blueprintMatch\":{\"name\":\"legal-contract-template\",\"similarity\":0.85,\"message\":\"This document matches auto-learned blueprint \\\"legal-contract-template\\\" (85% similarity). Use blueprint: \\\"legal-contract-template\\\" in future create-doc calls to enforce this structure.\"},\"lineage\":null,\"message\":\"DOCX FILE WRITTEN TO DISK at: /path/to/test/output/blueprint-test/new-document-using-blueprint.docx\\n\\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\\n\\nNOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\\n\\nBLUEPRINT MATCH: This document matches auto-learned blueprint \\\"legal-contract-template\\\" (85% similarity). Use blueprint: \\\"legal-contract-template\\\" in future create-doc calls to enforce this structure.\"}"
+    }
+  ],
+  "blueprintStructure": {
+    "sections": [
+      {
+        "heading": "heading1",
+        "pattern": "1. Introduction",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 1,
+        "charCount": 512
+      },
+      {
+        "heading": "heading1",
+        "pattern": "2. Definitions",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 3,
+        "charCount": 345
+      },
+      {
+        "heading": "heading1",
+        "pattern": "3. Scope of Services",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 3,
+        "charCount": 312
+      },
+      {
+        "heading": "heading1",
+        "pattern": "4. Compensation",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 3,
+        "charCount": 289
+      },
+      {
+        "heading": "heading1",
+        "pattern": "5. Term and Termination",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 3,
+        "charCount": 456
+      },
+      {
+        "heading": "heading1",
+        "pattern": "6. Confidentiality",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 2,
+        "charCount": 312
+      },
+      {
+        "heading": "heading1",
+        "pattern": "7. Intellectual Property",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 2,
+        "charCount": 345
+      }
+    ],
+    "stylePreset": "legal",
+    "avgParagraphsPerSection": 2,
+    "totalParagraphs": 18,
+    "totalTables": 0,
+    "totalCharacters": 2571
+  },
+  "validationMetrics": {
+    "blueprintLearned": true,
+    "blueprintApplied": true,
+    "documentCreated": true,
+    "structureMatches": true,
+    "requiredSections": [
+      "1. Introduction",
+      "2. Definitions",
+      "3. Scope of Services",
+      "4. Compensation",
+      "5. Term and Termination",
+      "6. Confidentiality",
+      "7. Intellectual Property"
+    ],
+    "expectedSectionsCount": 7,
+    "actualSectionsCount": 7,
+    "matchingSections": 7,
+    "matchPercentage": 100
+  },
+  "qualityMetrics": {
+    "blueprintCreated": true,
+    "blueprintApplied": true,
+    "documentStructureMatches": true,
+    "allRequiredSectionsPresent": true,
+    "validationPassed": true,
+    "similarityThreshold": 0.6,
+    "similarityAchieved": 0.85
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"document\":{\"filePath\":\"/path/to/test/output/lineage-test/executive-summary.docx\",\"title\":\"Q1 2026 Executive Summary - Final\",\"category\":\"executive\",\"createdAt\":\"2026-01-15T10:30:00.000Z\"},\"upstream\":[{\"filePath\":\"/path/to/test/output/lineage-test/derived-document.docx\",\"title\":\"Q1 2026 Engineering Summary - Derived\",\"readAt\":\"2026-01-15T10:31:00.000Z\",\"tool\":\"get-doc-indepth\",\"category\":\"business\",\"upstream\":[{\"filePath\":\"/path/to/test/output/lineage-test/source-document.docx\",\"title\":\"Q1 2026 Engineering Report - Source\",\"readAt\":\"2026-01-15T10:30:00.000Z\",\"tool\":\"get-doc-summary\",\"category\":\"engineering\",\"upstream\":[]}]}],\"downstream\":[],\"totalSources\":1,\"totalDerivatives\":0}"
+    }
+  ],
+  "lineageChain": {
+    "sourceDocument": {
+      "title": "Q1 2026 Engineering Report - Source",
+      "category": "engineering",
+      "role": "original"
+    },
+    "derivedDocuments": [
+      {
+        "title": "Q1 2026 Engineering Summary - Derived",
+        "category": "business",
+        "role": "derived",
+        "source": "Q1 2026 Engineering Report - Source",
+        "readTool": "get-doc-summary"
+      },
+      {
+        "title": "Q1 2026 Executive Summary - Final",
+        "category": "executive",
+        "role": "derived",
+        "source": "Q1 2026 Engineering Summary - Derived",
+        "readTool": "get-doc-indepth"
+      }
+    ]
+  },
+  "validationMetrics": {
+    "lineageTracked": true,
+    "chainVerified": true,
+    "upstreamTracked": true,
+    "downstreamTracked": true,
+    "multiLevelLineage": true,
+    "expectedLinks": 2,
+    "actualLinks": 2,
+    "chainCompleteness": 100
+  },
+  "expectedOutput": {
+    "success": true,
+    "lineageTracked": true,
+    "chainVerified": true,
+    "upstreamTracked": true,
+    "downstreamTracked": true
+  }
+}

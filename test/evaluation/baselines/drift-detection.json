@@ -1,0 +1,16 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"./test/output/drift-test.docx\",\"name\":\"drift-test.docx\",\"fingerprint\":{\"capturedAt\":\"2026-01-20T12:00:00.000Z\",\"wordCount\":12,\"paragraphCount\":2,\"totalParagraphCount\":2,\"paragraphs\":[\"Initial content for drift detection testing.\",\"This document will be modified to simulate drift.\"],\"tableCount\":0,\"headingTree\":[],\"headingCount\":0,\"contentHash\":\"abc123def456\",\"wordSetHash\":\"wordsethash123\",\"uniqueWordCount\":10,\"category\":\"business\",\"categoryConfidence\":\"high\",\"textLength\":120},\"truncated\":false,\"message\":\"Document \\\"drift-test.docx\\\" is now being watched. Use drift-monitor action:'check' to detect changes.\"}"
+    }
+  ],
+  "checkDriftResponse": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"reports\":[{\"filePath\":\"./test/output/drift-test.docx\",\"name\":\"drift-test.docx\",\"watchedAt\":\"2026-01-20T12:00:00.000Z\",\"hasDrift\":true,\"severity\":\"medium\",\"changes\":[{\"type\":\"word-count\",\"severity\":\"low\",\"detail\":\"Word count changed by +4 (33%)\",\"baseline\":12,\"current\":16},{\"type\":\"paragraph-diff\",\"severity\":\"medium\",\"detail\":\"1 paragraph(s) added, 0 paragraph(s) removed\",\"added\":1,\"removed\":0,\"diff\":[\"+ This document has been modified to simulate drift.\",\"+ Additional content has been added to detect drift.\"]},{\"type\":\"heading-level-changes\",\"severity\":\"medium\",\"detail\":\"2 heading(s) changed level: \\\"Test Heading\\\" h1\\u2192h2\",\"headingChanges\":[{\"type\":\"level-change\",\"heading\":\"test heading\",\"from\":1,\"to\":2}]}],\"similarity\":0.85,\"summary\":\"4 change(s) detected (severity: medium). Word count changed by +4 (33%); 1 paragraph(s) added, 0 paragraph(s) removed; 2 heading(s) changed level: \\\"Test Heading\\\" h1\\u2192h2\"}],\"totalChecked\":1,\"totalWithDrift\":1,\"message\":\"1 of 1 watched document(s) have drifted from baseline.\"}"
+      }
+    ]
+  }
+}

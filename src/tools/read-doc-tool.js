@@ -11,6 +11,7 @@ import { analysisService } from "../services/analysis-service.js";
 import { imageProcessor } from "../utils/image-processor.js";
 import { log, logFunctionCall, logPath } from "../utils/logger.js";
 import { recordRead } from "../services/lineage-tracker.js";
+import { classifyDocumentContent } from "../utils/categorizer.js";
 
 // Store context for documents to support follow-up queries (focused mode)
 const documentContext = new Map();
@@ -85,8 +86,31 @@ async function handleSummary(params) {
     }
   }
 
+  // Auto-classify the document with confidence
+  const classification = classifyDocumentContent(metadata.title || "", result.text || "");
+
+  // Build category info section
+  let categorySection = "";
+  if (classification.category !== "misc" || classification.scores) {
+    categorySection = "\n\n=== Category Classification ===\n";
+    categorySection += `Category: ${classification.category}\n`;
+    categorySection += `Confidence: ${classification.confidence} (${classification.confidenceExplanation})\n`;
+    categorySection += "\nCategory Scores:\n";
+    const sortedScores = Object.entries(classification.scores)
+      .sort((a, b) => b[1] - a[1]);
+    for (const [cat, score] of sortedScores) {
+      categorySection += `  ${cat}: ${score}\n`;
+    }
+    if (classification.topCategories) {
+      categorySection += "\nTop 3 Categories:\n";
+      for (const catInfo of classification.topCategories) {
+        categorySection += `  - ${catInfo.category} (score: ${catInfo.score}${catInfo.isBest ? ", BEST MATCH" : ""})\n`;
+      }
+    }
+  }
+
   recordRead(params.filePath, "get-doc-summary");
-  return { content: [{ type: "text", text: summary || "Unable to generate summary" }] };
+  return { content: [{ type: "text", text: summary + categorySection || "Unable to generate summary" }] };
 }
 
 /**
@@ -143,8 +167,31 @@ async function handleInDepth(params) {
     }
   }
 
+  // Auto-classify the document with confidence
+  const classification = classifyDocumentContent(metadata.title || "", result.text || "");
+
+  // Build category info section
+  let categorySection = "";
+  if (classification.category !== "misc" || classification.scores) {
+    categorySection = "\n\n=== Category Classification ===\n";
+    categorySection += `Category: ${classification.category}\n`;
+    categorySection += `Confidence: ${classification.confidence} (${classification.confidenceExplanation})\n`;
+    categorySection += "\nCategory Scores:\n";
+    const sortedScores = Object.entries(classification.scores)
+      .sort((a, b) => b[1] - a[1]);
+    for (const [cat, score] of sortedScores) {
+      categorySection += `  ${cat}: ${score}\n`;
+    }
+    if (classification.topCategories) {
+      categorySection += "\nTop 3 Categories:\n";
+      for (const catInfo of classification.topCategories) {
+        categorySection += `  - ${catInfo.category} (score: ${catInfo.score}${catInfo.isBest ? ", BEST MATCH" : ""})\n`;
+      }
+    }
+  }
+
   recordRead(params.filePath, "get-doc-indepth");
-  return { content: [{ type: "text", text: output || "Unable to generate in-depth analysis" }] };
+  return { content: [{ type: "text", text: output + categorySection || "Unable to generate in-depth analysis" }] };
 }
 
 /**
