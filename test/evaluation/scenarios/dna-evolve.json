@@ -1,0 +1,14 @@
+{
+  "name": "dna-evolve",
+  "description": "Test the dna tool with evolve action to verify DNA evolution analysis",
+  "steps": [
+    {
+      "tool": "dna",
+      "expected": "Success - DNA evolution analysis completed",
+      "params": {
+        "action": "evolve",
+        "threshold": 5
+      }
+    }
+  ]
+}

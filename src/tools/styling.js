@@ -7,6 +7,15 @@ import {
   Table as DocxTable,
   HeadingLevel,
   RunFonts,
+  BorderStyle,
+  ShadingType,
+  WidthType,
+  PageNumber,
+  TabStopType,
+  TabStopPosition,
+  LevelFormat,
+  Header,
+  Footer,
 } from "docx";
 
 /**
@@ -651,52 +660,6 @@ export function createStyledParagraph(children, styleOptions = {}) {
 }
 
 /**
- * Creates a styled TableCell with content only (table-level borders used instead)
- * @param {Array|Paragraph} children - Content of the cell
- * @returns {TableCell} TableCell instance
- */
-export function createStyledCell(children) {
-  return new TableCell({
-    children: Array.isArray(children) ? children : [children],
-  });
-}
-
-/**
- * Creates styled Table with specified borders and width
- * @param {Array<TableRow>} rows - Table rows
- * @param {Object} tableOptions - Table styling options (borderColor, borderStyle, borderWidth)
- * @returns {DocxTable} Styled Table instance
- */
-export function createStyledTable(rows, tableOptions = {}) {
-  const defaults = STYLE_PRESETS.minimal.table;
-
-  const borderColor = tableOptions.borderColor || defaults.borderColor;
-  const borderStyle = tableOptions.borderStyle || defaults.borderStyle;
-  const borderWidth = tableOptions.borderWidth ?? defaults.borderWidth;
-
-  return new DocxTable({
-    rows,
-    width: { size: 100, type: "pct" },
-    borders: {
-      top: { style: borderStyle, size: borderWidth, color: borderColor },
-      bottom: { style: borderStyle, size: borderWidth, color: borderColor },
-      left: { style: borderStyle, size: borderWidth, color: borderColor },
-      right: { style: borderStyle, size: borderWidth, color: borderColor },
-      insideHorizontal: {
-        style: borderStyle,
-        size: borderWidth,
-        color: borderColor,
-      },
-      insideVertical: {
-        style: borderStyle,
-        size: borderWidth,
-        color: borderColor,
-      },
-    },
-  });
-}
-
-/**
  * Creates a styled heading paragraph based on preset
  * @param {string} text - The heading text
  * @param {string} level - Heading level (heading1, heading2, heading3)
@@ -1053,4 +1016,625 @@ function resolveUnderline(underlineConfig) {
     };
   }
   return undefined;
+}
+
+// ============================================================================
+// ENHANCED STYLING HELPERS - Inspired by Claude Opus 4.6 template system
+// ============================================================================
+
+// Reusable color constants for consistent theming
+export const COLORS = {
+  // Primary colors
+  BLUE: "1F4E79",
+  DARK: "333333",
+  LIGHT_BLUE: "D6E4F0",
+  LIGHT_GRAY: "F2F2F2",
+  WARN_BG: "FFF3CD",
+  WHITE: "FFFFFF",
+  // Additional colors
+  RED: "C6EFCE", // Green for "Yes"
+  RED_ALERT: "FFC7CE", // Red for "No"
+  GRAY: "999999",
+  GRAY_LIGHT: "888888",
+  GRAY_DARK: "777777",
+  GRAY_BORDER: "CCCCCC",
+  GRAY_BORDER_LIGHT: "E0E0E0",
+  // Business colors
+  BUSINESS_BLUE: "1F4E79",
+  BUSINESS_BLUE_LIGHT: "2B579A",
+  BUSINESS_BLUE_DARK: "3A5F8F",
+  // Alert colors
+  SUCCESS: "C6EFCE",
+  WARNING: "FFF3CD",
+  DANGER: "FFC7CE",
+};
+
+// Page dimensions
+export const PAGE_WIDTH = 12240; // 8.5" * 1440
+export const MARGIN = 1440; // 1" * 1440
+export const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2; // 9360
+
+// Border configurations
+export const BORDERS = {
+  // Standard border
+  standard: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" },
+  // No border
+  none: { style: BorderStyle.NONE, size: 0 },
+  // Thick border
+  thick: { style: BorderStyle.SINGLE, size: 4, color: "1F4E79" },
+  // Thin border
+  thin: { style: BorderStyle.SINGLE, size: 1, color: "E0E0E0" },
+  // Header border
+  header: { style: BorderStyle.SINGLE, size: 2, color: "1F4E79" },
+  // Bottom border only
+  bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" },
+};
+
+/**
+ * Creates a border configuration object
+ * @param {Object} options - Border options
+ * @param {string} options.style - Border style (single, double, dotted, dashed)
+ * @param {number} options.size - Border size
+ * @param {string} options.color - Border color hex
+ * @param {number} options.space - Border space
+ * @returns {Object} Border configuration
+ */
+export function createBorder(options = {}) {
+  const { style = BorderStyle.SINGLE, size = 1, color = "CCCCCC", space = 0 } = options;
+  return { style, size, color, space };
+}
+
+/**
+ * Creates a border configuration for table cells
+ * @returns {Object} Cell borders configuration
+ */
+export function createCellBorders() {
+  return {
+    top: BORDERS.standard,
+    bottom: BORDERS.standard,
+    left: BORDERS.standard,
+    right: BORDERS.standard,
+  };
+}
+
+/**
+ * Creates a no-border configuration
+ * @returns {Object} No borders configuration
+ */
+export function createNoBorders() {
+  return {
+    top: BORDERS.none,
+    bottom: BORDERS.none,
+    left: BORDERS.none,
+    right: BORDERS.none,
+  };
+}
+
+/**
+ * Creates cell margins configuration
+ * @param {Object} options - Margin options
+ * @param {number} options.top - Top margin
+ * @param {number} options.bottom - Bottom margin
+ * @param {number} options.left - Left margin
+ * @param {number} options.right - Right margin
+ * @returns {Object} Cell margins configuration
+ */
+export function createCellMargins(options = {}) {
+  return {
+    top: options.top ?? 60,
+    bottom: options.bottom ?? 60,
+    left: options.left ?? 100,
+    right: options.right ?? 100,
+  };
+}
+
+// ============================================================================
+// HEADING HELPERS
+// ============================================================================
+
+/**
+ * Creates a Heading 1 paragraph
+ * @param {string} text - Heading text
+ * @param {Object} options - Additional options
+ * @returns {Paragraph} Heading 1 paragraph
+ */
+export function heading1(text, options = {}) {
+  return new DocxParagraph({
+    heading: HeadingLevel.HEADING_1,
+    children: [new TextRun({ text, size: 32, bold: true, color: COLORS.BLUE, ...options.run })],
+    spacing: { before: 360, after: 200 },
+    ...options,
+  });
+}
+
+/**
+ * Creates a Heading 2 paragraph
+ * @param {string} text - Heading text
+ * @param {Object} options - Additional options
+ * @returns {Paragraph} Heading 2 paragraph
+ */
+export function heading2(text, options = {}) {
+  return new DocxParagraph({
+    heading: HeadingLevel.HEADING_2,
+    children: [new TextRun({ text, size: 26, bold: true, color: COLORS.BLUE, ...options.run })],
+    spacing: { before: 280, after: 160 },
+    ...options,
+  });
+}
+
+/**
+ * Creates a Heading 3 paragraph
+ * @param {string} text - Heading text
+ * @param {Object} options - Additional options
+ * @returns {Paragraph} Heading 3 paragraph
+ */
+export function heading3(text, options = {}) {
+  return new DocxParagraph({
+    heading: HeadingLevel.HEADING_3,
+    children: [new TextRun({ text, size: 22, bold: true, color: "2E75B6", ...options.run })],
+    spacing: { before: 200, after: 120 },
+    ...options,
+  });
+}
+
+/**
+ * Creates a regular paragraph with consistent styling
+ * @param {string} text - Paragraph text
+ * @param {Object} options - Additional options
+ * @returns {Paragraph} Styled paragraph
+ */
+export function para(text, options = {}) {
+  return new DocxParagraph({
+    spacing: { after: 120 },
+    ...options,
+    children: [new TextRun({ font: "Arial", size: 20, color: COLORS.DARK, ...options.run, text })],
+  });
+}
+
+/**
+ * Creates bold text as a TextRun
+ * @param {string} text - Text to make bold
+ * @param {Object} options - Additional TextRun options
+ * @returns {TextRun} Bold text run
+ */
+export function bold(text, options = {}) {
+  return new TextRun({ font: "Arial", size: 20, color: COLORS.DARK, bold: true, ...options, text });
+}
+
+/**
+ * Creates normal (regular) text as a TextRun
+ * @param {string} text - Text
+ * @param {Object} options - Additional TextRun options
+ * @returns {TextRun} Normal text run
+ */
+export function normal(text, options = {}) {
+  return new TextRun({ font: "Arial", size: 20, color: COLORS.DARK, ...options, text });
+}
+
+/**
+ * Creates a vertical spacer paragraph
+ * @param {number} height - Height of the spacer in twips
+ * @returns {Paragraph} Spacer paragraph
+ */
+export function spacer(height = 100) {
+  return new DocxParagraph({ spacing: { after: height }, children: [] });
+}
+
+/**
+ * Creates a horizontal divider (bordered paragraph)
+ * @param {Object} options - Divider options
+ * @returns {Paragraph} Divider paragraph
+ */
+export function divider(options = {}) {
+  return new DocxParagraph({
+    spacing: { before: 200, after: 200 },
+    border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: COLORS.BLUE, space: 4 } },
+    children: [],
+    ...options,
+  });
+}
+
+// ============================================================================
+// BULLET LIST HELPERS
+// ============================================================================
+
+/**
+ * Creates a bullet list item
+ * @param {TextRun|TextRun[]|string} runs - Content of the bullet item
+ * @param {string} ref - Numbering reference name
+ * @returns {Paragraph} Bullet item paragraph
+ */
+export function bulletItem(runs, ref = "bullets") {
+  return new DocxParagraph({
+    numbering: { reference: ref, level: 0 },
+    spacing: { after: 60 },
+    children: Array.isArray(runs) ? runs : [normal(runs)],
+  });
+}
+
+/**
+ * Creates a sub-bullet list item
+ * @param {TextRun|TextRun[]|string} runs - Content of the sub-bullet item
+ * @returns {Paragraph} Sub-bullet item paragraph
+ */
+export function subBulletItem(runs) {
+  return new DocxParagraph({
+    numbering: { reference: "subbullets", level: 0 },
+    spacing: { after: 40 },
+    children: Array.isArray(runs) ? runs : [normal(runs, { size: 18 })],
+  });
+}
+
+// ============================================================================
+// STATUS BADGE HELPERS
+// ============================================================================
+
+/**
+ * Creates a status badge table (single cell colored box)
+ * @param {string} label - Badge text
+ * @param {string} color - Background color hex
+ * @param {string} textColor - Text color hex
+ * @returns {Table} Status badge table
+ */
+export function statusBadge(label, color, textColor = COLORS.DARK) {
+  return new DocxTable({
+    width: { size: 2200, type: WidthType.DXA },
+    columnWidths: [2200],
+    rows: [new TableRow({
+      children: [new TableCell({
+        borders: createNoBorders(),
+        shading: { fill: color, type: ShadingType.CLEAR },
+        margins: { top: 30, bottom: 30, left: 80, right: 80 },
+        width: { size: 2200, type: WidthType.DXA },
+        children: [new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: label, font: "Arial", size: 16, bold: true, color: textColor })],
+        })],
+      })],
+    })],
+  });
+}
+
+// ============================================================================
+// INFO TABLE HELPERS
+// ============================================================================
+
+/**
+ * Creates an info table row (label | value)
+ * @param {string} label - Label text
+ * @param {string} value - Value text
+ * @returns {TableRow} Info table row
+ */
+export function infoRow(label, value) {
+  return new TableRow({
+    children: [
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: 2400, type: WidthType.DXA },
+        shading: { fill: COLORS.LIGHT_GRAY, type: ShadingType.CLEAR },
+        margins: createCellMargins({ top: 30, bottom: 30, left: 80, right: 80 }),
+        children: [new Paragraph({ children: [bold(label, { size: 18 })] })],
+      }),
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: 6960, type: WidthType.DXA },
+        margins: createCellMargins(),
+        children: [new Paragraph({ spacing: { after: 0 }, children: [normal(value, { size: 18 })] })],
+      }),
+    ],
+  });
+}
+
+/**
+ * Creates an info table (label/value pairs)
+ * @param {Array<[string, string]>} rows - Array of [label, value] pairs
+ * @returns {Table} Info table
+ */
+export function infoTable(rows) {
+  return new DocxTable({
+    width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+    columnWidths: [2400, 6960],
+    rows: rows.map(([l, v]) => infoRow(l, v)),
+  });
+}
+
+// ============================================================================
+// GAP TABLE HELPERS
+// ============================================================================
+
+/**
+ * Creates a gap table header row
+ * @returns {TableRow} Gap table header
+ */
+export function gapTableHeader() {
+  return new TableRow({
+    tableHeader: true,
+    children: [
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: 3200, type: WidthType.DXA },
+        shading: { fill: COLORS.BLUE, type: ShadingType.CLEAR },
+        margins: createCellMargins(),
+        children: [new Paragraph({ children: [bold("Gap / Limitation", { size: 18, color: COLORS.WHITE })] })],
+      }),
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: 6160, type: WidthType.DXA },
+        shading: { fill: COLORS.BLUE, type: ShadingType.CLEAR },
+        margins: createCellMargins(),
+        children: [new Paragraph({ children: [bold("Impact During UAT", { size: 18, color: COLORS.WHITE })] })],
+      }),
+    ],
+  });
+}
+
+/**
+ * Creates a gap table row
+ * @param {string} gap - Gap/limitation text
+ * @param {string} impact - Impact text
+ * @param {boolean} highlight - Whether to highlight with warning color
+ * @returns {TableRow} Gap table row
+ */
+export function gapRow(gap, impact, highlight = false) {
+  const bg = highlight ? COLORS.WARN_BG : COLORS.WHITE;
+  return new TableRow({
+    children: [
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: 3200, type: WidthType.DXA },
+        shading: { fill: bg, type: ShadingType.CLEAR },
+        margins: createCellMargins(),
+        children: [new Paragraph({ children: [bold(gap, { size: 18 })] })],
+      }),
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: 6160, type: WidthType.DXA },
+        shading: { fill: bg, type: ShadingType.CLEAR },
+        margins: createCellMargins(),
+        children: [new Paragraph({ spacing: { after: 0 }, children: [normal(impact, { size: 18 })] })],
+      }),
+    ],
+  });
+}
+
+/**
+ * Creates a gap table
+ * @param {Array<[string, string, boolean]>} rows - Array of [gap, impact, highlight] tuples
+ * @returns {Table} Gap table
+ */
+export function gapTable(rows) {
+  return new DocxTable({
+    width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+    columnWidths: [3200, 6160],
+    rows: [gapTableHeader(), ...rows.map(([g, i, h]) => gapRow(g, i, h))],
+  });
+}
+
+// ============================================================================
+// TABLE HELPERS (Enhanced)
+// ============================================================================
+
+/**
+ * Creates a table cell with standard styling
+ * @param {Paragraph|Paragraph[]} children - Cell content
+ * @param {Object} options - Cell options
+ * @returns {TableCell} Styled table cell
+ */
+export function createStyledCell(children, options = {}) {
+  return new TableCell({
+    borders: options.borders || createCellBorders(),
+    width: options.width ? { size: options.width, type: WidthType.DXA } : undefined,
+    shading: options.shading,
+    margins: options.margins || createCellMargins(),
+    children: Array.isArray(children) ? children : [children],
+  });
+}
+
+/**
+ * Creates a table row with standard styling
+ * @param {TableCell[]} children - Cell children
+ * @param {Object} options - Row options
+ * @returns {TableRow} Styled table row
+ */
+export function createStyledRow(children, options = {}) {
+  return new TableRow({
+    children,
+    tableHeader: options.tableHeader || false,
+  });
+}
+
+/**
+ * Creates a table with header and rows
+ * @param {Array<TableCell[]>} columns - Column definitions with labels
+ * @param {Array<TableRow[]>} rows - Table data rows
+ * @param {Object} options - Table options
+ * @returns {Table} Styled table
+ */
+export function createTableWithHeader(columns, rows, options = {}) {
+  const { width = CONTENT_WIDTH, columnWidths } = options;
+  
+  // Create header row
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: columns.map((col, idx) => {
+      const width = columnWidths?.[idx] || Math.floor(width / columns.length);
+      return new TableCell({
+        borders: createCellBorders(),
+        width: { size: width, type: WidthType.DXA },
+        shading: { fill: COLORS.BLUE, type: ShadingType.CLEAR },
+        margins: createCellMargins(),
+        children: [new Paragraph({
+          children: [new TextRun({ text: col, bold: true, size: 18, color: COLORS.WHITE })],
+        })],
+      });
+    }),
+  });
+  
+  return new DocxTable({
+    width: { size: width, type: WidthType.DXA },
+    columnWidths: columnWidths || columns.map(() => Math.floor(width / columns.length)),
+    rows: [headerRow, ...rows],
+  });
+}
+
+// ============================================================================
+// NUMBERING & BULLET CONFIGURATION
+// ============================================================================
+
+/**
+ * Creates numbering configuration for docx Document constructor
+ * @returns {Object} Numbering configuration
+ */
+export function createNumberingConfig() {
+  return {
+    config: [
+      {
+        reference: "bullets",
+        levels: [{
+          level: 0,
+          format: LevelFormat.BULLET,
+          text: "\u2022",
+          alignment: AlignmentType.LEFT,
+          style: { paragraph: { indent: { left: 720, hanging: 360 } } },
+        }],
+      },
+      {
+        reference: "subbullets",
+        levels: [{
+          level: 0,
+          format: LevelFormat.BULLET,
+          text: "\u2013",
+          alignment: AlignmentType.LEFT,
+          style: { paragraph: { indent: { left: 1080, hanging: 360 } } },
+        }],
+      },
+      {
+        reference: "numbers",
+        levels: [{
+          level: 0,
+          format: LevelFormat.DECIMAL,
+          text: "%1.",
+          alignment: AlignmentType.LEFT,
+          style: { paragraph: { indent: { left: 720, hanging: 360 } } },
+        }],
+      },
+    ],
+  };
+}
+
+// ============================================================================
+// PAGE SETUP HELPERS
+// ============================================================================
+
+/**
+ * Creates page properties configuration
+ * @param {Object} options - Page options
+ * @returns {Object} Page properties
+ */
+export function createPageProperties(options = {}) {
+  return {
+    page: {
+      size: {
+        width: options.width || PAGE_WIDTH,
+        height: options.height || 15840, // 11" * 1440
+      },
+      margin: {
+        top: options.margin || MARGIN,
+        bottom: options.margin || MARGIN,
+        left: options.margin || MARGIN,
+        right: options.margin || MARGIN,
+      },
+    },
+  };
+}
+
+/**
+ * Creates header configuration
+ * @param {Object} options - Header options
+ * @returns {Header} Header configuration
+ */
+export function createHeader(options = {}) {
+  const { text, alignment = "left", color = COLORS.GRAY_LIGHT } = options;
+  return new Header({
+    children: [new DocxParagraph({
+      border: { bottom: { style: BorderStyle.SINGLE, size: 2, color: COLORS.BLUE, space: 4 } },
+      children: [
+        bold(text, { size: 16, color }),
+      ],
+    })],
+  });
+}
+
+/**
+ * Creates footer configuration
+ * @param {Object} options - Footer options
+ * @returns {Footer} Footer configuration
+ */
+export function createFooter(options = {}) {
+  const { text, alignment = "center" } = options;
+  
+  return new Footer({
+    children: [new DocxParagraph({
+      border: { top: { style: BorderStyle.SINGLE, size: 1, color: COLORS.GRAY_BORDER, space: 4 } },
+      tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
+      children: [
+        normal(text, { size: 14, color: COLORS.GRAY }),
+        new TextRun({ text: "\tPage ", size: 14, color: COLORS.GRAY }),
+        new TextRun({ children: [PageNumber.CURRENT], size: 14, color: COLORS.GRAY }),
+      ],
+    })],
+  });
+}
+
+// ============================================================================
+// HELPER CONSTRUCTS (Direct from Claude's template)
+// ============================================================================
+
+/**
+ * Creates a simple paragraph with default styling
+ * @param {string} text - Paragraph text
+ * @returns {Paragraph} Styled paragraph
+ */
+export function p(text) {
+  return para(text);
+}
+
+/**
+ * Creates a bold text run
+ * @param {string} text - Text to bold
+ * @returns {TextRun} Bold text run
+ */
+export function b(text) {
+  return bold(text);
+}
+
+/**
+ * Creates normal text
+ * @param {string} text - Text
+ * @returns {TextRun} Normal text run
+ */
+export function n(text) {
+  return normal(text);
+}
+
+/**
+ * Creates a page break
+ * @returns {Paragraph} Page break paragraph
+ */
+export function pageBreak() {
+  return new DocxParagraph({ children: [new PageBreak()] });
+}
+
+/**
+ * Creates a center-aligned paragraph
+ * @param {string} text - Text to center
+ * @param {Object} options - Paragraph options
+ * @returns {Paragraph} Centered paragraph
+ */
+export function center(text, options = {}) {
+  return new DocxParagraph({
+    alignment: AlignmentType.CENTER,
+    children: [new TextRun({ text, ...options })],
+    ...options,
+  });
 }
