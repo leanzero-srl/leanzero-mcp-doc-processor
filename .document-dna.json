@@ -18,30 +18,28 @@
     "text": "Page {current} of {total}",
     "alignment": "center"
   },
-  "memories": {
-    "test-preference": {
-      "text": "Test preference for document styling",
-      "createdAt": "2026-03-01T19:00:06.783Z"
-    }
-  },
+  "memories": {},
   "usage": {
     "categories": {
       "engineering": 1,
       "business": 1,
-      "executive": 1
+      "executive": 1,
+      "technical": 1
     },
     "styles": {
-      "business": 3
+      "business": 3,
+      "technical": 1
     },
-    "totalDocs": 3,
+    "totalDocs": 4,
     "overrides": {
       "stylePreset": 3,
-      "footer": 3
+      "footer": 4
     },
     "correlations": {
       "engineering+business": 1,
       "business+business": 1,
-      "executive+business": 1
+      "executive+business": 1,
+      "technical+technical": 1
     },
     "structures": [
       {
@@ -61,6 +59,12 @@
         "category": "executive",
         "style": "business",
         "createdAt": "2026-03-01T19:00:21.717Z"
+      },
+      {
+        "signature": "h1:this is a heading",
+        "category": "technical",
+        "style": "technical",
+        "createdAt": "2026-03-01T19:09:11.107Z"
       }
     ]
   }
