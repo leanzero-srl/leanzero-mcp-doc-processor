@@ -15,10 +15,11 @@ Part of the [LeanZero](https://leanzero.atlascrafted.com) ecosystem.
 - **Lineage tracking** -- automatic provenance chains that record which source documents informed each created document
 - **Duplicate prevention** -- atomic file locking and registry-based title matching to prevent overwrites
 - **Document registry** -- searchable index of all created documents with category, tag, and title filtering
+- **Enhanced styling** -- advanced typography, color constants, and professional formatting helpers
 
 ## Tools
 
-The server exposes 10 tools via the MCP protocol. Each tool uses an `action` parameter for sub-operations where applicable.
+The server exposes 11 tools via the MCP protocol. Each tool uses an `action` parameter for sub-operations where applicable.
 
 | Tool | Actions / Modes | Description |
 |------|----------------|-------------|
@@ -33,7 +34,7 @@ The server exposes 10 tools via the MCP protocol. Each tool uses an `action` par
 | `drift-monitor` | `watch`, `check` | Register documents for monitoring and detect structural changes over time. |
 | `get-lineage` | -- | Trace the provenance chain for any document -- which sources informed it and what was derived from it. |
 
-All old tool names from previous versions (`get-doc-summary`, `get-doc-indepth`, `get-doc-focused`, `init-dna`, `get-dna`, `evolve-dna`, `save-memory`, `delete-memory`, `learn-blueprint`, `list-blueprints`, `watch-document`, `check-drift`, `search-registry`, `check-document`, `extract-to-excel`, `assemble-document`) are accepted as backward-compatible aliases.
+> **Note:** All old tool names from previous versions (`get-doc-summary`, `get-doc-indepth`, `get-doc-focused`, `init-dna`, `get-dna`, `evolve-dna`, `save-memory`, `delete-memory`, `learn-blueprint`, `list-blueprints`, `watch-document`, `check-drift`, `search-registry`, `check-document`, `extract-to-excel`, `assemble-document`) are accepted as backward-compatible aliases.
 
 ## Quick Start
 
@@ -125,6 +126,89 @@ Categories auto-select an appropriate preset when none is specified:
 | business | business |
 | meeting | professional |
 | research | professional |
+
+## Enhanced Styling System
+
+The enhanced styling system provides advanced typography and formatting capabilities through the `src/tools/styling.js` module:
+
+### Color Constants
+
+The system includes 20+ named color constants for consistent styling:
+
+| Color Name | Hex Code | Usage |
+|------------|----------|-------|
+| `WHITE` | `FFFFFF` | Backgrounds, primary text |
+| `BLACK` | `1A1A1A` | Primary text, dark elements |
+| `BLUE` | `2563EB` | Primary accent, links |
+| `GREEN` | `22C55E` | Success states, positive indicators |
+| `RED` | `EF4444` | Error states, warnings |
+| `YELLOW` | `EAB308` | Highlights, attention |
+| `ORANGE` | `F97316` | Warm accents |
+| `PURPLE` | `A855F7` | Creative accents |
+| `TEAL` | `14B8A6` | Secondary accents |
+| `INDIGO` | `6366F1` | Professional accents |
+| `GRAY_50` | `F9FAFB` | Light backgrounds |
+| `GRAY_100` | `F3F4F6` | Subtle backgrounds |
+| `GRAY_200` | `E5E7EB` | Borders, dividers |
+| `GRAY_300` | `D1D5DB` | Light borders |
+| `GRAY_400` | `9CA3AF` | Secondary text |
+| `GRAY_500` | `6B7280` | Tertiary text |
+| `GRAY_600` | `4B5563` | Secondary content |
+| `GRAY_700` | `374151` | Primary content |
+| `GRAY_800` | `1F2937` | Dark content |
+| `GRAY_900` | `111827` | Darkest elements |
+
+### Page Layout Helpers
+
+| Helper | Purpose |
+|--------|---------|
+| `PAGE_WIDTH` | Standard page width in inches (8.5") |
+| `CONTENT_WIDTH` | Content area width (6.5") |
+| `MARGIN_TOP` | Top margin (1") |
+| `MARGIN_BOTTOM` | Bottom margin (1") |
+| `MARGIN_LEFT` | Left margin (1") |
+| `MARGIN_RIGHT` | Right margin (1") |
+
+### Heading Helpers
+
+| Helper | Purpose |
+|--------|---------|
+| `heading1(text)` | Main document title (Heading 1 style) |
+| `heading2(text)` | Section headings (Heading 2 style) |
+| `heading3(text)` | Subsection headings (Heading 3 style) |
+
+### Text Formatting Helpers
+
+| Helper | Purpose |
+|--------|---------|
+| `para(text)` | Standard paragraph |
+| `bold(text)` | Bold text |
+| `normal(text)` | Normal text with optional styling |
+| `spacer(height)` | Vertical spacing |
+| `divider()` | Horizontal rule |
+
+### List Helpers
+
+| Helper | Purpose |
+|--------|---------|
+| `bulletItem(text)` | Bullet list item |
+| `subBulletItem(text)` | Nested bullet list item |
+
+### Table Helpers
+
+| Helper | Purpose |
+|--------|---------|
+| `infoTable(data)` | Information table with professional styling |
+| `gapTable(data)` | Table with spacing between rows |
+| `statusBadge(text, status)` | Status indicator badge |
+
+### Page Setup Helpers
+
+| Helper | Purpose |
+|--------|---------|
+| `createHeader(text, alignment)` | Document header |
+| `createFooter(text, alignment)` | Document footer |
+| `createPageProperties()` | Page layout properties |
 
 ## Document DNA
 

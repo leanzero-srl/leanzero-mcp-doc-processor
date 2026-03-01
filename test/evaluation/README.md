@@ -102,7 +102,7 @@ Establishes expected output patterns:
 
 ### 1. Document Creation Scenario
 
-Tests the model's ability to create documents using the MCP server:
+Tests the model's ability to create documents using the create-doc tool:
 
 ```javascript
 {
@@ -124,6 +124,10 @@ Tests the model's ability to create documents using the MCP server:
     {
       name: 'Enforcement info',
       check: 'Response includes enforcement details',
+    },
+    {
+      name: 'Style info',
+      check: 'Response includes stylePreset and styleConfig',
     }
   ]
 }
@@ -149,6 +153,10 @@ Tests Excel workbook creation:
     {
       name: 'Output format',
       check: 'Response contains filePath and success status',
+    },
+    {
+      name: 'Style info',
+      check: 'Response includes stylePreset and styleConfig',
     }
   ]
 }
@@ -174,6 +182,177 @@ Tests document analysis:
     {
       name: 'Response format',
       check: 'Response follows expected format for mode',
+    }
+  ]
+}
+```
+
+### 4. Document Editing Scenario
+
+Tests document editing capabilities:
+
+```javascript
+{
+  name: 'edit-doc',
+  description: 'Model edits existing DOCX files using edit-doc tool',
+  steps: [
+    {
+      name: 'Tool selection',
+      check: 'Tool name is "edit-doc"',
+    },
+    {
+      name: 'Action validation',
+      check: 'Action is "append" or "replace"',
+    },
+    {
+      name: 'Output format',
+      check: 'Response contains filePath and success status',
+    },
+    {
+      name: 'Formatting preservation',
+      check: 'Response indicates formatting was preserved',
+    }
+  ]
+}
+```
+
+### 5. DNA Management Scenario
+
+Tests Document DNA system:
+
+```javascript
+{
+  name: 'dna',
+  description: 'Model manages Document DNA using dna tool',
+  steps: [
+    {
+      name: 'Tool selection',
+      check: 'Tool name is "dna"',
+    },
+    {
+      name: 'Action validation',
+      check: 'Action is one of: init, get, evolve, save-memory, delete-memory',
+    },
+    {
+      name: 'Response format',
+      check: 'Response follows expected format for action',
+    }
+  ]
+}
+```
+
+### 6. Blueprint Management Scenario
+
+Tests blueprint system:
+
+```javascript
+{
+  name: 'blueprint',
+  description: 'Model manages blueprints using blueprint tool',
+  steps: [
+    {
+      name: 'Tool selection',
+      check: 'Tool name is "blueprint"',
+    },
+    {
+      name: 'Action validation',
+      check: 'Action is one of: learn, list, delete',
+    },
+    {
+      name: 'Response format',
+      check: 'Response follows expected format for action',
+    }
+  ]
+}
+```
+
+### 7. Drift Monitoring Scenario
+
+Tests drift detection:
+
+```javascript
+{
+  name: 'drift-monitor',
+  description: 'Model monitors documents for structural changes using drift-monitor tool',
+  steps: [
+    {
+      name: 'Tool selection',
+      check: 'Tool name is "drift-monitor"',
+    },
+    {
+      name: 'Action validation',
+      check: 'Action is one of: watch, check',
+    },
+    {
+      name: 'Response format',
+      check: 'Response follows expected format for action',
+    }
+  ]
+}
+```
+
+### 8. Lineage Tracking Scenario
+
+Tests provenance tracking:
+
+```javascript
+{
+  name: 'get-lineage',
+  description: 'Model traces document provenance using get-lineage tool',
+  steps: [
+    {
+      name: 'Tool selection',
+      check: 'Tool name is "get-lineage"',
+    },
+    {
+      name: 'Response format',
+      check: 'Response contains upstream and downstream lineage',
+    }
+  ]
+}
+```
+
+### 9. Document Registry Scenario
+
+Tests document registry search:
+
+```javascript
+{
+  name: 'list-documents',
+  description: 'Model searches document registry using list-documents tool',
+  steps: [
+    {
+      name: 'Tool selection',
+      check: 'Tool name is "list-documents"',
+    },
+    {
+      name: 'Filter validation',
+      check: 'Response filters by category, tags, or title',
+    },
+    {
+      name: 'Response format',
+      check: 'Response contains array of document entries',
+    }
+  ]
+}
+```
+
+### 10. Template Management Scenario
+
+Tests template/blueprint listing:
+
+```javascript
+{
+  name: 'list-templates',
+  description: 'Model lists available templates using list-templates tool',
+  steps: [
+    {
+      name: 'Tool selection',
+      check: 'Tool name is "list-templates"',
+    },
+    {
+      name: 'Response format',
+      check: 'Response contains array of blueprints',
     }
   ]
 }
