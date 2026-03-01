@@ -254,6 +254,42 @@ npm run test:drift          # Drift detection internals
 npm run test:auto-blueprint # Auto-blueprint learning
 ```
 
+## Generated Files
+
+The server generates several configuration and data files:
+
+### `.document-dna.json`
+
+Document DNA configuration file that stores:
+- Project-level styling defaults (style preset, category, header/footer)
+- Usage statistics (categories, styles, document counts)
+- Memory system (saved document preferences)
+- Auto-learned document structures
+
+This file is automatically managed by the `dna` tool and should not be manually edited.
+
+### `.document-blueprints.json`
+
+Blueprint repository that stores:
+- Extracted document structures
+- Section patterns and requirements
+- Style preset associations
+- Creation timestamps
+
+Blueprints are created via `blueprint action:'learn'` or auto-learned during `dna evolve`.
+
+### `docs/registry.json`
+
+Document registry containing:
+- All created documents with metadata
+- Category, tags, and descriptions
+- Lineage tracking information
+- Timestamps for creation and updates
+
+### `.document-user.json` (optional)
+
+User-level DNA that inherits from project DNA. Allows personal overrides without affecting team settings.
+
 ## Architecture
 
 ```
@@ -268,6 +304,9 @@ mcp-doc-processor/
   test/                      # Test suites
   logs/                      # Server logs
   .document-dna.json         # Document DNA configuration
+  .document-blueprints.json  # Blueprint repository
+  docs/registry.json         # Document registry
+  .document-user.json        # Optional user-level DNA
 ```
 
 ### Dependencies
