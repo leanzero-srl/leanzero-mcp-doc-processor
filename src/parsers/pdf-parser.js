@@ -4,6 +4,7 @@ import { visionService } from "../services/vision-factory.js";
 import { DocumentLayoutAnalyzer } from "../services/layout-analyzer.js";
 import { OcrPostProcessor } from "../services/ocr-postprocessor.js";
 import { TableExtractor } from "../services/table-extractor.js";
+import { promptEngineer } from "../services/prompt-engineer.js";
 
 /**
  * PDF Parser Module
@@ -474,9 +475,34 @@ This is a scanned document or PDF page. Please:
   }
 
   /**
-   * Generate OCR prompts based on layout analysis
+   * Generate OCR prompts based on layout analysis using PromptEngineer
+   * @param {Object} layoutAnalysis - Layout analysis results from DocumentLayoutAnalyzer
+   * @returns {string} Optimized prompt string for OCR extraction
    */
   generateOcrPrompt(layoutAnalysis) {
+    // Use PromptEngineer to generate optimized prompt
+    const options = {
+      textHint: this._getDocumentTypeHint(layoutAnalysis),
+      layoutAnalysis: layoutAnalysis?.success ? layoutAnalysis : null,
+    };
+
+    // Create a dummy image data URL for prompt generation (not used in text-only generation)
+    const dummyImageData = "data:image/jpeg;base64,DUMMY";
+
+    try {
+      const promptConfig = promptEngineer.generateExtractionPrompt(dummyImageData, options);
+      return promptConfig.userPrompt;
+    } catch (error) {
+      // Fallback to legacy prompt generation if PromptEngineer fails
+      console.error(`[PdfParser] PromptEngineer failed, falling back to legacy prompt: ${error.message}`);
+      return this._generateLegacyOcrPrompt(layoutAnalysis);
+    }
+  }
+
+  /**
+   * Generate legacy OCR prompts (fallback method)
+   */
+  _generateLegacyOcrPrompt(layoutAnalysis) {
     let basePrompt = `Extract all text from this document image with high accuracy. Preserve the original formatting and structure as much as possible.
 
 Key instructions:
@@ -533,6 +559,39 @@ Key instructions:
     }
 
     return basePrompt;
+  }
+
+  /**
+   * Get document type hint from layout analysis
+   */
+  _getDocumentTypeHint(layoutAnalysis) {
+    if (!layoutAnalysis?.success) return "";
+
+    // Infer document type from layout characteristics
+    const totalTables = layoutAnalysis.pages.reduce(
+      (sum, page) => sum + (page.tables?.length || 0), 0
+    );
+    const totalImages = layoutAnalysis.pages.reduce(
+      (sum, page) => sum + (page.images?.length || 0), 0
+    );
+
+    if (totalTables > 3) return "structured document with tables";
+    if (totalImages > layoutAnalysis.pages.length * 2) return "image-heavy document";
+
+    // Check for invoice patterns
+    const layoutText = JSON.stringify(layoutAnalysis);
+    if (layoutText.match(/invoice|bill|receipt/i)) return "invoice";
+    
+    // Check for contract patterns
+    if (layoutText.match(/agreement|contract|party/i)) return "contract";
+
+    // Check for resume patterns
+    if (layoutText.match(/resume|cv|experience|education/i)) return "resume";
+
+    // Check for report patterns
+    if (layoutText.match(/report|analysis|summary/i)) return "report";
+
+    return "";
   }
 
   /**
