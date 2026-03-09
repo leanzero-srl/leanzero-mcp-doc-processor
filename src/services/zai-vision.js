@@ -1,7 +1,10 @@
 /**
  * Z.AI Vision Service
  * Integrates with Z.AI's GLM-4.6V model for OCR and image analysis
+ * Uses PromptEngineer for optimized 8B VL model prompts
  */
+
+import { promptEngineer } from "./prompt-engineer.js";
 
 /**
  * Z.AI Vision Service for OCR and image analysis
@@ -96,15 +99,12 @@ export class ZaiVisionService {
   }
 
   /**
-   * Extract text from an image using OCR
+   * Extract text from an image using OCR with optimized PromptEngineer prompts
    * @param {string} imageData - Base64 data URL of the image
-   * @param {string} prompt - Optional prompt for extraction guidance
+   * @param {Object|String} options - Extraction options or text hint string
    * @returns {Promise<Object>} Extraction result
    */
-  async extractText(
-    imageData,
-    prompt = "Extract all text from this image. Preserve the original formatting and structure as much as possible.",
-  ) {
+  async extractText(imageData, options = {}) {
     if (!this.isConfigured()) {
       return {
         success: false,
@@ -113,26 +113,24 @@ export class ZaiVisionService {
       };
     }
 
+    // Normalize options parameter (support string for textHint)
+    const textHint = typeof options === "string" ? options : (options.textHint || "");
+    const layoutAnalysis = typeof options === "object" ? (options.layoutAnalysis || null) : null;
+    const documentType = typeof options === "object" ? (options.documentType || null) : null;
+
     try {
-      const systemPrompt = `You are an advanced OCR and text extraction specialist. Your task is to accurately extract and recognize text from images.
-
-Key responsibilities:
-1. Extract ALL visible text from the image with high accuracy
-2. Preserve the original formatting, layout, and structure
-3. For documents with tables, maintain table structure using markdown
-4. For code snippets, identify the programming language and format appropriately
-5. Handle multiple languages if present
-6. Note any text that is unclear or partially visible
-
-Output format:
-- Return the extracted text in a clean, readable format
-- Use markdown formatting where appropriate (headers, lists, tables, code blocks)
-- If the image contains structured data (invoices, forms), preserve that structure`;
+      // Generate optimized prompt using PromptEngineer
+      const promptConfig = promptEngineer.generateExtractionPrompt(imageData, {
+        textHint,
+        layoutAnalysis,
+        documentType,
+        customInstructions: typeof options === "string" ? "" : (options.customInstructions || ""),
+      });
 
       const messages = [
         {
           role: "system",
-          content: systemPrompt,
+          content: promptConfig.systemInstruction,
         },
         {
           role: "user",
@@ -145,7 +143,7 @@ Output format:
             },
             {
               type: "text",
-              text: prompt,
+              text: promptConfig.userPrompt,
             },
           ],
         },
@@ -158,6 +156,9 @@ Output format:
         text: result,
         source: "zai-vision",
         model: this.model,
+        documentType: promptConfig.documentType,
+        confidence: promptConfig.confidence,
+        temperatureUsed: promptConfig.temperature,
       };
     } catch (error) {
       return {
@@ -166,6 +167,62 @@ Output format:
         details: error,
       };
     }
+  }
+
+  /**
+   * Extract text using multi-stage pipeline (task decomposition)
+   * @param {string} imageData - Base64 data URL of the image
+   * @param {Object|String} options - Extraction options or text hint string
+   * @returns {Promise<Object>} Pipeline extraction result
+   */
+  async extractWithPipeline(imageData, options = {}) {
+    if (!this.isConfigured()) {
+      return {
+        success: false,
+        error:
+          "Z.AI API key not configured. Set Z_AI_API_KEY environment variable.",
+      };
+    }
+
+    const textHint = typeof options === "string" ? options : (options.textHint || "");
+    const layoutAnalysis = typeof options === "object" ? (options.layoutAnalysis || null) : null;
+
+    const pipeline = promptEngineer.createExtractionPipeline(imageData, {
+      textHint,
+      layoutAnalysis,
+    });
+
+    const results = [];
+    
+    for (const stage of pipeline) {
+      try {
+        const messages = [
+          { role: "system", content: stage.prompt },
+          {
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: imageData } },
+            ],
+          },
+        ];
+
+        const result = await this.callVisionApi(messages);
+        results.push({ stage: stage.stage, result, success: true });
+      } catch (error) {
+        results.push({ stage: stage.stage, result: null, success: false, error: error.message });
+      }
+    }
+
+    // Get final assembly result
+    const finalResult = results.find(r => r.stage === "validation-assembly")?.result;
+    
+    return {
+      success: true,
+      text: finalResult || "",
+      source: "zai-vision-pipeline",
+      model: this.model,
+      pipelineResults: results,
+    };
   }
 
   /**
