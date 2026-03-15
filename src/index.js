@@ -17,6 +17,7 @@ import { visionService } from "./services/vision-factory.js";
 import { handleReadDoc } from "./tools/read-doc-tool.js";
 import { createDoc } from "./tools/create-doc.js";
 import { createExcel } from "./tools/create-excel.js";
+import { createMarkdown } from "./tools/create-markdown.js";
 import { editDoc } from "./tools/edit-doc.js";
 import { editExcel } from "./tools/edit-excel.js";
 
@@ -56,16 +57,6 @@ const server = new Server(
 
 /**
  * Handler for listing available tools.
- *
- * Consolidated from 21 to 9 active tools:
- *   - get-doc-summary + get-doc-indepth + get-doc-focused → read-doc
- *   - init-dna + get-dna + evolve-dna + save-memory + delete-memory → dna
- *   - watch-document + check-drift → drift-monitor
- *   - learn-blueprint + list-blueprints → blueprint
- *   - check-document removed (create-doc checks internally)
- *   - extract-to-excel and assemble-document removed from listing (kept as aliases)
- *
- * All old tool names are still accepted as backward-compatible aliases in the handler.
  */
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   // Shared schema fragments
@@ -130,12 +121,36 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["filePath"],
         },
       },
-      // === DOCUMENT CREATION/EDITING (4) ===
+      // === DOCUMENT CREATION/EDITING (6) ===
       {
-        name: "create-doc",
+        name: "detect-format",
+        description:
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a document format recommendation engine.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User is asking about creating documentation but hasn't specified the format. You need to analyze their intent and recommend the appropriate tool (create-markdown, create-doc, or create-excel).\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} Analyze the user's query for keywords indicating document type:\n` +
+          "  - Implementation/Technical keywords → recommend 'markdown' format (use create-markdown)\n" +
+          "  - High-level/Stakeholder keywords → recommend 'docx' format (use create-doc)\n" +
+          "  - Data/Spreadsheet keywords → recommend 'excel' format (use create-excel)\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+          "  - ALWAYS call this tool BEFORE creating a document if the user hasn't explicitly specified a format\n" +
+          "  - Use the recommended format in your subsequent create-* tool call\n" +
+          "  - If user explicitly says 'docx', 'markdown', or 'excel', you can skip this step\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns {format, confidence, reason, matchedKeywords, suggestedTool}.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            userQuery: { type: "string", description: "The user's original request or prompt" },
+            title: { type: "string", description: "Document title if known (optional)" },
+            content: { type: "string", description: "Content preview if available (optional)" },
+          },
+          required: ["userQuery"],
+        },
+      },
+      {
+        name: "edit-doc",
         description:
           `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a professional document creation expert, specializing in creating well-structured DOCX files with professional formatting.\n\n` +
-          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create a Word document with professional styling, proper hierarchy, and consistent formatting.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create a Word document for high-level documentation, stakeholder reports, email attachments, Confluence uploads, or formal business documents. For technical implementation docs, use create-markdown instead.\n\n` +
           `${TOOL_DESCRIPTION_SECTIONS.TASK} Create a Word DOCX document with the following requirements:\n` +
           "  1. Provide a specific, descriptive title (e.g., 'Q1 2026 Budget Report', not 'Document')\n" +
           "  2. Use paragraph objects with headingLevel for document hierarchy\n" +
@@ -180,10 +195,48 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: "create-markdown",
+        description:
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a technical documentation expert specializing in creating lean, practical markdown files optimized for AI model consumption during implementation.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create implementation-focused documentation that will be used by developers or AI models to build something. The document should be copy-paste friendly with code blocks, clear headings, and bullet lists (avoid tables).\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} Create a markdown (.md) file with the following requirements:\n` +
+          "  1. Provide a specific, descriptive title (becomes H1 heading)\n" +
+          "  2. Use paragraph objects with headingLevel for document hierarchy\n" +
+          "  3. Include code blocks with language hints for any commands, config, or code snippets\n" +
+          "  4. Use bullet lists instead of tables for structured data (easier to copy)\n" +
+          "  5. Apply task list format (- [ ]) for actionable items\n" +
+          "  6. Configure category if known (technical, research, etc.)\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+          "  - Title MUST be specific and descriptive — generic titles are rejected\n" +
+          "  - DO NOT use tables — prefer bullet lists for copy-paste friendliness\n" +
+          "  - ALWAYS include language hints in code blocks (```javascript not just ```)\n" +
+          "  - Use inline code (`text`) for file paths, commands, and technical terms\n" +
+          "  - Keep formatting lean — this is for implementation, not presentation\n" +
+          "  - No user confirmation required (unlike create-doc/create-excel)\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns JSON with filePath, success status, and message. File is written directly to disk without confirmation prompt.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            title: { type: "string", description: "Document title (becomes H1). MUST be specific and descriptive." },
+            paragraphs: { 
+              type: "array", 
+              items: PARAGRAPH_ITEMS_SCHEMA,
+              description: "Array of paragraphs with markdown-specific formatting options."
+            },
+            outputPath: { type: "string", description: "File path for the MD output (default: derived from title)." },
+            category: CATEGORY_SCHEMA,
+            tags: TAGS_SCHEMA,
+            description: { type: "string", description: "Brief description for registry search." },
+            dryRun: { type: "boolean", description: "Preview without writing to disk (default: false)." },
+          },
+          required: ["title"],
+        },
+      },
+      {
         name: "create-excel",
         description:
           `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a professional Excel workbook creation expert, specializing in creating well-structured XLSX files with professional formatting.\n\n` +
-          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create an Excel workbook with professional styling, proper formatting, and consistent structure.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create an Excel workbook for data-heavy documents like budgets, financial reports, spreadsheets with numbers and calculations.\n\n` +
           `${TOOL_DESCRIPTION_SECTIONS.TASK} Create an Excel XLSX workbook with the following requirements:\n` +
           "  1. Provide a descriptive 'title' for the workbook (e.g., 'Q1 2026 Budget Breakdown')\n" +
           "  2. Use descriptive sheet names (e.g., 'Monthly Revenue', not 'Sheet1')\n" +
@@ -419,6 +472,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "get-doc-focused":
         return await handleReadDoc({ ...params, mode: "focused" });
 
+      case "detect-format": {
+        const { detectFormat } = await import("./services/format-router.js");
+        const result = await detectFormat(params);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
       case "create-doc": {
         const docResult = await createDoc(params);
         if (docResult.success) {
@@ -431,6 +490,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         return {
           content: [{ type: "text", text: JSON.stringify(docResult, null, 2) }],
+          isError: true,
+        };
+      }
+
+      case "create-markdown": {
+        const markdownResult = await createMarkdown(params);
+        if (markdownResult.success) {
+          const responseMessage = markdownResult.dryRun
+            ? markdownResult.message
+            : `MARKDOWN FILE WRITTEN TO DISK at: ${markdownResult.filePath}\n\nIMPORTANT: This tool has created an actual .md file on your filesystem. The document is available at the absolute path shown above.`;
+          return {
+            content: [{ type: "text", text: JSON.stringify({ ...markdownResult, message: responseMessage }, null, 2) }],
+          };
+        }
+        return {
+          content: [{ type: "text", text: JSON.stringify(markdownResult, null, 2) }],
           isError: true,
         };
       }
