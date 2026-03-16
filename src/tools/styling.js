@@ -18,6 +18,83 @@ import {
   Footer,
 } from "docx";
 
+// ============================================================================
+// Claude-Like Blue Color Palette - Modern professional styling
+// ============================================================================
+
+/**
+ * Claude-inspired color palette for beautiful professional documents.
+ * Primary blue theme with subtle accents and excellent contrast.
+ */
+export const CLAUDE_COLORS = {
+  // Brand colors (Claude-inspired)
+  PRIMARY: {
+    BLUE: "1F4E79",      // Main brand blue - primary headings, accents
+    LIGHT_BLUE: "2B579A", // Lighter accent for secondary elements
+    DARK_BLUE: "3A5F8F",  // Darker variant for depth
+    EXTRA_LIGHT: "D6E4ED", // Very light blue for backgrounds
+  },
+  
+  // Background colors
+  BACKGROUND: {
+    WHITE: "FFFFFF",
+    OFF_WHITE: "F8F9FA",
+    LIGHT_GRAY: "F2F2F2",
+    GRAY: "E5E5E5",
+    DARK_GRAY: "333333",
+  },
+  
+  // Text colors
+  TEXT: {
+    PRIMARY: "1A1A1A",     // Main text color
+    SECONDARY: "4A4A4A",   // Secondary text
+    LIGHT: "6B6B6B",       // Lighter text
+    EXTRA_LIGHT: "888888", // Hint text
+    WHITE: "FFFFFF",
+  },
+  
+  // Status colors
+  STATUS: {
+    SUCCESS: "2E8B57",     // Sea green for success states
+    WARNING: "FFA500",     // Orange for warnings
+    DANGER: "DC143C",      // Crimson for errors
+    INFO: "1F4E79",        // Blue for info
+  },
+  
+  // Table styling colors
+  TABLE: {
+    HEADER_BG: "1F4E79",
+    HEADER_TEXT: "FFFFFF",
+    ZEBRA_BG: "F8F9FA",
+    BORDER: "D0D7DE",
+    LIGHT_BORDER: "E1E5EA",
+  },
+  
+  // Code block colors
+  CODE: {
+    BACKGROUND: "F6F8FA",
+    BORDER: "E3E8ED",
+    TEXT: "24292E",
+    KEYWORD: "D73A49",
+    STRING: "50A54F",
+    FUNCTION: "6F42C1",
+  },
+  
+  // Divider colors
+  DIVIDER: {
+    PRIMARY: "1F4E79",
+    LIGHT: "CCCCCC",
+    EXTRA_LIGHT: "E0E0E0",
+  },
+  
+  // Icon badge colors (for info/notes sections)
+  INFO_BADGE: {
+    BG: "E6F0FF",
+    TEXT: "1F4E79",
+    ICON: "2B579A",
+  },
+};
+
 /**
  * Creates a font configuration using docx RunFonts class
  * @param {string} fontFamily - Font family name
@@ -1636,5 +1713,431 @@ export function center(text, options = {}) {
     alignment: AlignmentType.CENTER,
     children: [new TextRun({ text, ...options })],
     ...options,
+  });
+}
+
+// ============================================================================
+// CLAUDE-LIKE DOCUMENT HELPERS - Beautiful professional document templates
+// ============================================================================
+
+/**
+ * Creates an info badge (note/attention box) with icon and colored background
+ * @param {string} noteText - The note content
+ * @param {Object} options - Options for color customization
+ * @returns {TableRow} Info badge table row
+ */
+export function infoBadgeRow(noteText, options = {}) {
+  const colors = CLAUDE_COLORS.INFO_BADGE;
+  
+  return new TableRow({
+    children: [
+      new TableCell({
+        columnSpan: 2,
+        borders: createCellBorders(),
+        width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+        shading: { fill: options.bg || colors.BG, type: ShadingType.CLEAR },
+        margins: createCellMargins({ top: 100, bottom: 100, left: 160, right: 160 }),
+        children: [
+          new DocxParagraph({
+            spacing: { after: 40 },
+            children: [
+              new TextRun({
+                text: "\u2139  ",
+                font: "Arial",
+                size: 18,
+                color: options.icon || colors.ICON,
+                bold: true
+              }),
+              new TextRun({
+                text: noteText,
+                font: "Arial",
+                size: 18,
+                color: options.text || colors.TEXT,
+                italics: true
+              })
+            ]
+          })
+        ]
+      })
+    ]
+  });
+}
+
+/**
+ * Creates a section title with professional styling
+ * @param {string} text - The section title text
+ * @param {Object} options - Options for customization
+ * @returns {Paragraph} Section title paragraph
+ */
+export function sectionTitle(text, options = {}) {
+  return new DocxParagraph({
+    spacing: { before: 360, after: 80 },
+    children: [
+      new TextRun({
+        text: text,
+        font: "Arial",
+        size: 18,
+        bold: true,
+        color: CLAUDE_COLORS.TEXT.LIGHT,
+        allCaps: true
+      })
+    ],
+    ...options
+  });
+}
+
+/**
+ * Creates a field row (label | value) with Claude-like styling
+ * @param {string} label - The field label
+ * @param {string} value - The field value
+ * @param {Object} options - Options for customization
+ * @returns {TableRow} Field row table row
+ */
+export function fieldRow(label, value, options = {}) {
+  return new TableRow({
+    children: [
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: 2400, type: WidthType.DXA },
+        shading: { fill: CLAUDE_COLORS.BACKGROUND.LIGHT_GRAY, type: ShadingType.CLEAR },
+        margins: createCellMargins({ top: 120, bottom: 120, left: 160, right: 160 }),
+        children: [
+          new DocxParagraph({
+            children: [
+              new TextRun({
+                text: label,
+                font: "Arial",
+                size: 20,
+                bold: true,
+                color: CLAUDE_COLORS.TEXT.PRIMARY
+              })
+            ]
+          })
+        ]
+      }),
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: CONTENT_WIDTH - 2400, type: WidthType.DXA },
+        margins: createCellMargins({ top: 120, bottom: 120, left: 160, right: 160 }),
+        children: [
+          new DocxParagraph({
+            children: [
+              new TextRun({
+                text: value,
+                font: "Arial",
+                size: 20,
+                color: CLAUDE_COLORS.TEXT.PRIMARY
+              })
+            ]
+          })
+        ]
+      })
+    ]
+  });
+}
+
+/**
+ * Creates a two-column row for side-by-side fields
+ * @param {string} label1 - First column label
+ * @param {string} value1 - First column value
+ * @param {string} label2 - Second column label
+ * @param {string} value2 - Second column value
+ * @returns {TableRow} Two-column row table row
+ */
+export function twoColRow(label1, value1, label2, value2) {
+  const cellWidth = (CONTENT_WIDTH / 2) - 80;
+  
+  return new TableRow({
+    children: [
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: cellWidth, type: WidthType.DXA },
+        margins: createCellMargins({ top: 100, bottom: 100, left: 160, right: 80 }),
+        children: [
+          new DocxParagraph({
+            children: [
+              new TextRun({
+                text: label1 + ": ",
+                font: "Arial",
+                size: 20,
+                bold: true,
+                color: CLAUDE_COLORS.TEXT.PRIMARY
+              }),
+              new TextRun({
+                text: value1,
+                font: "Arial",
+                size: 20,
+                color: CLAUDE_COLORS.TEXT.SECONDARY
+              })
+            ]
+          })
+        ]
+      }),
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: cellWidth, type: WidthType.DXA },
+        margins: createCellMargins({ top: 100, bottom: 100, left: 80, right: 160 }),
+        children: [
+          new DocxParagraph({
+            children: [
+              new TextRun({
+                text: label2 + ": ",
+                font: "Arial",
+                size: 20,
+                bold: true,
+                color: CLAUDE_COLORS.TEXT.PRIMARY
+              }),
+              new TextRun({
+                text: value2,
+                font: "Arial",
+                size: 20,
+                color: CLAUDE_COLORS.TEXT.SECONDARY
+              })
+            ]
+          })
+        ]
+      })
+    ]
+  });
+}
+
+/**
+ * Creates a professional divider with Claude-style blue accent
+ * @param {Object} options - Options for customization
+ * @returns {Paragraph} Divider paragraph
+ */
+export function professionalDivider(options = {}) {
+  return new DocxParagraph({
+    spacing: { before: 240, after: 240 },
+    border: {
+      bottom: {
+        style: BorderStyle.SINGLE,
+        size: options.size || 4,
+        color: CLAUDE_COLORS.DIVIDER.PRIMARY,
+        space: options.space || 4
+      }
+    },
+    children: [],
+    ...options
+  });
+}
+
+/**
+ * Creates a gap/spacing paragraph
+ * @param {number} height - Height in twips (default: 120)
+ * @returns {Paragraph} Spacer paragraph
+ */
+export function gap(height = 120) {
+  return new DocxParagraph({
+    spacing: { before: 0, after: height },
+    children: []
+  });
+}
+
+/**
+ * Creates a bullet item with Claude-style formatting
+ * @param {string|TextRun|TextRun[]} content - Bullet content
+ * @returns {Paragraph} Bullet item paragraph
+ */
+export function claudeBullet(content) {
+  const text = typeof content === "string" ? content : null;
+  return new DocxParagraph({
+    numbering: { reference: "bullets", level: 0 },
+    spacing: { before: 40, after: 40 },
+    children: [
+      new TextRun({
+        text: text || (Array.isArray(content) ? "" : ""),
+        font: "Arial",
+        size: 20,
+        color: CLAUDE_COLORS.TEXT.PRIMARY
+      }),
+      ...(Array.isArray(content) ? content : [])
+    ]
+  });
+}
+
+/**
+ * Creates a code block container with Claude-style background and border
+ * @param {string} code - Code content
+ * @param {Object} options - Options for customization
+ * @returns {Paragraph} Code block paragraph
+ */
+export function codeBlock(code, options = {}) {
+  return new DocxParagraph({
+    spacing: { before: 120, after: 120 },
+    border: {
+      all: {
+        style: BorderStyle.SINGLE,
+        size: options.borderSize || 1,
+        color: CLAUDE_COLORS.CODE.BORDER
+      }
+    },
+    shading: { fill: CLAUDE_COLORS.CODE.BACKGROUND, type: ShadingType.CLEAR },
+    margins: createCellMargins({ top: 80, bottom: 80, left: 120, right: 120 }),
+    children: [
+      new TextRun({
+        text: code,
+        font: "Courier New",
+        size: options.fontSize || 9 * 2,
+        color: CLAUDE_COLORS.CODE.TEXT
+      })
+    ],
+    ...options
+  });
+}
+
+/**
+ * Creates a callout box (highlighted section) for important information
+ * @param {string} title - The callout title
+ * @param {string|TextRun[]} content - The callout content
+ * @param {Object} options - Options for customization
+ * @returns {TableRow} Callout table row
+ */
+export function calloutRow(title, content, options = {}) {
+  const colors = CLAUDE_COLORS.STATUS;
+  
+  return new TableRow({
+    children: [
+      new TableCell({
+        columnSpan: 2,
+        borders: createCellBorders(),
+        width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+        shading: { fill: options.bg || colors.INFO + "33", type: ShadingType.CLEAR },
+        margins: createCellMargins({ top: 100, bottom: 100, left: 160, right: 160 }),
+        children: [
+          new DocxParagraph({
+            spacing: { before: 40, after: 20 },
+            children: [
+              new TextRun({
+                text: title,
+                font: "Arial",
+                size: 18,
+                bold: true,
+                color: options.titleColor || colors.INFO
+              })
+            ]
+          }),
+          new DocxParagraph({
+            spacing: { before: 20, after: 40 },
+            children: Array.isArray(content) ? content : [new TextRun({ text: String(content), font: "Arial", size: 18, color: options.textColor || CLAUDE_COLORS.TEXT.SECONDARY })]
+          })
+        ]
+      })
+    ]
+  });
+}
+
+/**
+ * Creates a professional info table row (Claude-style)
+ * @param {string} label - The label text
+ * @param {string} value - The value text
+ * @returns {TableRow} Info table row with Claude styling
+ */
+export function claudeInfoRow(label, value) {
+  return new TableRow({
+    children: [
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: 2400, type: WidthType.DXA },
+        shading: { fill: CLAUDE_COLORS.TABLE.ZEBRA_BG, type: ShadingType.CLEAR },
+        margins: createCellMargins({ top: 30, bottom: 30, left: 80, right: 80 }),
+        children: [
+          new DocxParagraph({
+            children: [
+              new TextRun({
+                text: label,
+                font: "Arial",
+                size: 18,
+                bold: true,
+                color: CLAUDE_COLORS.TABLE.HEADER_TEXT
+              })
+            ]
+          })
+        ]
+      }),
+      new TableCell({
+        borders: createCellBorders(),
+        width: { size: CONTENT_WIDTH - 2400, type: WidthType.DXA },
+        margins: createCellMargins({ top: 30, bottom: 30, left: 80, right: 80 }),
+        children: [
+          new DocxParagraph({
+            spacing: { after: 0 },
+            children: [
+              new TextRun({
+                text: value,
+                font: "Arial",
+                size: 18,
+                color: CLAUDE_COLORS.TEXT.PRIMARY
+              })
+            ]
+          })
+        ]
+      })
+    ]
+  });
+}
+
+/**
+ * Creates a Claude-style info table from key-value pairs
+ * @param {Array<[string, string]>} rows - Array of [label, value] pairs
+ * @returns {Table} Info table with Claude styling
+ */
+export function claudeInfoTable(rows) {
+  return new DocxTable({
+    width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+    columnWidths: [2400, CONTENT_WIDTH - 2400],
+    rows: rows.map(([label, value]) => claudeInfoRow(label, value))
+  });
+}
+
+/**
+ * Creates a status badge with Claude-style blue theme
+ * @param {string} label - Badge text
+ * @param {Object} options - Options for customization
+ * @returns {Table} Status badge table
+ */
+export function claudeStatusBadge(label, options = {}) {
+  return new DocxTable({
+    width: { size: 2200, type: WidthType.DXA },
+    columnWidths: [2200],
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            borders: createNoBorders(),
+            shading: { fill: options.bg || CLAUDE_COLORS.TABLE.HEADER_BG, type: ShadingType.CLEAR },
+            margins: createCellMargins({ top: 30, bottom: 30, left: 80, right: 80 }),
+            width: { size: 2200, type: WidthType.DXA },
+            children: [
+              new DocxParagraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({
+                    text: label,
+                    font: "Arial",
+                    size: 16,
+                    bold: true,
+                    color: options.textColor || CLAUDE_COLORS.TABLE.HEADER_TEXT
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      })
+    ]
+  });
+}
+
+/**
+ * Creates a Claude-style section table container
+ * @param {TableRow[]} rows - Array of table rows
+ * @returns {Table} Section table with Claude styling
+ */
+export function claudeSectionTable(rows) {
+  return new DocxTable({
+    width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+    columnWidths: [2400, CONTENT_WIDTH - 2400],
+    rows: rows
   });
 }
