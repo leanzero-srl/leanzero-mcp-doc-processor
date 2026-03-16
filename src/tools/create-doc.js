@@ -9,6 +9,22 @@ import {
   Header,
   Footer,
 } from "docx";
+
+// ============================================================================
+// Document Tags System - MCP AI awareness
+// ============================================================================
+
+/**
+ * Import document tags system for MCP awareness and template matching.
+ * This enables the model to understand what types of beautiful documents to create.
+ */
+import {
+  getTemplateByTag,
+  findMatchingTemplate,
+  generateStyleFromTemplate,
+  TEMPLATES,
+  TAG_TO_TEMPLATE
+} from "../utils/document-tags.js";
 import fs from "fs/promises";
 import path from "path";
 import {
@@ -96,10 +112,17 @@ function computeStructureSignature(paragraphs) {
 }
 
 /**
- * Creates a DOCX document from structured content with professional formatting
+ * Creates a DOCX document from structured content with professional formatting.
+ * 
+ * The MCP system uses document tags to understand what types of beautiful documents to create:
+ * - "claude-like" / "professional": Clean, modern professional documents with blue accents
+ * - "marketing": Vibrant, engaging documents for campaigns and launches  
+ * - "technical-docs" / "api": Clear structured technical documentation
+ * - "business-report" / "report": Professional reports with executive summaries
+ * - "legal": Formal legal documents with proper hierarchy
  *
  * @param {Object} input - Document creation parameters
- * @param {string} input.title - Document title
+ * @param {string} input.title - Document title (should reflect actual content)
  * @param {Array} input.paragraphs - Array of paragraph content (strings or objects)
  * @param {Array<Array>} input.tables - Array of table data
  * @param {string} input.outputPath - Output file path
@@ -109,7 +132,7 @@ function computeStructureSignature(paragraphs) {
  * @param {Object} [input.header] - Header configuration {text, alignment, color}
  * @param {Object} [input.footer] - Footer configuration {text, alignment, color, includeTotal}
  * @param {string} [input.description] - Document description
- * @param {Array<string>} [input.tags] - Tags for document search and organization
+ * @param {Array<string>} [input.tags] - Tags for document search and organization (e.g., ["claude-like", "blog-post"])
  * @param {string} [input.backgroundColor] - Background color
  * @param {Object} [input.margins] - Custom margins {top, bottom, left, right} in inches
  * @returns {Promise<Object>} Result object with filePath and message
@@ -126,6 +149,48 @@ export async function createDoc(input) {
     const dnaConfig = loadDNA();
     const hasDNA = dnaConfig !== null;
     applyDNAToInput(parsedInput);
+
+    // Resolve document tags - enable MCP to know what type of beautiful document to create
+    let resolvedTags = Array.isArray(parsedInput.tags) ? [...parsedInput.tags] : [];
+    
+    // If no explicit tags, try to detect from template or content analysis
+    if (resolvedTags.length === 0 && parsedInput.title) {
+      const title = parsedInput.title || "";
+      const description = parsedInput.description || "";
+      const firstParagraph = Array.isArray(parsedInput.paragraphs) 
+        ? (typeof parsedInput.paragraphs[0] === "string" ? parsedInput.paragraphs[0] : "")
+        : "";
+      
+      // Try to find a matching template based on content
+      const matchedTemplate = findMatchingTemplate(title, description + firstParagraph, []);
+      
+      if (matchedTemplate && TAG_TO_TEMPLATE) {
+        // Add the detected tag for MCP awareness
+        for (const [tag, templateKey] of Object.entries(TAG_TO_TEMPLATE)) {
+          if (templateKey === Object.keys(TEMPLATES).find(k => TEMPLATES[k].name === matchedTemplate.name)) {
+            resolvedTags.push(tag);
+            console.error(`[create-doc] Detected document tag: "${tag}" based on content analysis`);
+            break;
+          }
+        }
+      }
+    }
+    
+    // If tags are specified, use them to determine styling
+    if (resolvedTags.length > 0) {
+      for (const tag of resolvedTags) {
+        const template = getTemplateByTag(tag);
+        if (template && !parsedInput.stylePreset) {
+          console.error(`[create-doc] Using template "${tag}" -> "${template.name}"`);
+          
+          // If no explicit style preset, use the template's recommended preset
+          if (!userExplicitlySetStyle) {
+            parsedInput.stylePreset = template.stylePreset;
+            console.error(`[create-doc] Auto-selected style "${template.stylePreset}" for tag "${tag}"`);
+          }
+        }
+      }
+    }
 
     // Load document memories from DNA to include in response
     const memories = (dnaConfig && dnaConfig.memories) ? dnaConfig.memories : null;
@@ -347,27 +412,43 @@ export async function createDoc(input) {
 
     // Style resolution priority:
     //   1. User explicitly passed stylePreset → use it
-    //   2. Category detected → auto-select matching style (even over DNA default)
-    //   3. DNA default preset → use as general fallback
-    //   4. "minimal" → last resort
+    //   2. Tag-based template detection → use template's recommended preset
+    //   3. Category detected → auto-select matching style (even over DNA default)
+    //   4. Claude-like professional (blue theme) → DEFAULT for most documents
+    //   5. DNA default preset → use as fallback
+    //   6. "minimal" → last resort
     let stylePreset;
     let styleReason;
 
     if (userExplicitlySetStyle) {
       stylePreset = input.stylePreset;
       styleReason = "user-specified";
+    } else if (resolvedTags.length > 0 && parsedInput.stylePreset) {
+      // User provided tags AND style - use the specified style
+      stylePreset = parsedInput.stylePreset;
+      styleReason = `tag-based with user override (${resolvedTags.join(", ")})`;
+    } else if (resolvedTags.length > 0) {
+      // Tag-based detection found a template - use its recommended preset
+      const firstTag = resolvedTags[0];
+      const template = getTemplateByTag(firstTag);
+      stylePreset = template.stylePreset;
+      styleReason = `tag-based auto-detection ("${firstTag}" → "${template.name}")`;
     } else if (category) {
+      // Category-based selection
       stylePreset = selectStyleBasedOnCategory(category);
       styleReason = `auto-selected for "${category}" category`;
-      console.error(
-        `[create-doc] Auto-selected style "${stylePreset}" for category "${category}"`,
-      );
     } else if (input.stylePreset) {
+      // DNA default preset
       stylePreset = input.stylePreset;
       styleReason = "DNA default";
     } else {
-      stylePreset = "minimal";
-      styleReason = "fallback (no category or DNA)";
+      // DEFAULT: Claude-like professional styling with blue theme
+      // This is the "beautiful Claude-style" that users want by default
+      stylePreset = "professional";
+      styleReason = "DEFAULT (Claude-like professional with blue theme)";
+      console.error(
+        `[create-doc] Using DEFAULT style "${stylePreset}" - beautiful Claude-like documents with blue accents`,
+      );
     }
 
     if (!getAvailablePresets().includes(stylePreset)) {

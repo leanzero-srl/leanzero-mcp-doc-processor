@@ -263,9 +263,16 @@ export function recordUsage(category, stylePreset, overrides = {}, structureSign
       totalDocs: 0,
       overrides: {},
       correlations: {},
+      claudeLikeDocuments: 0, // Track Claude-like styled documents
     };
 
     usage.totalDocs = (usage.totalDocs || 0) + 1;
+
+    // Track if this was a Claude-like document (professional blue theme)
+    // "professional" style with blue accents is the Claude-like default
+    if (stylePreset === "professional") {
+      usage.claudeLikeDocuments = (usage.claudeLikeDocuments || 0) + 1;
+    }
 
     if (category) {
       usage.categories = usage.categories || {};
