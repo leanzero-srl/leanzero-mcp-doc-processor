@@ -12,6 +12,14 @@ const DocumentFormat = {
   EXCEL: 'excel'
 };
 
+// Document type (tone/depth) constants
+const DocumentType = {
+  CONCISE: 'concise',
+  FORMAL: 'formal',
+  EXPLANATORY: 'explanatory',
+  SCIENTIFIC: 'scientific'
+};
+
 // Keyword patterns for each format category
 const KEYWORDS = {
   // Implementation/Technical keywords → markdown
@@ -235,15 +243,27 @@ export async function detectFormat(params) {
     // No clear winner - default to markdown for technical projects
     return {
       format: DocumentFormat.MARKDOWN,
+      docType: DocumentType.CONCISE,
       confidence: 'low',
       reason: 'No strong indicators found; defaulting to markdown for implementation documentation',
       matchedKeywords: [],
       suggestedTool: getToolForFormat(DocumentFormat.MARKDOWN)
     };
   }
-  
+
+  // Determine docType based on winner and confidence
+  let docType = DocumentType.CONCISE;
+  if (winner.format === DocumentFormat.DOCX) {
+    docType = DocumentType.FORMAL;
+  } else if (winner.format === DocumentFormat.EXCEL) {
+    docType = DocumentType.SCIENTIFIC;
+  } else if (confidence === 'high') {
+    docType = DocumentType.EXPLANATORY;
+  }
+
   return {
     format: winner.format,
+    docType,
     confidence,
     reason,
     matchedKeywords: winner.keywords,
@@ -269,4 +289,4 @@ function getToolForFormat(format) {
   }
 }
 
-export { DocumentFormat };
+export { DocumentFormat, DocumentType };
