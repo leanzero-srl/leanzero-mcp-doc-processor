@@ -29,6 +29,9 @@ import { handleDNA } from "./tools/dna-tool.js";
 import { handleBlueprint } from "./tools/blueprint-tool.js";
 import { handleDriftMonitor } from "./tools/drift-tool.js";
 import { handleGetLineage } from "./tools/lineage-tool.js";
+import { handleExtractToExcel } from "./tools/extract-to-excel-tool.js";
+import { handleAssembleDocument } from "./tools/assemble-document-tool.js";
+import { handleCheckDocument } from "./tools/check-document-tool.js";
 
 // Tool description section markers (shared constants)
 const TOOL_DESCRIPTION_SECTIONS = {
@@ -74,6 +77,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     type: "array",
     items: { type: "string" },
     description: "Tags for registry search and discovery.",
+  };
+  const DOC_TYPE_SCHEMA = {
+    type: "string",
+    enum: ["concise", "formal", "explanatory", "scientific"],
+    description: "The intended tone and depth of the documentation.",
   };
   const PARAGRAPH_ITEMS_SCHEMA = {
     oneOf: [
@@ -125,17 +133,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "detect-format",
         description:
-          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a document format recommendation engine.\n\n` +
-          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User is asking about creating documentation but hasn't specified the format. You need to analyze their intent and recommend the appropriate tool (create-markdown, create-doc, or create-excel).\n\n` +
-          `${TOOL_DESCRIPTION_SECTIONS.TASK} Analyze the user's query for keywords indicating document type:\n` +
-          "  - Implementation/Technical keywords → recommend 'markdown' format (use create-markdown)\n" +
-          "  - High-level/Stakeholder keywords → recommend 'docx' format (use create-doc)\n" +
-          "  - Data/Spreadsheet keywords → recommend 'excel' format (use create-excel)\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a document format and tone recommendation engine.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User is asking about creating documentation but hasn't specified the format or tone. You need to analyze their intent and recommend the appropriate tool (create-markdown, create-doc, or create-excel) and documentation type (concise, formal, explanatory, scientific).\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} Analyze the user's query for keywords indicating document type and tone:\n` +
+          "  - Implementation/Technical/Plans $\\rightarrow$ recommend 'markdown' format\n" +
+          "  - High-level/Stakeholder/Confluence/Email $\\rightarrow$ recommend 'docx' format\n" +
+          "  - Data/Spreadsheet/Numbers $\\rightarrow$ recommend 'excel' format\n" +
+          "  - Tone: Match keywords to 'concise', 'formal', 'explanatory', or 'scientific'.\n\n" +
           `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
-          "  - ALWAYS call this tool BEFORE creating a document if the user hasn't explicitly specified a format\n" +
-          "  - Use the recommended format in your subsequent create-* tool call\n" +
-          "  - If user explicitly says 'docx', 'markdown', or 'excel', you can skip this step\n\n" +
-          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns {format, confidence, reason, matchedKeywords, suggestedTool}.`,
+          "  - ALWAYS call this tool BEFORE creating a document if the user hasn't explicitly specified a format or tone\n" +
+          "  - Use the recommended format and docType in your subsequent create-* tool call\n" +
+          "  - If user explicitly says 'docx', 'markdown', 'excel', or a specific tone, you can skip this step\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns {format, docType, confidence, reason, matchedKeywords, suggestedTool}.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -146,66 +155,52 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["userQuery"],
         },
       },
-      {
-        name: "edit-doc",
-        description:
-          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a professional document creation expert, specializing in creating well-structured DOCX files with professional formatting.\n\n` +
-          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create a Word document for high-level documentation, stakeholder reports, email attachments, Confluence uploads, or formal business documents. For technical implementation docs, use create-markdown instead.\n\n` +
-          `${TOOL_DESCRIPTION_SECTIONS.TASK} Create a Word DOCX document with the following requirements:\n` +
-          "  1. Provide a specific, descriptive title (e.g., 'Q1 2026 Budget Report', not 'Document')\n" +
-          "  2. Use paragraph objects with headingLevel for document hierarchy\n" +
-          "  3. Apply style preset or let auto-selection based on category\n" +
-          "  4. Configure header/footer if needed (or use Document DNA defaults)\n\n" +
-          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
-          "  - Title MUST be specific and descriptive — generic titles are rejected\n" +
-          "  - Do NOT include markdown syntax in paragraph text — use headingLevel, bold, etc.\n" +
-          "  - USER CONFIRMATION REQUIRED: describe what you plan to create and get approval first\n" +
-          "  - Use dryRun: true for previews before actual creation\n" +
-          "  - Check blueprintMatch in response for structural template suggestions\n" +
-          "  - Document DNA automatically applies headers/footers/style if .document-dna.json exists\n\n" +
-          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns JSON with filePath, success status, and confirmation message.`,
-        inputSchema: {
-          type: "object",
-          properties: {
-            title: { type: "string", description: "Document title (appears as Heading 1). MUST be specific and descriptive — generic titles like 'Document' or 'Untitled' are rejected." },
-            paragraphs: { type: "array", items: PARAGRAPH_ITEMS_SCHEMA, description: "Array of paragraphs (strings or objects with headingLevel/formatting)." },
-            tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Array of tables (each is a 2D array)" },
-            stylePreset: STYLE_PRESET_SCHEMA,
-            header: { type: "object", properties: { text: { type: "string" }, alignment: { type: "string", enum: ["left", "center", "right"] } } },
-            footer: { type: "object", description: "Use {current} for page number, {total} for total pages.", properties: { text: { type: "string" }, alignment: { type: "string", enum: ["left", "center", "right"] } } },
-            backgroundColor: { type: "string", description: "Page background color as hex (e.g., 'FFFFFF')" },
-            style: {
-              type: "object", description: "Custom styling (overrides stylePreset)",
-              properties: {
-                font: { type: "object", properties: { size: { type: "number" }, color: { type: "string" }, bold: { type: "boolean" }, italics: { type: "boolean" }, underline: { type: "boolean" }, fontFamily: { type: "string" } } },
-                paragraph: { type: "object", properties: { alignment: { type: "string", enum: ["left", "right", "center", "both"] }, spacingBefore: { type: "number" }, spacingAfter: { type: "number" }, lineSpacing: { type: "number" } } },
-                table: { type: "object", properties: { borderColor: { type: "string" }, borderStyle: { type: "string", enum: ["single", "double", "dotted", "dashed"] }, borderWidth: { type: "number" } } },
-              },
-            },
-            outputPath: { type: "string", description: "File path for the DOCX output." },
-            enforceDocsFolder: { type: "boolean", description: "Enforce docs/ folder (default: true)." },
-            preventDuplicates: { type: "boolean", description: "Append _1, _2 if file exists (default: true)." },
-            dryRun: { type: "boolean", description: "Preview without writing to disk (default: false)." },
-            category: CATEGORY_SCHEMA,
-            tags: TAGS_SCHEMA,
-            description: { type: "string", description: "Brief description for registry search." },
-            blueprint: { type: "string", description: "Blueprint name to enforce structural consistency." },
-          },
-          required: ["title"],
-        },
-      },
+       {
+         name: "edit-doc",
+         description:
+           `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a professional document creation expert, specializing in creating well-structured DOCX files with professional formatting.\n\n` +
+           `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create or edit a Word document for high-level documentation, stakeholder reports, email attachments, Confluence uploads, or formal business documents. For technical implementation docs, use create-markdown instead.\n\n` +
+           `${TOOL_DESCRIPTION_SECTIONS.TASK} Create or modify a Word DOCX document with the following requirements:\n` +
+           "  1. Provide a specific, descriptive title (e.g., 'Q1 2026 Budget Report', not 'Document')\n" +
+           "  2. Use paragraph objects with headingLevel for document hierarchy\n" +
+           "  3. Apply style preset or let auto-selection based on category\n" +
+           "  4. Configure header/footer if needed (or use Document DNA defaults)\n\n" +
+           `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+           "  - Title MUST be specific and descriptive — generic titles are rejected\n" +
+           "  - Do NOT include markdown syntax in paragraph text — use headingLevel, bold, etc.\n" +
+           "  - USER CONFIRMATION REQUIRED: describe what you plan to create and get approval first\n" +
+           "  - Use dryRun: true for previews before actual creation\n" +
+           "  - Check blueprintMatch in response for structural template suggestions\n" +
+           "  - Document DNA automatically applies headers/footers/style if .document-dna.json exists\n\n" +
+           `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns JSON with filePath, success status, and confirmation message.`,
+         inputSchema: {
+           type: "object",
+           properties: {
+             filePath: { type: "string", description: "Path to the existing DOCX file" },
+             action: { type: "string", enum: ["append", "replace", "style", "preview"], description: "Edit action type" },
+             title: { type: "string", description: "Document title (appears as Heading 1). MUST be specific and descriptive — generic titles like 'Document' or 'Untitled' are rejected." },
+             paragraphs: { type: "array", items: PARAGRAPH_ITEMS_SCHEMA, description: "Paragraphs to append or replace with." },
+             tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Tables to append or replace with (2D arrays)" },
+             stylePreset: STYLE_PRESET_SCHEMA,
+             category: { type: "string", description: "Document category for registry" },
+             tags: TAGS_SCHEMA,
+             docType: DOC_TYPE_SCHEMA,
+           },
+           required: ["filePath", "action"],
+         },
+       },
       {
         name: "create-markdown",
         description:
           `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a technical documentation expert specializing in creating lean, practical markdown files optimized for AI model consumption during implementation.\n\n` +
-          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create implementation-focused documentation that will be used by developers or AI models to build something. The document should be copy-paste friendly with code blocks, clear headings, and bullet lists (avoid tables).\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create implementation-focused documentation (technical docs, handovers, or plans) that will be used by developers or AI models to build something. The document should be copy-paste friendly with code blocks, clear headings, and bullet lists (avoid tables).\n\n` +
           `${TOOL_DESCRIPTION_SECTIONS.TASK} Create a markdown (.md) file with the following requirements:\n` +
           "  1. Provide a specific, descriptive title (becomes H1 heading)\n" +
           "  2. Use paragraph objects with headingLevel for document hierarchy\n" +
           "  3. Include code blocks with language hints for any commands, config, or code snippets\n" +
           "  4. Use bullet lists instead of tables for structured data (easier to copy)\n" +
           "  5. Apply task list format (- [ ]) for actionable items\n" +
-          "  6. Configure category if known (technical, research, etc.)\n\n" +
+          "  6. Configure category and docType if known.\n\n" +
           `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
           "  - Title MUST be specific and descriptive — generic titles are rejected\n" +
           "  - DO NOT use tables — prefer bullet lists for copy-paste friendliness\n" +
@@ -228,6 +223,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             tags: TAGS_SCHEMA,
             description: { type: "string", description: "Brief description for registry search." },
             dryRun: { type: "boolean", description: "Preview without writing to disk (default: false)." },
+            docType: DOC_TYPE_SCHEMA,
           },
           required: ["title"],
         },
@@ -236,12 +232,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "create-excel",
         description:
           `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a professional Excel workbook creation expert, specializing in creating well-structured XLSX files with professional formatting.\n\n` +
-          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create an Excel workbook for data-heavy documents like budgets, financial reports, spreadsheets with numbers and calculations.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create an Excel workbook for analytical data, numbers crunching, budgets, financial reports, or spreadsheets with calculations.\n\n` +
           `${TOOL_DESCRIPTION_SECTIONS.TASK} Create an Excel XLSX workbook with the following requirements:\n` +
           "  1. Provide a descriptive 'title' for the workbook (e.g., 'Q1 2026 Budget Breakdown')\n" +
           "  2. Use descriptive sheet names (e.g., 'Monthly Revenue', not 'Sheet1')\n" +
           "  3. Apply style preset or let auto-selection based on category\n" +
-          "  4. Configure custom styling for fonts, columns, and rows\n\n" +
+          "  4. Configure custom styling for fonts, columns, and rows\n" +
+          "  5. Set the appropriate docType (concise, formal, explanatory, scientific).\n\n" +
           `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
           "  - Title MUST be descriptive — generic titles like 'Workbook' or 'Data' are rejected\n" +
           "  - Sheet names MUST be descriptive — generic names like 'Sheet1', 'Sheet2' are rejected\n" +
@@ -275,36 +272,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             category: CATEGORY_SCHEMA,
             tags: TAGS_SCHEMA,
             description: { type: "string", description: "Brief description for registry search." },
+            docType: DOC_TYPE_SCHEMA,
           },
           required: ["sheets"],
-        },
-      },
-      {
-        name: "edit-doc",
-        description:
-          "Edits an existing Word DOCX document by appending or replacing content. USER CONFIRMATION REQUIRED. " +
-          "ALWAYS read the document first with read-doc mode 'indepth' before editing. " +
-          "Do NOT include markdown syntax — use headingLevel/bold for formatting. Append mode preserves existing formatting via XML patching.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            filePath: { type: "string", description: "Path to the existing DOCX file" },
-            action: { type: "string", enum: ["append", "replace"], description: "'append' adds after existing content, 'replace' overwrites all content" },
-            paragraphs: { type: "array", items: PARAGRAPH_ITEMS_SCHEMA, description: "Paragraphs to append or replace with." },
-            tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Tables to append or replace with (2D arrays)" },
-            title: { type: "string", description: "New title (replace mode only)" },
-            stylePreset: STYLE_PRESET_SCHEMA,
-            category: { type: "string", description: "Document category for registry" },
-            tags: TAGS_SCHEMA,
-          },
-          required: ["filePath", "action"],
         },
       },
       {
         name: "edit-excel",
         description:
           "Edits an existing Excel XLSX workbook. USER CONFIRMATION REQUIRED. ALWAYS read the spreadsheet first with read-doc mode 'indepth'. " +
-          "Actions: 'append-rows' adds rows, 'append-sheet' adds a sheet, 'replace-sheet' replaces a sheet's data.",
+          "Actions: 'append-rows' adds rows, 'append-sheet' adds a sheet, 'replace-sheet' replaces a sheet's data. " +
+          "Use docType to maintain consistent tone (concise, formal, explanatory, scientific) during edits.",
         inputSchema: {
           type: "object",
           properties: {
@@ -316,6 +294,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             stylePreset: STYLE_PRESET_SCHEMA,
             category: { type: "string", description: "Document category for registry" },
             tags: TAGS_SCHEMA,
+            docType: DOC_TYPE_SCHEMA,
           },
           required: ["filePath", "action"],
         },
@@ -442,10 +421,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const skipValidation = (name === "drift-monitor" && params.action === "check") ||
         (name === "blueprint" && params.action !== "learn") ||
         name === "check-drift"; // backward compat — check-drift filePath is optional
-
+ 
       if (!skipValidation) {
         const resolvedPath = path.resolve(params.filePath);
-
+ 
         if (!fs.existsSync(resolvedPath)) {
           log("error", "File not found:", { filePath: resolvedPath });
           return {
@@ -453,7 +432,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             isError: true,
           };
         }
-
+ 
         params.filePath = resolvedPath;
       }
     }
@@ -461,23 +440,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       case "read-doc":
         return await handleReadDoc(params);
-
+ 
       // Backward-compatible aliases for the old 3-tool read API
       case "get-doc-summary":
         return await handleReadDoc({ ...params, mode: "summary" });
-
+ 
       case "get-doc-indepth":
         return await handleReadDoc({ ...params, mode: "indepth" });
-
+ 
       case "get-doc-focused":
         return await handleReadDoc({ ...params, mode: "focused" });
-
+ 
       case "detect-format": {
         const { detectFormat } = await import("./services/format-router.js");
         const result = await detectFormat(params);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
-
+ 
       case "create-doc": {
         const docResult = await createDoc(params);
         if (docResult.success) {
@@ -493,7 +472,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           isError: true,
         };
       }
-
+ 
       case "create-markdown": {
         const markdownResult = await createMarkdown(params);
         if (markdownResult.success) {
@@ -509,7 +488,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           isError: true,
         };
       }
-
+ 
       case "create-excel": {
         const excelResult = await createExcel(params);
         if (excelResult.success) {
@@ -525,7 +504,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           isError: true,
         };
       }
-
+ 
       case "edit-doc": {
         const editDocResult = await editDoc(params);
         return {
@@ -533,15 +512,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           isError: !editDocResult.success,
         };
       }
-
+ 
       case "edit-excel": {
         const editExcelResult = await editExcel(params);
         return {
           content: [{ type: "text", text: JSON.stringify(editExcelResult, null, 2) }],
           isError: !editExcelResult.success,
         };
-      }
-
+      } 
+ 
       case "list-documents":
       case "search-registry": {
         const docs = await listDocuments(params || {});
@@ -553,70 +532,62 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           isError: true,
         };
       }
-
+ 
       case "list-templates":
       case "blueprint list": {
         const { listBlueprints } = await import("./utils/blueprint-store.js");
         const templates = listBlueprints();
         return { content: [{ type: "text", text: JSON.stringify(templates, null, 2) }] };
       }
-
+ 
       // === CONSOLIDATED: dna (was init-dna + get-dna + evolve-dna) ===
       case "dna":
       case "init-dna":
       case "get-dna":
       case "evolve-dna":
         return await handleDNA(params, name);
-
+ 
       // === CONSOLIDATED: memory folded into dna ===
       case "memory":
       case "save-memory":
       case "delete-memory":
         return await handleDNA(params, name);
-
+ 
       // === CONSOLIDATED: blueprint (was learn-blueprint + list-blueprints) ===
       case "blueprint":
       case "learn-blueprint":
       case "list-blueprints":
         return await handleBlueprint(params, name);
-
+ 
       // === CONSOLIDATED: drift-monitor (was watch-document + check-drift) ===
       case "drift-monitor":
       case "watch-document":
       case "check-drift":
         return await handleDriftMonitor(params, name);
-
-      case "get-lineage":
-        return await handleGetLineage(params);
-
-      // Backward-compatible aliases (removed from tool listing, kept for legacy clients)
-      case "extract-to-excel": {
-        const { extractData } = await import("./services/data-extractor.js");
-        const extractResult = await extractData({ sourcePath: params.sourcePath, mode: params.mode, pattern: params.pattern });
-        if (extractResult.sheets.length === 0) {
-          return { content: [{ type: "text", text: JSON.stringify({ success: true, message: extractResult.message, sheets: [] }, null, 2) }] };
-        }
-        const derivedTitle = params.outputTitle || `Data Extract from ${path.basename(params.sourcePath || "document", path.extname(params.sourcePath || ""))}`;
-        const excelResult = await createExcel({ sheets: extractResult.sheets, title: derivedTitle, stylePreset: params.stylePreset || "minimal" });
-        return {
-          content: [{ type: "text", text: JSON.stringify({ ...excelResult, extractionInfo: { sourcePath: params.sourcePath, mode: params.mode, sheetsExtracted: extractResult.sheets.length } }, null, 2) }],
-          isError: !excelResult.success,
-        };
-      }
-
-      case "assemble-document": {
-        const { assembleDocument } = await import("./services/document-assembler.js");
-        const assembleResult = await assembleDocument({ sources: params.sources, outputTitle: params.outputTitle, mode: params.mode || "concatenate", blueprint: params.blueprint, stylePreset: params.stylePreset, outputPath: params.outputPath, category: params.category, tags: params.tags });
-        return { content: [{ type: "text", text: JSON.stringify(assembleResult, null, 2) }], isError: !assembleResult.success };
-      }
-
-      case "check-document": {
-        const { checkForExistingDocument } = await import("./services/ai-guidance-system.js");
-        const check = await checkForExistingDocument(params.title, params.category);
-        return { content: [{ type: "text", text: JSON.stringify({ action: check.action, existingPath: check.existing?.filePath || null }, null, 2) }] };
-      }
-
-      default:
+ 
+       case "get-lineage":
+         return await handleGetLineage(params);
+ 
+       // Backward-compatible aliases (removed from tool listing, kept for legacy clients)
+       case "extract-to-excel": {
+         const result = await handleExtractToExcel(params);
+         return {
+           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+           isError: !result.success,
+         };
+       }
+ 
+       case "assemble-document": {
+         const result = await handleAssembleDocument(params);
+         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }], isError: !result.success };
+       }
+ 
+       case "check-document": {
+         const result = await handleCheckDocument(params);
+         return { content: [{ type: "text", text: JSON.stringify({ action: result.action, existingPath: result.existingPath }, null, 2) }], isError: false };
+       }
+ 
+       default:
         log("error", "Unknown tool requested:", { toolName });
         return {
           content: [{ type: "text", text: `Unknown tool: ${name}` }],
