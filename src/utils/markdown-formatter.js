@@ -141,11 +141,12 @@ export function formatTable(data) {
 }
 
 /**
- * Convert paragraph objects to markdown text using implementation style rules
+ * Convert paragraph objects to markdown with implementation style formatting
  * @param {Array<MarkdownParagraph>} paragraphs - Array of paragraph objects or strings
+ * @param {string} [docType] - The intended tone and depth (concise, formal, explanatory, scientific)
  * @returns {string} Formatted markdown content
  */
-export function applyImplementationStyle(paragraphs) {
+export function applyImplementationStyle(paragraphs, docType) {
   if (!Array.isArray(paragraphs) || paragraphs.length === 0) return '';
   
   const formattedParts = [];
@@ -248,8 +249,9 @@ export function applyImplementationStyle(paragraphs) {
  * - Bullet/checkbox lists for structured data
  * - Inline code for technical terms, paths, commands
  * @param {Array<MarkdownParagraph>} paragraphs - Array of paragraph objects or strings
+ * @param {string} [docType] - The intended tone and depth (concise, formal, explanatory, scientific)
  * @returns {string} Lean formatted markdown content
  */
-export function convertToLeanMarkdown(paragraphs) {
-  return applyImplementationStyle(paragraphs);
+export function convertToLeanMarkdown(paragraphs, docType) {
+  return applyImplementationStyle(paragraphs, docType);
 }

@@ -19,22 +19,37 @@ import {
 } from "docx";
 
 // ============================================================================
-// Claude-Like Blue Color Palette - Modern professional styling
+// Enhanced Color Palettes - Professional & Modern
 // ============================================================================
 
 /**
- * Claude-inspired color palette for beautiful professional documents.
- * Primary blue theme with subtle accents and excellent contrast.
+ * Comprehensive color palette for high-end document generation.
  */
 export const CLAUDE_COLORS = {
   // Brand colors (Claude-inspired)
   PRIMARY: {
-    BLUE: "1F4E79",      // Main brand blue - primary headings, accents
-    LIGHT_BLUE: "2B579A", // Lighter accent for secondary elements
-    DARK_BLUE: "3A5F8F",  // Darker variant for depth
-    EXTRA_LIGHT: "D6E4ED", // Very light blue for backgrounds
+    BLUE: "1F4E79",      // Main brand blue
+    LIGHT_BLUE: "2B579A", // Lighter accent
+    DARK_BLUE: "3A5F8F",  // Darker variant
+    EXTRA_LIGHT: "D6E4ED", // Very light blue
   },
-  
+
+  // Modern Professional (Slate/Navy)
+  MODERN: {
+    NAVY: "1B263B",      // Deep navy for headings
+    SLATE: "415A77",     // Muted slate for subheadings
+    LIGHT_SLATE: "778DA9", // Lighter slate
+    ICE: "E0E1DD",       // Very light ice blue/gray
+  },
+
+  // High-Tech (Cyber/Dark)
+  TECH: {
+    CYBER_BLUE: "00B4D8", // Bright cyan accent
+    DEEP_SPACE: "0D1B2A", // Very dark navy/black
+    MIDNIGHT: "1B263B",   // Dark background
+    NEON_BLUE: "48CAE4",  // High contrast blue
+  },
+
   // Background colors
   BACKGROUND: {
     WHITE: "FFFFFF",
@@ -55,10 +70,10 @@ export const CLAUDE_COLORS = {
   
   // Status colors
   STATUS: {
-    SUCCESS: "2E8B57",     // Sea green for success states
-    WARNING: "FFA500",     // Orange for warnings
-    DANGER: "DC143C",      // Crimson for errors
-    INFO: "1F4E79",        // Blue for info
+    SUCCESS: "2E8B57",     // Sea green
+    WARNING: "FFA500",     // Orange
+    DANGER: "DC143C",      // Crimson
+    INFO: "1F4E79",        // Blue
   },
   
   // Table styling colors
@@ -432,48 +447,48 @@ const STYLE_PRESETS = {
     headerBackground: "FFFFFF",
   },
 
-  // BUSINESS - Modern corporate with blue accent palette
+  // BUSINESS - Modern corporate with refined navy/slate palette
   business: {
     font: { size: 11, color: "333333", bold: false, family: "Calibri" },
     headingFont: "Calibri Light",
     heading1: {
       size: 18,
-      color: "1F4E79",
+      color: "1B263B", // MODERN.NAVY
       bold: true,
       spacingBefore: 320,
       spacingAfter: 180,
     },
     heading2: {
       size: 15,
-      color: "2B579A",
+      color: "415A77", // MODERN.SLATE
       bold: true,
       spacingBefore: 260,
       spacingAfter: 140,
     },
     heading3: {
       size: 13,
-      color: "3A5F8F",
+      color: "778DA9", // MODERN.LIGHT_SLATE
       bold: true,
       spacingBefore: 200,
       spacingAfter: 120,
     },
     heading: {
       size: 16,
-      color: "1F4E79",
+      color: "1B263B",
       bold: true,
       spacingBefore: 280,
       spacingAfter: 140,
     },
     title: {
       size: 28,
-      color: "1F4E79",
+      color: "1B263B",
       bold: true,
       spacingBefore: 360,
       spacingAfter: 280,
       alignment: "center",
       smallCaps: false,
       characterSpacing: 40,
-      borderBottom: { color: "1F4E79", size: 8, style: "single", space: 6 },
+      borderBottom: { color: "1B263B", size: 8, style: "single", space: 6 },
     },
     paragraph: {
       alignment: "left",
@@ -482,23 +497,23 @@ const STYLE_PRESETS = {
       lineSpacing: 1.2,
     },
     table: {
-      borderColor: "B7C9D6",
+      borderColor: "778DA9",
       borderStyle: "single",
       borderWidth: 6,
-      headerFill: "1F4E79",
+      headerFill: "1B263B",
       headerFontColor: "FFFFFF",
-      zebraFill: "EBF1F7",
+      zebraFill: "E0E1DD", // MODERN.ICE
       zebraInterval: 2,
-      insideBorderColor: "D6E4ED",
+      insideBorderColor: "778DA9",
       insideBorderWidth: 2,
       outsideBorderWidth: 6,
     },
     code: {
       fontFamily: "Courier New",
       fontSize: 9,
-      color: "1A3A5C",
-      backgroundColor: "EBF1F7",
-      borderColor: "B7C9D6",
+      color: "1B263B",
+      backgroundColor: "E0E1DD",
+      borderColor: "778DA9",
     },
     // Excel styling
     columnWidths: {},
@@ -506,10 +521,239 @@ const STYLE_PRESETS = {
     headerBold: true,
     headerSize: 11,
     headerColor: "FFFFFF",
-    headerBackground: "1F4E79",
+    headerBackground: "1B263B",
   },
 
-  // CASUAL - Friendly, warm, newsletter-style formatting
+  // MODERN EXECUTIVE - Clean, high-end corporate styling
+  modern_executive: {
+    font: { size: 11, color: "333333", bold: false, family: "Arial" },
+    headingFont: "Arial",
+    heading1: {
+      size: 20,
+      color: "1B263B",
+      bold: true,
+      spacingBefore: 360,
+      spacingAfter: 180,
+    },
+    heading2: {
+      size: 16,
+      color: "415A77",
+      bold: true,
+      spacingBefore: 280,
+      spacingAfter: 140,
+    },
+    heading3: {
+      size: 13,
+      color: "778DA9",
+      bold: true,
+      spacingBefore: 220,
+      spacingAfter: 100,
+    },
+    heading: {
+      size: 16,
+      color: "1B263B",
+      bold: true,
+      spacingBefore: 240,
+      spacingAfter: 120,
+    },
+    title: {
+      size: 26,
+      color: "1B263B",
+      bold: true,
+      spacingBefore: 480,
+      spacingAfter: 320,
+      alignment: "left",
+      smallCaps: true,
+      characterSpacing: 20,
+      borderBottom: { color: "1B263B", size: 4, style: "single", space: 8 },
+    },
+    paragraph: {
+      alignment: "left",
+      spacingBefore: 140,
+      spacingAfter: 140,
+      lineSpacing: 1.15,
+    },
+    table: {
+      borderColor: "E0E1DD",
+      borderStyle: "single",
+      borderWidth: 4,
+      headerFill: "1B263B",
+      headerFontColor: "FFFFFF",
+      zebraFill: "F8F9FA",
+      zebraInterval: 2,
+      insideBorderColor: "E0E1DD",
+      insideBorderWidth: 1,
+      outsideBorderWidth: 4,
+    },
+    code: {
+      fontFamily: "Courier New",
+      fontSize: 9,
+      color: "1B263B",
+      backgroundColor: "F8F9FA",
+      borderColor: "E0E1DD",
+    },
+    // Excel styling
+    columnWidths: {},
+    rowHeights: {},
+    headerBold: true,
+    headerSize: 11,
+    headerColor: "FFFFFF",
+    headerBackground: "1B263B",
+  },
+
+  // TECHNICAL - Developer docs with clear hierarchy and high contrast
+  technical: {
+    font: { size: 11, color: "1A1A1A", bold: false, family: "Arial" },
+    headingFont: "Segoe UI",
+    heading1: {
+      size: 18,
+      color: "0D1B2A", // TECH.DEEP_SPACE
+      bold: true,
+      spacingBefore: 320,
+      spacingAfter: 160,
+    },
+    heading2: {
+      size: 15,
+      color: "1B263B", // TECH.MIDNIGHT
+      bold: true,
+      underline: { type: "single", color: null },
+      spacingBefore: 280,
+      spacingAfter: 160,
+    },
+    heading3: {
+      size: 13,
+      color: "415A77", // TECH.SLATE
+      bold: true,
+      spacingBefore: 220,
+      spacingAfter: 120,
+    },
+    title: {
+      size: 26,
+      color: "0D1B2A",
+      bold: true,
+      spacingBefore: 280,
+      spacingAfter: 160,
+      alignment: "left",
+      smallCaps: false,
+      characterSpacing: 0,
+      borderBottom: { color: "00B4D8", size: 6, style: "single", space: 2 }, // TECH.CYBER_BLUE
+    },
+    paragraph: {
+      alignment: "left",
+      spacingBefore: 140,
+      spacingAfter: 140,
+      lineSpacing: 1.2,
+    },
+    table: {
+      borderColor: "1B263B",
+      borderStyle: "single",
+      borderWidth: 6,
+      headerFill: "0D1B2A",
+      headerFontColor: "FFFFFF",
+      zebraFill: "E0E1DD", // TECH.ICE
+      zebraInterval: 2,
+      insideBorderColor: "778DA9",
+      insideBorderWidth: 2,
+      outsideBorderWidth: 6,
+    },
+    code: {
+      fontFamily: "Courier New",
+      fontSize: 10,
+      color: "0D1B2A",
+      backgroundColor: "F8F9FA",
+      borderColor: "48CAE4", // TECH.NEON_BLUE
+    },
+    // Excel styling
+    columnWidths: {},
+    rowHeights: {},
+    headerBold: true,
+    headerSize: 11,
+    headerColor: "FFFFFF",
+    headerBackground: "0D1B2A",
+  },
+
+  // HIGH-TECH - Cyberpunk/Developer aesthetic with neon accents
+  high_tech: {
+    font: { size: 11, color: "E0E1DD", bold: false, family: "Consolas" },
+    headingFont: "Consolas",
+    heading1: {
+      size: 22,
+      color: "00B4D8", // TECH.CYBER_BLUE
+      bold: true,
+      spacingBefore: 400,
+      spacingAfter: 200,
+    },
+    heading2: {
+      size: 18,
+      color: "48CAE4", // TECH.NEON_BLUE
+      bold: true,
+      spacingBefore: 320,
+      spacingAfter: 160,
+    },
+    heading3: {
+      size: 15,
+      color: "778DA9",
+      bold: true,
+      spacingBefore: 260,
+      spacingAfter: 120,
+    },
+    heading: {
+      size: 18,
+      color: "00B4D8",
+      bold: true,
+      spacingBefore: 280,
+      spacingAfter: 140,
+    },
+    title: {
+      size: 32,
+      color: "00B4D8",
+      bold: true,
+      spacingBefore: 480,
+      spacingAfter: 320,
+      alignment: "center",
+      smallCaps: false,
+      characterSpacing: 100,
+      borderBottom: { color: "48CAE4", size: 10, style: "double", space: 6 },
+    },
+    paragraph: {
+      alignment: "left",
+      spacingBefore: 160,
+      spacingAfter: 160,
+      lineSpacing: 1.3,
+    },
+    table: {
+      borderColor: "00B4D8",
+      borderStyle: "single",
+      borderWidth: 4,
+      headerFill: "0D1B2A",
+      headerFontColor: "48CAE4",
+      zebraFill: "1B263B",
+      zebraInterval: 2,
+      insideBorderColor: "415A77",
+      insideBorderWidth: 2,
+      outsideBorderWidth: 4,
+    },
+    code: {
+      fontFamily: "Consolas",
+      fontSize: 10,
+      color: "48CAE4",
+      backgroundColor: "0D1B2A",
+      borderColor: "00B4D8",
+    },
+    // Excel styling
+    columnWidths: {},
+    rowHeights: {},
+    headerBold: true,
+    headerSize: 12,
+    headerColor: "48CAE4",
+    headerBackground: "0D1B2A",
+  },
+
+  // LEGAL - Conservative formal formatting, double-spaced, no frills
+  // LEGAL - Conservative formal formatting, double-spaced, no frills
+
+  // LEGAL - Conservative formal formatting, double-spaced, no frills
+  // LEGAL - Conservative formal formatting, double-spaced, no frills
   casual: {
     font: { size: 12, color: "333333", bold: false, family: "Verdana" },
     headingFont: "Trebuchet MS",
