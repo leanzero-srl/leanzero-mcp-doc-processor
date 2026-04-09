@@ -75,6 +75,21 @@ export const CLAUDE_COLORS = {
     DANGER: "DC143C",      // Crimson
     INFO: "1F4E79",        // Blue
   },
+
+  // Migration Runbook Colors
+  MIGRATION: {
+    PRE_MIG: "4472C4",
+    MIGRATION: "A6A6A6",
+    POST_MIG: "70AD47",
+    GO_NO_GO: "FF4B4B",
+    HYPERCARE: "FFC000",
+    ACTOR_CLIENT: "F2DCDB",
+    ACTOR_1: "D6E4F0",
+    ACTOR_2: "E2EFDA",
+    ACTOR_3: "FCE4D6",
+    ACTOR_4: "F2E8F5",
+    ALL: "DDDDDD",
+  },
   
   // Table styling colors
   TABLE: {
@@ -830,9 +845,9 @@ const STYLE_PRESETS = {
     headerBackground: "FF9800",
   },
 
-  // COLORFUL - Vibrant presentation/infographic style with geometric headings
-  colorful: {
-    font: { size: 12, color: "4A148C", bold: false, family: "Arial" },
+   // COLORFUL - Vibrant presentation/infographic style with geometric headings
+   colorful: {
+     font: { size: 12, color: "4A148C", bold: false, family: "Arial" },
     headingFont: "Century Gothic",
     heading1: {
       size: 20,
@@ -905,8 +920,142 @@ const STYLE_PRESETS = {
     headerSize: 12,
     headerColor: "FFFFFF",
     headerBackground: "7B1FA2",
-  },
-};
+   },
+
+   // RISK ASSESSMENT - Professional migration assessment style
+   risk_assessment: {
+     font: { size: 11, color: "333333", bold: false, family: "Arial" },
+     headingFont: "Arial",
+     heading1: {
+       size: 20,
+       color: "2F5496",
+       bold: true,
+       spacingBefore: 360,
+       spacingAfter: 180,
+     },
+     heading2: {
+       size: 16,
+       color: "2F5496",
+       bold: true,
+       spacingBefore: 280,
+       spacingAfter: 140,
+     },
+     heading3: {
+       size: 14,
+       color: "415A77",
+       bold: true,
+       spacingBefore: 220,
+       spacingAfter: 100,
+     },
+     title: {
+       size: 36,
+       color: "2F5496",
+       bold: true,
+       spacingBefore: 480,
+       spacingAfter: 320,
+       alignment: "center",
+     },
+     paragraph: {
+       alignment: "left",
+       spacingBefore: 120,
+       spacingAfter: 120,
+       lineSpacing: 1.15,
+     },
+     table: {
+       borderColor: "CCCCCC",
+       borderStyle: "single",
+       borderWidth: 1,
+       headerFill: "2F5496",
+       headerFontColor: "FFFFFF",
+       zebraFill: "F8F9FA",
+       zebraInterval: 2,
+       insideBorderColor: "CCCCCC",
+       insideBorderWidth: 1,
+       outsideBorderWidth: 1,
+     },
+     code: {
+       fontFamily: "Courier New",
+       fontSize: 9,
+       color: "1A1A1A",
+       backgroundColor: "F5F5F5",
+       borderColor: "E0E0E0",
+     },
+     // Excel styling
+     columnWidths: {},
+     rowHeights: {},
+     headerBold: true,
+     headerSize: 11,
+     headerColor: "FFFFFF",
+     headerBackground: "2F5496",
+   },
+
+   // MIGRATION RUNBOOK - High-density Excel tracking style
+   migration_runbook: {
+     font: { size: 10, color: "000000", bold: false, family: "Arial" },
+     headingFont: "Arial",
+     heading1: {
+       size: 14,
+       color: "1B263B",
+       bold: true,
+       spacingBefore: 240,
+       spacingAfter: 120,
+     },
+     heading2: {
+       size: 12,
+       color: "415A77",
+       bold: true,
+       spacingBefore: 200,
+       spacingAfter: 100,
+     },
+     heading3: {
+       size: 11,
+       color: "778DA9",
+       bold: true,
+       spacingBefore: 160,
+       spacingAfter: 80,
+     },
+     title: {
+       size: 16,
+       color: "1B263B",
+       bold: true,
+       spacingBefore: 360,
+       spacingAfter: 240,
+       alignment: "center",
+     },
+     paragraph: {
+       alignment: "left",
+       spacingBefore: 120,
+       spacingAfter: 120,
+       lineSpacing: 1.0,
+     },
+     table: {
+       borderColor: "CCCCCC",
+       borderStyle: "thin",
+       borderWidth: 1,
+       headerFill: "2F5496",
+       headerFontColor: "FFFFFF",
+       zebraFill: "F8F9FA",
+       zebraInterval: 2,
+       insideBorderColor: "CCCCCC",
+       insideBorderWidth: 1,
+       outsideBorderWidth: 1,
+     },
+     code: {
+       fontFamily: "Courier New",
+       fontSize: 9,
+       color: "000000",
+       backgroundColor: "F5F5F5",
+       borderColor: "E0E0E0",
+     },
+     // Excel styling
+     columnWidths: {},
+     rowHeights: {},
+     headerBold: true,
+     headerSize: 10,
+     headerColor: "FFFFFF",
+     headerBackground: "2F5496",
+   },
+ };
 
 // ============================================================================
 // DOCX STYLE HELPERS
