@@ -84,13 +84,22 @@ export function applyExcelStyling(ws, data, styleConfig, preset, startRow = 0) {
            color: hexToRgb(config.font?.color || "000000"),
          };
          
-         // Optional cell background for alternate rows (zebra striping)
-         if (row % 2 === 0 && config.zebraColor) {
-           ws[cellRef].s.fill = {
-             patternType: "solid",
-             fgColor: hexToRgb(config.zebraColor),
-           };
-         }
+       // Optional cell background for alternate rows (zebra striping)
+       if (row % 2 === 0 && config.zebraColor) {
+         ws[cellRef].s.fill = {
+           patternType: "solid",
+           fgColor: hexToRgb(config.zebraColor),
+         };
+       }
+
+       // Value-based mapping (e.g., for Phase or Actor colors)
+       if (config.valueMappings && config.valueMappings[data[row][col]]) {
+         const mappedColor = config.valueMappings[data[row][col]];
+         ws[cellRef].s.fill = {
+           patternType: "solid",
+           fgColor: hexToRgb(mappedColor),
+         };
+       }
          
          // Body border (subtle thin lines for a cleaner look)
          ws[cellRef].s.border = {
@@ -200,6 +209,8 @@ export function getZebraColor(preset) {
     business: "EBF1F7",
     casual: "FFF3E0",
     colorful: "F3E5F5",
+    risk_assessment: "F8F9FA",
+    migration_runbook: "F8F9FA",
   };
   return zebraColors[preset] || "FAFAFA";
 }
