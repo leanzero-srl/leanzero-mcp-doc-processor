@@ -1,0 +1,13 @@
+{
+  "name": "get-lineage",
+  "description": "Test the get-lineage tool to verify document lineage tracking functionality",
+  "steps": [
+    {
+      "tool": "get-lineage",
+      "expected": "Success - Returns document lineage information",
+      "params": {
+        "filePath": "./docs/documents/source-document.docx"
+      }
+    }
+  ]
+}

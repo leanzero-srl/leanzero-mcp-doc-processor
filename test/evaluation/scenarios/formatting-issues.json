@@ -1,0 +1,701 @@
+{
+  "name": "formatting-issues",
+  "description": "Test various formatting issues in documents and verify formatting corrections including spacing, font sizes, and style consistency",
+  "category": "formatting",
+  "version": "1.0.0",
+  "author": "MCP Test Framework",
+  "created": "2024-01-15",
+  "steps": [
+    {
+      "name": "Test 1: Simple Document with Minimal Content",
+      "description": "Create a simple document with minimal content to verify basic formatting works correctly",
+      "testType": "basic",
+      "params": {
+        "title": "Test Document",
+        "paragraphs": [
+          "This is a simple paragraph.",
+          "This is another paragraph.",
+          "Third paragraph here."
+        ],
+        "outputPath": "./test/output/test-formatting-simple.docx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "stylePreset": "string",
+        "styleConfig": {
+          "font": {
+            "family": "string",
+            "size": "number",
+            "color": "string"
+          },
+          "paragraph": {
+            "alignment": "string",
+            "spacingBefore": "number",
+            "spacingAfter": "number",
+            "lineSpacing": "number"
+          }
+        },
+        "enforcement": {
+          "docsFolderEnforced": "boolean",
+          "duplicatePrevented": "boolean",
+          "categorized": "boolean"
+        },
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document created successfully",
+          "check": "result.success === true",
+          "expected": "success: true"
+        },
+        {
+          "name": "File path is valid",
+          "check": "result.filePath && result.filePath.endsWith('.docx')",
+          "expected": "filePath: string ending with .docx"
+        },
+        {
+          "name": "Style configuration present",
+          "check": "result.styleConfig !== undefined",
+          "expected": "styleConfig: object"
+        },
+        {
+          "name": "Message contains disk write confirmation",
+          "check": "result.message && result.message.includes('WRITTEN TO DISK')",
+          "expected": "message contains 'WRITTEN TO DISK'"
+        }
+      ],
+      "qualityMetrics": {
+        "success": true,
+        "validFilePath": true,
+        "styleConfigPresent": true,
+        "messageFormatCorrect": true
+      }
+    },
+    {
+      "name": "Test 2: Document with Excessive Spacing Issue",
+      "description": "Test the excessive spacing issue where spacing values are multiplied by 20 unnecessarily, causing content to appear on separate pages",
+      "testType": "spacing",
+      "params": {
+        "title": "Title with Excessive Spacing",
+        "paragraphs": [
+          "First paragraph - will likely be on its own page",
+          "Second paragraph - also likely on separate page",
+          "Third paragraph - you get the idea"
+        ],
+        "outputPath": "./test/output/test-formatting-default.docx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "stylePreset": "string",
+        "styleConfig": {
+          "font": {
+            "family": "string",
+            "size": "number",
+            "color": "string"
+          },
+          "paragraph": {
+            "alignment": "string",
+            "spacingBefore": "number",
+            "spacingAfter": "number",
+            "lineSpacing": "number"
+          }
+        },
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document created successfully",
+          "check": "result.success === true",
+          "expected": "success: true"
+        },
+        {
+          "name": "File path is valid",
+          "check": "result.filePath && result.filePath.endsWith('.docx')",
+          "expected": "filePath: string ending with .docx"
+        },
+        {
+          "name": "Spacing values are reasonable",
+          "check": "result.styleConfig.paragraph.spacingBefore <= 400 && result.styleConfig.paragraph.spacingAfter <= 400",
+          "expected": "spacingBefore <= 400, spacingAfter <= 400 (in twips)"
+        },
+        {
+          "name": "Title spacing is reasonable",
+          "check": "result.styleConfig.paragraph.spacingBefore <= 400",
+          "expected": "Title spacingBefore <= 400 twips (should be ~400, not 8000)"
+        },
+        {
+          "name": "Paragraph spacing is reasonable",
+          "check": "result.styleConfig.paragraph.spacingAfter <= 400",
+          "expected": "Paragraph spacingAfter <= 400 twips (should be ~120, not 2400)"
+        }
+      ],
+      "qualityMetrics": {
+        "success": true,
+        "validFilePath": true,
+        "spacingValuesReasonable": true,
+        "titleSpacingReasonable": true,
+        "paragraphSpacingReasonable": true
+      },
+      "knownIssues": [
+        "Current spacing values in create-doc.js are multiplied by 20 unnecessarily",
+        "Title spacingBefore: 400 * 20 = 8000 twips (should be ~400)",
+        "Paragraph spacing: 120 * 20 = 2400 twips (should be ~120)",
+        "These excessive spacing values cause content to be pushed to separate pages"
+      ]
+    },
+    {
+      "name": "Test 3: Custom Styling with Different Font Sizes",
+      "description": "Test custom styling with different paragraph sizes to verify font size calculations",
+      "testType": "font-sizing",
+      "params": {
+        "title": "Custom Size Test",
+        "paragraphs": [
+          {
+            "text": "Paragraph with size 24 (current default)",
+            "size": 24
+          },
+          {
+            "text": "Paragraph with size 12 (normal)",
+            "size": 12
+          },
+          {
+            "text": "Paragraph with size 11 (typical)",
+            "size": 11
+          }
+        ],
+        "outputPath": "./test/output/test-formatting-custom.docx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "stylePreset": "string",
+        "styleConfig": {
+          "font": {
+            "family": "string",
+            "size": "number",
+            "color": "string"
+          },
+          "paragraph": {
+            "alignment": "string",
+            "spacingBefore": "number",
+            "spacingAfter": "number",
+            "lineSpacing": "number"
+          }
+        },
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document created successfully",
+          "check": "result.success === true",
+          "expected": "success: true"
+        },
+        {
+          "name": "File path is valid",
+          "check": "result.filePath && result.filePath.endsWith('.docx')",
+          "expected": "filePath: string ending with .docx"
+        },
+        {
+          "name": "Font sizes are applied correctly",
+          "check": "result.styleConfig.font.size <= 36",
+          "expected": "Font size <= 36 (reasonable size for paragraph text)"
+        },
+        {
+          "name": "Style configuration present",
+          "check": "result.styleConfig !== undefined",
+          "expected": "styleConfig: object"
+        }
+      ],
+      "qualityMetrics": {
+        "success": true,
+        "validFilePath": true,
+        "fontSizesApplied": true,
+        "styleConfigPresent": true
+      }
+    },
+    {
+      "name": "Test 4: Excel Document with Default Styling",
+      "description": "Test Excel document creation with default styling to verify column widths and row heights are properly applied",
+      "testType": "excel",
+      "params": {
+        "sheets": [
+          {
+            "name": "Test Sheet",
+            "data": [
+              ["Column A", "Column B", "Column C"],
+              ["Data 1", "Data 2", "Data 3"],
+              ["Longer text in column A", "Medium text", "Short"]
+            ]
+          }
+        ],
+        "outputPath": "./test/output/test-formatting-excel.xlsx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .xlsx",
+        "styleConfig": {
+          "columnWidths": "array of numbers",
+          "rowHeights": "array of numbers",
+          "headerStyle": {
+            "bold": "boolean",
+            "fill": "string"
+          }
+        },
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Excel file created successfully",
+          "check": "result.success === true",
+          "expected": "success: true"
+        },
+        {
+          "name": "File path is valid",
+          "check": "result.filePath && result.filePath.endsWith('.xlsx')",
+          "expected": "filePath: string ending with .xlsx"
+        },
+        {
+          "name": "Column widths are reasonable",
+          "check": "result.styleConfig && result.styleConfig.columnWidths && result.styleConfig.columnWidths.length > 0",
+          "expected": "columnWidths: array with at least one column"
+        },
+        {
+          "name": "Row heights are reasonable",
+          "check": "result.styleConfig && result.styleConfig.rowHeights && result.styleConfig.rowHeights.length > 0",
+          "expected": "rowHeights: array with at least one row"
+        }
+      ],
+      "qualityMetrics": {
+        "success": true,
+        "validFilePath": true,
+        "columnWidthsApplied": true,
+        "rowHeightsApplied": true
+      }
+    },
+    {
+      "name": "Test 5: One Letter Per Page Issue",
+      "description": "Test the extreme spacing issue where each letter appears on a separate page due to excessive spacing",
+      "testType": "extreme-spacing",
+      "params": {
+        "title": "Extreme Spacing Test",
+        "paragraphs": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E"
+        ],
+        "outputPath": "./test/output/test-formatting-one-letter.docx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "stylePreset": "string",
+        "styleConfig": {
+          "font": {
+            "family": "string",
+            "size": "number",
+            "color": "string"
+          },
+          "paragraph": {
+            "alignment": "string",
+            "spacingBefore": "number",
+            "spacingAfter": "number",
+            "lineSpacing": "number"
+          }
+        },
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document created successfully",
+          "check": "result.success === true",
+          "expected": "success: true"
+        },
+        {
+          "name": "File path is valid",
+          "check": "result.filePath && result.filePath.endsWith('.docx')",
+          "expected": "filePath: string ending with .docx"
+        },
+        {
+          "name": "Spacing values are reasonable (not causing page breaks)",
+          "check": "result.styleConfig.paragraph.spacingBefore <= 400 && result.styleConfig.paragraph.spacingAfter <= 400",
+          "expected": "spacingBefore <= 400, spacingAfter <= 400 twips"
+        },
+        {
+          "name": "Line spacing is reasonable",
+          "check": "result.styleConfig.paragraph.lineSpacing <= 2.5",
+          "expected": "lineSpacing <= 2.5 (should be ~1.15-1.5 for normal text)"
+        }
+      ],
+      "qualityMetrics": {
+        "success": true,
+        "validFilePath": true,
+        "spacingValuesReasonable": true,
+        "lineSpacingReasonable": true
+      },
+      "knownIssues": [
+        "Extreme spacing issue: each letter (A, B, C, D, E) will likely be on a separate page with current settings",
+        "This demonstrates the extreme spacing issue reported in the formatting issues test"
+      ]
+    },
+    {
+      "name": "Test 6: Style Consistency Check",
+      "description": "Test that style consistency is maintained across multiple documents",
+      "testType": "consistency",
+      "params": {
+        "title": "Style Consistency Test",
+        "paragraphs": [
+          "First paragraph with consistent styling.",
+          "Second paragraph with consistent styling.",
+          "Third paragraph with consistent styling."
+        ],
+        "outputPath": "./test/output/test-formatting-consistency.docx",
+        "preventDuplicates": false,
+        "stylePreset": "professional"
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "stylePreset": "professional",
+        "styleConfig": {
+          "font": {
+            "family": "string",
+            "size": "number",
+            "color": "string"
+          },
+          "paragraph": {
+            "alignment": "string",
+            "spacingBefore": "number",
+            "spacingAfter": "number",
+            "lineSpacing": "number"
+          }
+        },
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document created successfully",
+          "check": "result.success === true",
+          "expected": "success: true"
+        },
+        {
+          "name": "Style preset applied correctly",
+          "check": "result.stylePreset === 'professional'",
+          "expected": "stylePreset: 'professional'"
+        },
+        {
+          "name": "Professional style font family",
+          "check": "result.styleConfig && result.styleConfig.font && result.styleConfig.font.family === 'Garamond'",
+          "expected": "font.family: 'Garamond' (professional preset)"
+        },
+        {
+          "name": "Professional style paragraph alignment",
+          "check": "result.styleConfig && result.styleConfig.paragraph && result.styleConfig.paragraph.alignment === 'justify'",
+          "expected": "paragraph.alignment: 'justify' (professional preset)"
+        },
+        {
+          "name": "Professional style line spacing",
+          "check": "result.styleConfig && result.styleConfig.paragraph && result.styleConfig.paragraph.lineSpacing === 1.15",
+          "expected": "paragraph.lineSpacing: 1.15 (professional preset)"
+        }
+      ],
+      "qualityMetrics": {
+        "success": true,
+        "stylePresetApplied": true,
+        "fontFamilyCorrect": true,
+        "paragraphAlignmentCorrect": true,
+        "lineSpacingCorrect": true
+      }
+    },
+    {
+      "name": "Test 7: Multiple Style Presets",
+      "description": "Test that all available style presets work correctly",
+      "testType": "preset-testing",
+      "params": {
+        "title": "Multiple Presets Test",
+        "paragraphs": [
+          "Testing multiple style presets.",
+          "Each preset should have different styling attributes."
+        ],
+        "outputPath": "./test/output/test-formatting-presets.docx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "stylePreset": "string",
+        "styleConfig": {
+          "font": {
+            "family": "string",
+            "size": "number",
+            "color": "string"
+          },
+          "paragraph": {
+            "alignment": "string",
+            "spacingBefore": "number",
+            "spacingAfter": "number",
+            "lineSpacing": "number"
+          },
+          "table": {
+            "borderColor": "string",
+            "borderStyle": "string",
+            "borderWidth": "number",
+            "headerFill": "string",
+            "zebraFill": "string"
+          }
+        },
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document created successfully",
+          "check": "result.success === true",
+          "expected": "success: true"
+        },
+        {
+          "name": "Style configuration present",
+          "check": "result.styleConfig !== undefined",
+          "expected": "styleConfig: object"
+        },
+        {
+          "name": "Font properties defined",
+          "check": "result.styleConfig.font && result.styleConfig.font.family && result.styleConfig.font.size",
+          "expected": "font.family and font.size are defined"
+        },
+        {
+          "name": "Paragraph properties defined",
+          "check": "result.styleConfig.paragraph && result.styleConfig.paragraph.alignment && result.styleConfig.paragraph.lineSpacing",
+          "expected": "paragraph.alignment and paragraph.lineSpacing are defined"
+        },
+        {
+          "name": "Table properties defined",
+          "check": "result.styleConfig.table && result.styleConfig.table.borderColor && result.styleConfig.table.headerFill",
+          "expected": "table properties are defined"
+        }
+      ],
+      "qualityMetrics": {
+        "success": true,
+        "styleConfigPresent": true,
+        "fontPropertiesDefined": true,
+        "paragraphPropertiesDefined": true,
+        "tablePropertiesDefined": true
+      }
+    },
+    {
+      "name": "Test 8: Custom Styling Override",
+      "description": "Test custom styling overrides to verify they take precedence over preset values",
+      "testType": "custom-styling",
+      "params": {
+        "title": "Custom Styling Test",
+        "paragraphs": [
+          "This document uses custom styling overrides."
+        ],
+        "outputPath": "./test/output/test-formatting-custom-override.docx",
+        "preventDuplicates": false,
+        "stylePreset": "professional",
+        "style": {
+          "font": {
+            "size": 14,
+            "color": "FF0000",
+            "bold": true
+          },
+          "paragraph": {
+            "spacingBefore": 300,
+            "spacingAfter": 300,
+            "lineSpacing": 1.5
+          }
+        }
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "stylePreset": "professional",
+        "styleConfig": {
+          "font": {
+            "family": "string",
+            "size": 14,
+            "color": "FF0000",
+            "bold": true
+          },
+          "paragraph": {
+            "alignment": "string",
+            "spacingBefore": 300,
+            "spacingAfter": 300,
+            "lineSpacing": 1.5
+          }
+        },
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document created successfully",
+          "check": "result.success === true",
+          "expected": "success: true"
+        },
+        {
+          "name": "Custom font size applied",
+          "check": "result.styleConfig.font.size === 14",
+          "expected": "font.size: 14 (custom override)"
+        },
+        {
+          "name": "Custom font color applied",
+          "check": "result.styleConfig.font.color === 'FF0000'",
+          "expected": "font.color: 'FF0000' (custom override)"
+        },
+        {
+          "name": "Custom paragraph spacing applied",
+          "check": "result.styleConfig.paragraph.spacingBefore === 300",
+          "expected": "paragraph.spacingBefore: 300 (custom override)"
+        },
+        {
+          "name": "Custom line spacing applied",
+          "check": "result.styleConfig.paragraph.lineSpacing === 1.5",
+          "expected": "paragraph.lineSpacing: 1.5 (custom override)"
+        }
+      ],
+      "qualityMetrics": {
+        "success": true,
+        "customFontSizeApplied": true,
+        "customFontColorApplied": true,
+        "customParagraphSpacingApplied": true,
+        "customLineSpacingApplied": true
+      }
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "filePath": "string ending with .docx or .xlsx",
+    "stylePreset": "string (optional)",
+    "styleConfig": {
+      "font": {
+        "family": "string",
+        "size": "number",
+        "color": "string",
+        "bold": "boolean",
+        "italics": "boolean",
+        "underline": "boolean"
+      },
+      "paragraph": {
+        "alignment": "string",
+        "spacingBefore": "number",
+        "spacingAfter": "number",
+        "lineSpacing": "number"
+      },
+      "table": {
+        "borderColor": "string",
+        "borderStyle": "string",
+        "borderWidth": "number",
+        "headerFill": "string",
+        "zebraFill": "string",
+        "zebraInterval": "number"
+      },
+      "columnWidths": "array of numbers (Excel)",
+      "rowHeights": "array of numbers (Excel)"
+    },
+    "enforcement": {
+      "docsFolderEnforced": "boolean",
+      "duplicatePrevented": "boolean",
+      "categorized": "boolean"
+    },
+    "message": "string containing 'WRITTEN TO DISK'"
+  },
+  "qualityMetrics": {
+    "success": true,
+    "validFilePath": true,
+    "styleConfigPresent": true,
+    "fontPropertiesDefined": true,
+    "paragraphPropertiesDefined": true,
+    "tablePropertiesDefined": true,
+    "customOverridesApplied": true,
+    "messageContainsDisk": true,
+    "filePathIsAbsolute": true,
+    "spacingValuesReasonable": true,
+    "styleConsistency": true
+  },
+  "baseline": "formatting-issues",
+  "testData": {
+    "testDocuments": [
+      {
+        "name": "Simple Document",
+        "title": "Test Document",
+        "paragraphs": ["This is a simple paragraph.", "This is another paragraph.", "Third paragraph here."],
+        "outputPath": "./test/output/test-formatting-simple.docx"
+      },
+      {
+        "name": "Excessive Spacing",
+        "title": "Title with Excessive Spacing",
+        "paragraphs": ["First paragraph - will likely be on its own page", "Second paragraph - also likely on separate page", "Third paragraph - you get the idea"],
+        "outputPath": "./test/output/test-formatting-default.docx"
+      },
+      {
+        "name": "Custom Styling",
+        "title": "Custom Size Test",
+        "paragraphs": [
+          {"text": "Paragraph with size 24 (current default)", "size": 24},
+          {"text": "Paragraph with size 12 (normal)", "size": 12},
+          {"text": "Paragraph with size 11 (typical)", "size": 11}
+        ],
+        "outputPath": "./test/output/test-formatting-custom.docx"
+      },
+      {
+        "name": "Excel Document",
+        "sheets": [
+          {
+            "name": "Test Sheet",
+            "data": [
+              ["Column A", "Column B", "Column C"],
+              ["Data 1", "Data 2", "Data 3"],
+              ["Longer text in column A", "Medium text", "Short"]
+            ]
+          }
+        ],
+        "outputPath": "./test/output/test-formatting-excel.xlsx"
+      },
+      {
+        "name": "One Letter Per Page",
+        "title": "Extreme Spacing Test",
+        "paragraphs": ["A", "B", "C", "D", "E"],
+        "outputPath": "./test/output/test-formatting-one-letter.docx"
+      },
+      {
+        "name": "Style Consistency",
+        "title": "Style Consistency Test",
+        "paragraphs": ["First paragraph with consistent styling.", "Second paragraph with consistent styling.", "Third paragraph with consistent styling."],
+        "outputPath": "./test/output/test-formatting-consistency.docx",
+        "stylePreset": "professional"
+      },
+      {
+        "name": "Multiple Presets",
+        "title": "Multiple Presets Test",
+        "paragraphs": ["Testing multiple style presets.", "Each preset should have different styling attributes."],
+        "outputPath": "./test/output/test-formatting-presets.docx"
+      },
+      {
+        "name": "Custom Styling Override",
+        "title": "Custom Styling Test",
+        "paragraphs": ["This document uses custom styling overrides."],
+        "outputPath": "./test/output/test-formatting-custom-override.docx",
+        "stylePreset": "professional",
+        "style": {
+          "font": {"size": 14, "color": "FF0000", "bold": true},
+          "paragraph": {"spacingBefore": 300, "spacingAfter": 300, "lineSpacing": 1.5}
+        }
+      }
+    ],
+    "knownIssues": [
+      "Spacing values in create-doc.js are multiplied by 20 unnecessarily",
+      "Title spacingBefore: 400 * 20 = 8000 twips (should be ~400)",
+      "Paragraph spacing: 120 * 20 = 2400 twips (should be ~120)",
+      "Excessive spacing causes content to be pushed to separate pages",
+      "Font sizes may also be multiplied incorrectly in some cases"
+    ]
+  }
+}

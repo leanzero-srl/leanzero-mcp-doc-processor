@@ -1,0 +1,169 @@
+{
+  "name": "ocr-improvements",
+  "description": "Test OCR functionality with PDF documents, verifying text extraction and layout analysis",
+  "steps": [
+    {
+      "name": "Layout analysis test",
+      "check": "Document layout analyzer successfully analyzes PDF structure",
+      "validate": "result.layoutAnalysis.success === true && result.layoutAnalysis.pages.length > 0"
+    },
+    {
+      "name": "Text extraction test",
+      "check": "Text extraction produces valid output",
+      "validate": "result.text && result.text.length > 100"
+    },
+    {
+      "name": "OCR post-processing test",
+      "check": "OCR post-processing improves text quality",
+      "validate": "result.ocrPostProcessing && result.ocrPostProcessing.success === true"
+    },
+    {
+      "name": "Table extraction test",
+      "check": "Table extraction identifies tables in document",
+      "validate": "result.tables && Array.isArray(result.tables)"
+    },
+    {
+      "name": "Image extraction test",
+      "check": "Images are properly extracted from PDF",
+      "validate": "result.images && Array.isArray(result.images)"
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "text": "string with substantial content",
+    "pages": "number of pages in PDF",
+    "layoutAnalysis": {
+      "success": true,
+      "pages": "array of page analysis",
+      "totalPages": "number of pages",
+      "structureType": "one of: structured-document, image-heavy-document, text-dense-document, mixed-document, sparse-text, image-heavy, balanced, fragmented"
+    },
+    "ocrPostProcessing": {
+      "success": true,
+      "processedText": "string",
+      "improvements": "array of improvement objects",
+      "confidence": "number between 0 and 1"
+    },
+    "tables": "array of extracted tables",
+    "images": "array of extracted images"
+  },
+  "qualityMetrics": {
+    "textLength": "minimum 100 characters",
+    "hasLayoutAnalysis": true,
+    "hasOcrProcessing": true,
+    "hasTableExtraction": true,
+    "hasImageExtraction": true,
+    "successStatus": true
+  },
+  "baseline": "ocr-improvements",
+  "testScenarios": [
+    {
+      "name": "test-layout-analysis",
+      "description": "Test document layout analysis on PDF",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "layoutAnalysis": {
+          "success": true,
+          "pages": "array with at least 1 page",
+          "structureType": "string"
+        }
+      }
+    },
+    {
+      "name": "test-text-extraction",
+      "description": "Test text extraction from PDF",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "text": "string with minimum 100 characters",
+        "pages": "number > 0"
+      }
+    },
+    {
+      "name": "test-ocr-post-processing",
+      "description": "Test OCR post-processing improves text quality",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "ocrPostProcessing": {
+          "success": true,
+          "processedText": "string",
+          "improvements": "array",
+          "confidence": "number > 0.5"
+        }
+      }
+    },
+    {
+      "name": "test-table-extraction",
+      "description": "Test table extraction from document",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "tables": "array of tables",
+        "tableCount": "number >= 0"
+      }
+    },
+    {
+      "name": "test-image-extraction",
+      "description": "Test image extraction from PDF",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "images": "array of images"
+      }
+    },
+    {
+      "name": "test-full-integration",
+      "description": "Test complete PDF parsing with all OCR improvements",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "text": "string with minimum 100 characters",
+        "pages": "number > 0",
+        "layoutAnalysis": {
+          "success": true,
+          "structureType": "string"
+        },
+        "ocrPostProcessing": {
+          "success": true
+        },
+        "tables": "array",
+        "images": "array"
+      }
+    }
+  ],
+  "setupInstructions": [
+    "1. Create test directory: mkdir -p test/testfiles",
+    "2. Place a sample PDF file in test/testfiles/",
+    "3. Run the test script: node test/test-ocr-improvements.js [pdf-file-path]",
+    "4. Verify layout analysis results",
+    "5. Verify text extraction results",
+    "6. Verify OCR post-processing results",
+    "7. Verify table extraction results",
+    "8. Verify image extraction results"
+  ],
+  "cleanupInstructions": [
+    "1. Remove any test PDF files if created",
+    "2. Clear any temporary files",
+    "3. Reset environment variables if set"
+  ]
+}

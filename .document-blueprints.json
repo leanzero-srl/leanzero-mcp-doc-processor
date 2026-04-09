@@ -1,0 +1,171 @@
+{
+  "test-styling-blueprint": {
+    "sections": [
+      {
+        "heading": "title",
+        "pattern": "Test Document for Styling Review",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 2,
+        "charCount": 96,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 1
+      },
+      {
+        "heading": "heading1",
+        "pattern": "This is a heading",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 0,
+        "charCount": 0,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 0
+      }
+    ],
+    "stylePreset": "minimal",
+    "avgParagraphsPerSection": 2,
+    "totalParagraphs": 4,
+    "totalTables": 0,
+    "totalCharacters": 96,
+    "learnedFrom": "/Users/mihaiperdum/Projects/mcp-doc-processor/docs/technical/test-styling.docx",
+    "name": "test-styling-blueprint",
+    "description": "Blueprint extracted from test-styling.docx",
+    "createdAt": "2026-03-01T19:09:24.110Z"
+  },
+  "risk-assessment": {
+    "sections": [
+      {
+        "heading": "title",
+        "pattern": "Migration Risk Assessment",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 1,
+        "charCount": 25,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 1
+      },
+      {
+        "heading": "heading1",
+        "pattern": "The migration of two Atlassian Data Center instances",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 2,
+        "charCount": 150,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 1
+      },
+      {
+        "heading": "heading1",
+        "pattern": "Significant progress has been made across the migration programme:",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 1,
+        "charCount": 60,
+        "hasList": true,
+        "listItemCount": 5,
+        "contentRatio": 1
+      },
+      {
+        "heading": "heading1",
+        "pattern": "The following items remain in progress or not yet started.",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 1,
+        "charCount": 60,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 1
+      },
+      {
+        "heading": "heading2",
+        "pattern": "Four scripts are still under development:",
+        "required": false,
+        "hasTable": true,
+        "tableShape": "table",
+        "paragraphCount": 1,
+        "charCount": 40,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 1
+      },
+      {
+        "heading": "heading2",
+        "pattern": "The conversion plan is thorough and well-documented",
+        "required": false,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 1,
+        "charCount": 60,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 1
+      },
+      {
+        "heading": "heading2",
+        "pattern": "The Atlassian app migration dashboard currently shows",
+        "required": false,
+        "hasTable": true,
+        "tableShape": "table",
+        "paragraphCount": 1,
+        "charCount": 60,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 1
+      },
+      {
+        "heading": "heading1",
+        "pattern": "The rsync process from DC Production to DC UAT",
+        "required": false,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 1,
+        "charCount": 60,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 1
+      },
+      {
+        "heading": "heading1",
+        "pattern": "Based on where things stand today, we see three realistic outcomes",
+        "required": false,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 1,
+        "charCount": 70,
+        "hasList": true,
+        "listItemCount": 3,
+        "contentRatio": 1
+      },
+      {
+        "heading": "heading1",
+        "pattern": "We note that an additional buffer of even one to two weeks",
+        "required": false,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 1,
+        "charCount": 70,
+        "hasList": false,
+        "listItemCount": 0,
+        "contentRatio": 1
+      }
+    ],
+    "stylePreset": "risk_assessment",
+    "avgParagraphsPerSection": 1.5,
+    "totalParagraphs": 12,
+    "totalTables": 2,
+    "totalCharacters": 500,
+    "name": "risk-assessment",
+    "description": "Template for professional migration risk assessment reports",
+    "createdAt": "2026-04-09T18:45:00.000Z"
+  }
+}

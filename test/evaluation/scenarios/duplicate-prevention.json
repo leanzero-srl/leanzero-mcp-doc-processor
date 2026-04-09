@@ -1,0 +1,38 @@
+{
+  "name": "duplicate-prevention",
+  "description": "Model prevents duplicate document creation",
+  "steps": [
+    {
+      "name": "First creation succeeds",
+      "check": "First document creation succeeds",
+      "validate": "result1.success === true"
+    },
+    {
+      "name": "Duplicate detected",
+      "check": "Second creation is prevented",
+      "validate": "result2.success === false && result2.duplicate === true"
+    },
+    {
+      "name": "Duplicate message",
+      "check": "Message indicates duplicate",
+      "validate": "result2.message && (result2.message.includes('ALREADY EXISTS') || result2.message.includes('Duplicate'))"
+    },
+    {
+      "name": "Alternative file name",
+      "check": "Alternative file name is provided",
+      "validate": "result2.filePath && !result2.filePath.includes('duplicate-test.docx') && result2.filePath.includes('_')"
+    }
+  ],
+  "expectedOutput": {
+    "success": false,
+    "duplicate": true,
+    "message": "string containing 'ALREADY EXISTS' or 'Duplicate'",
+    "filePath": "string with modified name"
+  },
+  "qualityMetrics": {
+    "duplicatePrevented": true,
+    "messageIndicatesDuplicate": true,
+    "uniqueFileName": true
+  },
+  "baseline": null
+}

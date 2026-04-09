@@ -1,0 +1,86 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"schema\":{\"version\":{\"type\":\"number\",\"required\":true,\"min\":1},\"company\":{\"type\":\"object\",\"required\":true,\"properties\":[\"name\",\"department\"]},\"defaults\":{\"type\":\"object\",\"required\":true,\"properties\":[\"stylePreset\",\"category\"]},\"header\":{\"type\":\"object\",\"required\":false,\"properties\":[\"enabled\",\"text\",\"alignment\"]},\"footer\":{\"type\":\"object\",\"required\":false,\"properties\":[\"enabled\",\"text\",\"alignment\"]}}"
+    }
+  ],
+  "testResults": {
+    "test-schema-structure": {
+      "success": true,
+      "schema": {
+        "version": { "type": "number", "required": true, "min": 1 },
+        "company": { "type": "object", "required": true },
+        "defaults": { "type": "object", "required": true },
+        "header": { "type": "object", "required": false },
+        "footer": { "type": "object", "required": false }
+      }
+    },
+    "test-validation-required-fields": {
+      "success": true,
+      "valid": false,
+      "errors": [
+        "version must be a number",
+        "company.name is required",
+        "defaults is required"
+      ]
+    },
+    "test-validation-style-preset": {
+      "success": true,
+      "valid": false,
+      "errors": [
+        "defaults.stylePreset must be one of"
+      ]
+    },
+    "test-validation-alignment": {
+      "success": true,
+      "valid": false,
+      "errors": [
+        "header.alignment must be one of"
+      ]
+    },
+    "test-inheritance-user-override": {
+      "success": true,
+      "merged": {
+        "company": { "name": "User Corp", "department": "Docs" },
+        "defaults": { "stylePreset": "colorful" }
+      }
+    },
+    "test-inheritance-partial-override": {
+      "success": true,
+      "merged": {
+        "company": { "name": "User Corp", "department": "Docs" },
+        "defaults": { "stylePreset": "business" }
+      }
+    },
+    "test-system-defaults": {
+      "success": true,
+      "defaults": {
+        "version": 1,
+        "defaults": { "stylePreset": "professional" },
+        "footer": { "enabled": true }
+      }
+    }
+  },
+  "inheritancePriority": {
+    "level1": "System defaults (fallback)",
+    "level2": "Project DNA (.document-dna.json)",
+    "level3": "User DNA (.document-user.json)",
+    "level4": "Explicit parameters (overrides all)"
+  },
+  "mergeRules": {
+    "header": "user > project > system",
+    "footer": "user > project > system",
+    "stylePreset": "user > project > system",
+    "category": "user > project > system"
+  },
+  "schemaValidation": {
+    "requiredFields": ["version", "company", "defaults"],
+    "optionalFields": ["header", "footer", "memories", "usage", "blueprints"],
+    "validStylePresets": ["minimal", "professional", "technical", "legal", "business", "casual", "colorful"],
+    "validAlignments": ["left", "center", "right"]
+  },
+  "migrationRules": {
+    "version1": "No migration needed - baseline version"
+  }
+}

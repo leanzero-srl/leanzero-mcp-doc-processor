@@ -1,0 +1,138 @@
+{
+  "name": "dna-inheritance-simple",
+  "description": "Test simple DNA inheritance functionality with basic inheritance and override behavior",
+  "version": "1.0.0",
+  "author": "MCP Test Framework",
+  "created": "2024-01-15",
+  "tags": ["dna", "inheritance", "simple", "inheritance-test"],
+  "scenarioType": "inheritance-test",
+  "descriptionLong": "This test validates the basic DNA inheritance system functionality including user DNA override, project DNA inheritance, and explicit parameter override behavior.",
+  "objectives": [
+    "Verify that DNA inheritance works correctly with simple configurations",
+    "Test that user DNA properly overrides project DNA",
+    "Test that project DNA properly inherits from system defaults",
+    "Test explicit parameters override DNA inheritance",
+    "Verify DNA merge behavior with partial overrides"
+  ],
+  "testSetup": {
+    "testDir": "test/_tmp_dna_inheritance_simple_test",
+    "cleanupBeforeTest": true,
+    "cleanupAfterTest": true,
+    "userDnaFile": ".document-user.json",
+    "projectDnaFile": ".document-dna.json"
+  },
+  "steps": [
+    {
+      "name": "Setup: Create test directory",
+      "check": "Test directory is created",
+      "action": "create_dir",
+      "validate": "testDirCreated === true",
+      "expected": "test/_tmp_dna_inheritance_simple_test directory exists"
+    },
+    {
+      "name": "Setup: Create user DNA file",
+      "check": "User DNA file is created with correct content",
+      "action": "create_file",
+      "validate": "userDnaFileCreated === true",
+      "expected": ".document-user.json file created with user-specific settings"
+    },
+    {
+      "name": "Setup: Create project DNA file",
+      "check": "Project DNA file is created with correct content",
+      "action": "create_file",
+      "validate": "projectDnaFileCreated === true",
+      "expected": ".document-dna.json file created with project-level settings"
+    },
+    {
+      "name": "Test: Load user DNA",
+      "check": "User DNA is loaded correctly",
+      "action": "load_dna",
+      "validate": "loadedUserDNA !== null && loadedUserDNA.version === 1",
+      "expected": "User DNA loaded with version 1 and correct company name"
+    },
+    {
+      "name": "Test: Load project DNA",
+      "check": "Project DNA is loaded correctly",
+      "action": "load_dna",
+      "validate": "loadedProjectDNA !== null && loadedProjectDNA.version === 1",
+      "expected": "Project DNA loaded with version 1 and correct company name"
+    },
+    {
+      "name": "Test: Merge DNA levels (user > project)",
+      "check": "DNA levels are merged with correct priority",
+      "action": "merge_dna",
+      "validate": "mergedDNA.company.name === 'User Corp' && mergedDNA.footer.text === 'Page {current} of {total}'",
+      "expected": "Merged DNA has user values for overridden fields, project values for un-overridden fields"
+    },
+    {
+      "name": "Test: Verify inheritance priority",
+      "check": "User DNA properly overrides project DNA for all fields",
+      "action": "verify_priority",
+      "validate": "userOverridesProject === true",
+      "expected": "All user-specified values take precedence over project values"
+    },
+    {
+      "name": "Test: Partial override behavior",
+      "check": "Un-overridden project DNA values are preserved",
+      "action": "verify_partial_override",
+      "validate": "partialOverrideCorrect === true",
+      "expected": "Project values are preserved where user did not override"
+    },
+    {
+      "name": "Cleanup: Remove test files",
+      "check": "Test files are cleaned up",
+      "action": "cleanup",
+      "validate": "testDirCleaned === true",
+      "expected": "test/_tmp_dna_inheritance_simple_test directory removed"
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "testResults": {
+      "loadUserDna": {
+        "success": true,
+        "version": 1,
+        "company": { "name": "User Corp", "department": "Engineering" }
+      },
+      "loadProjectDna": {
+        "success": true,
+        "version": 1,
+        "company": { "name": "Project Corp", "department": "Docs" }
+      },
+      "mergeDna": {
+        "success": true,
+        "merged": {
+          "version": 1,
+          "company": { "name": "User Corp", "department": "Engineering" },
+          "defaults": { "stylePreset": "colorful", "category": "technical" },
+          "header": { "enabled": true, "text": "User Header", "alignment": "right" },
+          "footer": { "enabled": true, "text": "Page {current} of {total}", "alignment": "center" }
+        }
+      },
+      "partialOverride": {
+        "success": true,
+        "merged": {
+          "version": 1,
+          "company": { "name": "User Corp", "department": "Docs" },
+          "defaults": { "stylePreset": "colorful" },
+          "header": { "enabled": true, "text": "User Header", "alignment": "right" }
+        }
+      }
+    }
+  },
+  "qualityMetrics": {
+    "userDnaLoadable": true,
+    "projectDnaLoadable": true,
+    "inheritancePriorityCorrect": true,
+    "partialOverridePreserved": true,
+    "mergeBehaviorCorrect": true,
+    "cleanupSuccessful": true
+  },
+  "baseline": "dna-inheritance-simple",
+  "passThreshold": {
+    "allTestsPassed": true,
+    "inheritancePriorityCorrect": true,
+    "partialOverridePreserved": true,
+    "successRate": 100
+  }
+}

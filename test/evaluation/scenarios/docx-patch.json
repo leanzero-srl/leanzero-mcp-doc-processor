@@ -1,0 +1,608 @@
+{
+  "name": "docx-patch",
+  "description": "Model uses DOCX patching functionality (appendToDocx, replaceDocxContent, inspectDocx) to modify existing documents while preserving formatting, headers, footers, and structure",
+  "steps": [
+    {
+      "name": "Tool selection",
+      "check": "Tool name is 'edit-doc' or 'docx-patch' functions are used",
+      "validate": "toolName === 'edit-doc' || toolName === 'docx-patch'"
+    },
+    {
+      "name": "Action validation - append",
+      "check": "Action is 'append' to add content to existing document",
+      "validate": "params.action === 'append'"
+    },
+    {
+      "name": "File path validation",
+      "check": "Document path is specified and exists",
+      "validate": "params.filePath && params.filePath.length > 0 && params.filePath.endsWith('.docx')"
+    },
+    {
+      "name": "Response format - append",
+      "check": "Response contains success status, file path, and append results",
+      "validate": "result.success === true && result.filePath && result.filePath.endsWith('.docx')"
+    },
+    {
+      "name": "Action confirmation",
+      "check": "Response confirms append action",
+      "validate": "result.action === 'append' || result.action === 'appendToDocx'"
+    },
+    {
+      "name": "Formatting preserved check",
+      "check": "Response indicates formatting was preserved",
+      "validate": "result.formattingPreserved === true || result.formattingPreserved === undefined"
+    },
+    {
+      "name": "Content append verification",
+      "check": "Response shows paragraphs and tables were appended",
+      "validate": "result.paragraphsAppended > 0 || result.tablesAppended > 0"
+    },
+    {
+      "name": "Action validation - replace",
+      "check": "Action is 'replace' to overwrite content while preserving structure",
+      "validate": "params.action === 'replace'"
+    },
+    {
+      "name": "Response format - replace",
+      "check": "Response contains success status, file path, and replace results",
+      "validate": "result.success === true && result.filePath && result.filePath.endsWith('.docx')"
+    },
+    {
+      "name": "Action confirmation - replace",
+      "check": "Response confirms replace action",
+      "validate": "result.action === 'replace' || result.action === 'replaceDocxContent'"
+    },
+    {
+      "name": "Structure preserved check",
+      "check": "Response indicates document structure was preserved",
+      "validate": "result.structurePreserved === true || result.structurePreserved === undefined"
+    },
+    {
+      "name": "Content replacement verification",
+      "check": "Response shows paragraphs and tables were replaced",
+      "validate": "result.paragraphsReplaced > 0 || result.tablesReplaced > 0"
+    },
+    {
+      "name": "Style configuration check",
+      "check": "Response includes style preset information",
+      "validate": "result.stylePreset !== undefined"
+    },
+    {
+      "name": "Inspect action validation",
+      "check": "Action is 'inspect' to read document structure",
+      "validate": "params.action === 'inspect' || toolName === 'inspectDocx'"
+    },
+    {
+      "name": "Response format - inspect",
+      "check": "Response contains success status and document structure",
+      "validate": "result.success === true && result.structure !== undefined"
+    },
+    {
+      "name": "Document structure verification",
+      "check": "Response includes document structure information",
+      "validate": "result.structure && result.structure.paragraphCount > 0"
+    },
+    {
+      "name": "Header/Footer detection",
+      "check": "Response correctly identifies headers and footers",
+      "validate": "result.structure.hasHeaders !== undefined && result.structure.hasFooters !== undefined"
+    },
+    {
+      "name": "Table detection",
+      "check": "Response correctly identifies tables in document",
+      "validate": "result.structure.hasTables !== undefined"
+    },
+    {
+      "name": "Error handling",
+      "check": "Response handles errors gracefully for invalid files",
+      "validate": "result.success === false && result.error !== undefined"
+    },
+    {
+      "name": "Message format",
+      "check": "Message contains success message and file path",
+      "validate": "result.message && (result.message.includes('UPDATED') || result.message.includes('REPLACED') || result.message.includes('APPENDED') || result.message.includes('inspected')) && result.message.includes('docx')"
+    }
+  ],
+  "expectedOutput": {
+    "append": {
+      "success": true,
+      "filePath": "string ending with .docx",
+      "action": "append",
+      "formattingPreserved": true,
+      "paragraphsAppended": "number >= 0",
+      "tablesAppended": "number >= 0",
+      "documentStructure": {
+        "hasHeaders": "boolean",
+        "hasFooters": "boolean",
+        "hasImages": "boolean"
+      },
+      "message": "string containing 'APPENDED' or 'UPDATED' and 'docx'"
+    },
+    "replace": {
+      "success": true,
+      "filePath": "string ending with .docx",
+      "action": "replace",
+      "structurePreserved": true,
+      "paragraphsReplaced": "number >= 0",
+      "tablesReplaced": "number >= 0",
+      "message": "string containing 'REPLACED' or 'UPDATED' and 'docx'"
+    },
+    "inspect": {
+      "success": true,
+      "filePath": "string ending with .docx",
+      "structure": {
+        "hasHeaders": "boolean",
+        "hasFooters": "boolean",
+        "hasImages": "boolean",
+        "hasTables": "boolean",
+        "paragraphCount": "number >= 0"
+      },
+      "message": "string containing 'inspected' or 'Document structure' and 'docx'"
+    }
+  },
+  "qualityMetrics": {
+    "successStatus": true,
+    "filePathValid": true,
+    "actionConfirmed": true,
+    "formattingPreserved": true,
+    "structurePreserved": true,
+    "contentUpdated": true,
+    "styleConfigured": true,
+    "messageFormatCorrect": true,
+    "structureDetected": true,
+    "errorHandling": true
+  },
+  "baseline": "docx-patch",
+  "testData": {
+    "testDocument": {
+      "title": "DOCX Patch Test Document",
+      "paragraphs": [
+        "This is the original content of the document.",
+        "It contains multiple paragraphs with various formatting.",
+        "This document will be edited using DOCX patching functions."
+      ],
+      "tables": [
+        [
+          ["Column 1", "Column 2"],
+          ["Data 1", "Data 2"]
+        ]
+      ],
+      "header": {
+        "text": "Confidential - Internal Use Only",
+        "alignment": "center"
+      },
+      "footer": {
+        "text": "Page {{page}}",
+        "alignment": "center"
+      },
+      "outputPath": "./test/output/docx-patch-test.docx"
+    },
+    "appendContent": {
+      "paragraphs": [
+        "This is appended content.",
+        "It preserves the original document formatting."
+      ],
+      "tables": [
+        [
+          ["New Column 1", "New Column 2"],
+          ["New Data 1", "New Data 2"]
+        ]
+      ],
+      "addSeparator": true,
+      "stylePreset": "professional"
+    },
+    "replaceContent": {
+      "title": "Replaced Document Title",
+      "paragraphs": [
+        "This is the completely replaced content.",
+        "Original content has been overwritten."
+      ],
+      "tables": [
+        [
+          ["Replaced Column 1", "Replaced Column 2"],
+          ["Replaced Data 1", "Replaced Data 2"]
+        ]
+      ],
+      "stylePreset": "professional"
+    },
+    "inspectDocument": {
+      "filePath": "./test/output/docx-patch-test.docx"
+    }
+  },
+  "setupInstructions": [
+    "1. Create test output directory: mkdir -p test/output",
+    "2. Create a test document using create-doc with title 'DOCX Patch Test Document'",
+    "3. Note the file path for testing DOCX patching functions",
+    "4. Prepare append content with paragraphs, tables, and formatting options",
+    "5. Prepare replace content with new title, paragraphs, and tables"
+  ],
+  "cleanupInstructions": [
+    "1. Remove test documents from test/output/docx-patch-test.docx",
+    "2. Clean up any temporary files created during testing",
+    "3. Remove any registry entries created during testing"
+  ],
+  "testScenarios": [
+    {
+      "name": "test-append-content",
+      "description": "Test appending content to an existing DOCX document while preserving formatting",
+      "setup": "Create a test document using create-doc with initial content including headers and footers",
+      "params": {
+        "filePath": "./test/output/docx-patch-test.docx",
+        "action": "appendToDocx",
+        "paragraphs": [
+          "This is appended content.",
+          "It preserves the original document formatting."
+        ],
+        "tables": [
+          [
+            ["New Column 1", "New Column 2"],
+            ["New Data 1", "New Data 2"]
+          ]
+        ],
+        "addSeparator": true,
+        "stylePreset": "professional"
+      },
+      "expected": {
+        "success": true,
+        "action": "appendToDocx",
+        "formattingPreserved": true,
+        "paragraphsAppended": 2,
+        "tablesAppended": 1,
+        "messageContains": ["APPENDED", "docx"]
+      },
+      "validation": [
+        "result.success === true",
+        "result.action === 'appendToDocx'",
+        "result.formattingPreserved === true",
+        "result.paragraphsAppended === 2",
+        "result.tablesAppended === 1",
+        "result.filePath && result.filePath.endsWith('.docx')"
+      ]
+    },
+    {
+      "name": "test-replace-content",
+      "description": "Test replacing content in an existing DOCX document while preserving structure",
+      "setup": "Create a test document using create-doc with initial content including headers and footers",
+      "params": {
+        "filePath": "./test/output/docx-patch-test.docx",
+        "action": "replaceDocxContent",
+        "title": "Replaced Document Title",
+        "paragraphs": [
+          "This is the completely replaced content.",
+          "Original content has been overwritten."
+        ],
+        "tables": [
+          [
+            ["Replaced Column 1", "Replaced Column 2"],
+            ["Replaced Data 1", "Replaced Data 2"]
+          ]
+        ],
+        "stylePreset": "professional"
+      },
+      "expected": {
+        "success": true,
+        "action": "replaceDocxContent",
+        "structurePreserved": true,
+        "paragraphsReplaced": 2,
+        "tablesReplaced": 1,
+        "messageContains": ["REPLACED", "docx"]
+      },
+      "validation": [
+        "result.success === true",
+        "result.action === 'replaceDocxContent'",
+        "result.structurePreserved === true",
+        "result.paragraphsReplaced === 2",
+        "result.tablesReplaced === 1",
+        "result.filePath && result.filePath.endsWith('.docx')"
+      ]
+    },
+    {
+      "name": "test-inspect-document",
+      "description": "Test inspecting document structure using inspectDocx",
+      "setup": "Create a test document using create-doc with headers, footers, and tables",
+      "params": {
+        "filePath": "./test/output/docx-patch-test.docx",
+        "action": "inspectDocx"
+      },
+      "expected": {
+        "success": true,
+        "structure.hasHeaders": true,
+        "structure.hasFooters": true,
+        "structure.hasTables": true,
+        "structure.paragraphCount": "number > 0",
+        "messageContains": ["inspected", "docx"]
+      },
+      "validation": [
+        "result.success === true",
+        "result.action === 'inspectDocx'",
+        "result.structure.hasHeaders === true",
+        "result.structure.hasFooters === true",
+        "result.structure.hasTables === true",
+        "result.structure.paragraphCount > 0",
+        "result.filePath && result.filePath.endsWith('.docx')"
+      ]
+    },
+    {
+      "name": "test-append-with-style",
+      "description": "Test appending content with custom style preset",
+      "setup": "Create a test document using create-doc with initial content",
+      "params": {
+        "filePath": "./test/output/docx-patch-test.docx",
+        "action": "appendToDocx",
+        "paragraphs": ["Content with style preset"],
+        "stylePreset": "professional",
+        "addSeparator": true
+      },
+      "expected": {
+        "success": true,
+        "action": "appendToDocx",
+        "formattingPreserved": true,
+        "stylePreset": "professional",
+        "messageContains": ["APPENDED", "professional"]
+      },
+      "validation": [
+        "result.success === true",
+        "result.action === 'appendToDocx'",
+        "result.formattingPreserved === true",
+        "result.stylePreset === 'professional'"
+      ]
+    },
+    {
+      "name": "test-invalid-file-path",
+      "description": "Test error handling for non-existent file",
+      "setup": "Use a non-existent file path",
+      "params": {
+        "filePath": "./test/output/non-existent-file.docx",
+        "action": "appendToDocx",
+        "paragraphs": ["Test content"]
+      },
+      "expected": {
+        "success": false,
+        "error": "File not found",
+        "messageContains": ["File not found", "docx"]
+      },
+      "validation": [
+        "result.success === false",
+        "result.error && (result.error.includes('File not found') || result.error.includes('ENOENT'))",
+        "result.message && result.message.includes('File not found')"
+      ]
+    },
+    {
+      "name": "test-invalid-file-type",
+      "description": "Test error handling for invalid file type",
+      "setup": "Use a file that is not a DOCX file",
+      "params": {
+        "filePath": "./test/output/invalid.txt",
+        "action": "appendToDocx",
+        "paragraphs": ["Test content"]
+      },
+      "expected": {
+        "success": false,
+        "error": "Invalid DOCX file",
+        "messageContains": ["Invalid DOCX", "docx"]
+      },
+      "validation": [
+        "result.success === false",
+        "result.error && (result.error.includes('Invalid DOCX') || result.error.includes('Invalid file'))",
+        "result.message && (result.message.includes('Invalid DOCX') || result.message.includes('Invalid file'))"
+      ]
+    },
+    {
+      "name": "test-headers-footers-preserved",
+      "description": "Test that headers and footers are preserved during append operations",
+      "setup": "Create a test document with headers and footers, then append content",
+      "params": {
+        "filePath": "./test/output/docx-patch-test.docx",
+        "action": "appendToDocx",
+        "paragraphs": ["Additional content"],
+        "stylePreset": "professional"
+      },
+      "expected": {
+        "success": true,
+        "formattingPreserved": true,
+        "headersPreserved": true,
+        "footersPreserved": true,
+        "messageContains": ["APPENDED", "docx"]
+      },
+      "validation": [
+        "result.success === true",
+        "result.formattingPreserved === true",
+        "result.documentStructure && result.documentStructure.hasHeaders === true",
+        "result.documentStructure && result.documentStructure.hasFooters === true"
+      ]
+    },
+    {
+      "name": "test-structure-preserved",
+      "description": "Test that document structure is preserved during replace operations",
+      "setup": "Create a test document with headers and footers, then replace content",
+      "params": {
+        "filePath": "./test/output/docx-patch-test.docx",
+        "action": "replaceDocxContent",
+        "title": "New Title",
+        "paragraphs": ["New content"],
+        "stylePreset": "professional"
+      },
+      "expected": {
+        "success": true,
+        "structurePreserved": true,
+        "headersPreserved": true,
+        "footersPreserved": true,
+        "messageContains": ["REPLACED", "docx"]
+      },
+      "validation": [
+        "result.success === true",
+        "result.structurePreserved === true",
+        "result.documentStructure && result.documentStructure.hasHeaders === true",
+        "result.documentStructure && result.documentStructure.hasFooters === true"
+      ]
+    },
+    {
+      "name": "test-multiple-appends",
+      "description": "Test appending content multiple times to the same document",
+      "setup": "Create a test document and append content multiple times",
+      "params": [
+        {
+          "filePath": "./test/output/docx-patch-test.docx",
+          "action": "appendToDocx",
+          "paragraphs": ["First append"],
+          "stylePreset": "professional"
+        },
+        {
+          "filePath": "./test/output/docx-patch-test.docx",
+          "action": "appendToDocx",
+          "paragraphs": ["Second append"],
+          "stylePreset": "professional"
+        }
+      ],
+      "expected": {
+        "success": true,
+        "paragraphsAppended": 1,
+        "messageContains": ["APPENDED", "docx"]
+      },
+      "validation": [
+        "result.success === true",
+        "result.paragraphsAppended === 1"
+      ]
+    },
+    {
+      "name": "test-empty-content",
+      "description": "Test handling of empty content",
+      "setup": "Try to append empty content to a document",
+      "params": {
+        "filePath": "./test/output/docx-patch-test.docx",
+        "action": "appendToDocx",
+        "paragraphs": [],
+        "tables": [],
+        "stylePreset": "professional"
+      },
+      "expected": {
+        "success": true,
+        "messageContains": ["No content", "APPENDED", "docx"]
+      },
+      "validation": [
+        "result.success === true",
+        "result.paragraphsAppended === 0",
+        "result.tablesAppended === 0"
+      ]
+    }
+  ],
+  "mcpToolMapping": {
+    "toolName": "edit-doc",
+    "functions": [
+      "appendToDocx",
+      "replaceDocxContent",
+      "inspectDocx"
+    ],
+    "parameters": {
+      "filePath": {
+        "type": "string",
+        "required": true,
+        "description": "Path to the DOCX file"
+      },
+      "action": {
+        "type": "string",
+        "required": true,
+        "description": "Action to perform: 'appendToDocx', 'replaceDocxContent', or 'inspectDocx'",
+        "enum": ["appendToDocx", "replaceDocxContent", "inspectDocx"]
+      },
+      "paragraphs": {
+        "type": "array",
+        "required": false,
+        "description": "Array of paragraphs to append or replace"
+      },
+      "tables": {
+        "type": "array",
+        "required": false,
+        "description": "Array of tables to append or replace"
+      },
+      "title": {
+        "type": "string",
+        "required": false,
+        "description": "New document title (for replace action)"
+      },
+      "stylePreset": {
+        "type": "string",
+        "required": false,
+        "description": "Style preset for new content",
+        "enum": ["minimal", "professional", "technical", "legal", "business", "casual", "colorful"]
+      },
+      "addSeparator": {
+        "type": "boolean",
+        "required": false,
+        "description": "Add blank line before new content (for append action)"
+      }
+    },
+    "returns": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether the operation succeeded"
+      },
+      "filePath": {
+        "type": "string",
+        "description": "Path to the modified DOCX file"
+      },
+      "action": {
+        "type": "string",
+        "description": "Action that was performed"
+      },
+      "formattingPreserved": {
+        "type": "boolean",
+        "description": "Whether formatting was preserved (for append action)"
+      },
+      "structurePreserved": {
+        "type": "boolean",
+        "description": "Whether document structure was preserved (for replace action)"
+      },
+      "paragraphsAppended": {
+        "type": "number",
+        "description": "Number of paragraphs appended"
+      },
+      "tablesAppended": {
+        "type": "number",
+        "description": "Number of tables appended"
+      },
+      "paragraphsReplaced": {
+        "type": "number",
+        "description": "Number of paragraphs replaced"
+      },
+      "tablesReplaced": {
+        "type": "number",
+        "description": "Number of tables replaced"
+      },
+      "documentStructure": {
+        "type": "object",
+        "description": "Document structure information (for inspect action)",
+        "properties": {
+          "hasHeaders": {
+            "type": "boolean",
+            "description": "Whether the document has headers"
+          },
+          "hasFooters": {
+            "type": "boolean",
+            "description": "Whether the document has footers"
+          },
+          "hasImages": {
+            "type": "boolean",
+            "description": "Whether the document has images"
+          },
+          "hasTables": {
+            "type": "boolean",
+            "description": "Whether the document has tables"
+          },
+          "paragraphCount": {
+            "type": "number",
+            "description": "Number of paragraphs in the document"
+          }
+        }
+      },
+      "error": {
+        "type": "string",
+        "description": "Error message if operation failed"
+      },
+      "message": {
+        "type": "string",
+        "description": "Human-readable message describing the result"
+      }
+    }
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "name": "lineage-tracking",
+  "description": "Model creates documents with lineage tracking - tracing document provenance through read->create chains",
+  "tags": ["lineage", "provenance", "document-chain", "lineage-tool"],
+  "steps": [
+    {
+      "name": "First Document Creation",
+      "description": "Create an initial source document with specific content",
+      "tool": "create-doc",
+      "params": {
+        "title": "Q1 2026 Engineering Report - Source",
+        "category": "engineering",
+        "stylePreset": "business",
+        "paragraphs": [
+          { "text": "Executive Summary", "headingLevel": "heading1" },
+          "This document contains Q1 2026 engineering progress data. It serves as the source document for lineage tracking tests.",
+          { "text": "Key Metrics", "headingLevel": "heading1" },
+          "The engineering team completed 94% of planned commitments this quarter.",
+          "Key achievements include API v3 launch, platform reliability improvements, and mobile SDK beta."
+        ],
+        "outputPath": "./test/output/lineage-test/source-document.docx",
+        "enforceDocsFolder": true,
+        "preventDuplicates": false
+      },
+      "expected": {
+        "success": true,
+        "filePath": "string containing 'test/output/lineage-test/source-document.docx'",
+        "category": "engineering"
+      }
+    },
+    {
+      "name": "Read Source Document",
+      "description": "Read the source document to record it in lineage tracking",
+      "tool": "read-doc",
+      "params": {
+        "filePath": "./test/output/lineage-test/source-document.docx",
+        "mode": "summary"
+      },
+      "expected": {
+        "success": true,
+        "hasContent": true,
+        "contentContains": ["Executive Summary", "Q1 2026", "Engineering"]
+      }
+    },
+    {
+      "name": "Second Document Creation",
+      "description": "Create a derivative document based on the source document",
+      "tool": "create-doc",
+      "params": {
+        "title": "Q1 2026 Engineering Summary - Derived",
+        "category": "business",
+        "stylePreset": "business",
+        "paragraphs": [
+          { "text": "Q1 2026 Engineering Summary", "headingLevel": "heading1" },
+          "This document is derived from the Q1 2026 Engineering Report - Source. It provides a high-level summary of key achievements.",
+          { "text": "Key Accomplishments", "headingLevel": "heading1" },
+          "1. API v3 Public Launch - Completed February 18th",
+          "2. Platform Reliability Initiative - Completed ahead of schedule",
+          "3. Mobile SDK Beta Launch - Launched March 10th",
+          "4. Team Growth - 48 engineers across three offices"
+        ],
+        "outputPath": "./test/output/lineage-test/derived-document.docx",
+        "enforceDocsFolder": true,
+        "preventDuplicates": false
+      },
+      "expected": {
+        "success": true,
+        "filePath": "string containing 'test/output/lineage-test/derived-document.docx'",
+        "category": "business"
+      }
+    },
+    {
+      "name": "Third Document Creation",
+      "description": "Create another derivative document based on the derived document",
+      "tool": "create-doc",
+      "params": {
+        "title": "Q1 2026 Executive Summary - Final",
+        "category": "executive",
+        "stylePreset": "business",
+        "paragraphs": [
+          { "text": "Q1 2026 Executive Summary", "headingLevel": "heading1" },
+          "This document is derived from the Q1 2026 Engineering Summary - Derived. It provides an executive-level overview.",
+          { "text": "Key Highlights", "headingLevel": "heading1" },
+          "Engineering delivered 94% of Q1 commitments with three major milestones completed ahead of schedule."
+        ],
+        "outputPath": "./test/output/lineage-test/executive-summary.docx",
+        "enforceDocsFolder": true,
+        "preventDuplicates": false
+      },
+      "expected": {
+        "success": true,
+        "filePath": "string containing 'test/output/lineage-test/executive-summary.docx'",
+        "category": "executive"
+      }
+    },
+    {
+      "name": "Read Executive Summary",
+      "description": "Read the executive summary to record it in lineage tracking",
+      "tool": "read-doc",
+      "params": {
+        "filePath": "./test/output/lineage-test/executive-summary.docx",
+        "mode": "indepth"
+      },
+      "expected": {
+        "success": true,
+        "hasContent": true,
+        "contentContains": ["Executive Summary", "Q1 2026", "Highlights"]
+      }
+    },
+    {
+      "name": "Trace Lineage from Executive Summary",
+      "description": "Use lineage-tool to trace the provenance chain for the executive summary document",
+      "tool": "get-lineage",
+      "params": {
+        "filePath": "./test/output/lineage-test/executive-summary.docx",
+        "depth": 3
+      },
+      "expected": {
+        "success": true,
+        "hasUpstream": true,
+        "upstreamContains": ["Q1 2026 Engineering Summary - Derived"],
+        "downstreamContains": [],
+        "totalSources": 1
+      }
+    },
+    {
+      "name": "Trace Lineage from Source Document",
+      "description": "Use lineage-tool to verify the source document has derivatives",
+      "tool": "get-lineage",
+      "params": {
+        "filePath": "./test/output/lineage-test/source-document.docx",
+        "depth": 3
+      },
+      "expected": {
+        "success": true,
+        "hasDownstream": true,
+        "downstreamContains": ["Q1 2026 Engineering Summary - Derived"],
+        "totalDerivatives": 1
+      }
+    },
+    {
+      "name": "Verify Lineage Chain",
+      "description": "Verify the complete lineage chain is correctly tracked",
+      "tool": "get-lineage",
+      "params": {
+        "filePath": "./test/output/lineage-test/derived-document.docx",
+        "depth": 3
+      },
+      "expected": {
+        "success": true,
+        "hasUpstream": true,
+        "hasDownstream": true,
+        "upstreamContains": ["Q1 2026 Engineering Report - Source"],
+        "downstreamContains": ["Q1 2026 Executive Summary - Final"],
+        "totalSources": 1,
+        "totalDerivatives": 1
+      }
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "lineageTracked": true,
+    "chainVerified": true,
+    "upstreamTracked": true,
+    "downstreamTracked": true
+  },
+  "qualityMetrics": {
+    "sourceDocumentCreated": true,
+    "derivativeDocumentsCreated": true,
+    "lineageChainComplete": true,
+    "upstreamTracked": true,
+    "downstreamTracked": true,
+    "multiLevelLineage": true
+  },
+  "baseline": "lineage-tracking"
+}

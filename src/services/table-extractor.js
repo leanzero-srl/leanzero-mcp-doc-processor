@@ -36,7 +36,7 @@ export class TableExtractor {
         if (
           ["markdown", "tab-separated", "header-separator"].includes(table.type)
         ) {
-          console.log(
+          console.error(
             `[TableExtractor] Using direct extraction for ${table.type} table (skipping AI)`,
           );
           extractedTables.push({
@@ -302,7 +302,7 @@ Do NOT extract non-table content. Only return the table in markdown format.`;
           ["markdown", "tab-separated", "header-separator"].includes(table.type)
         ) {
           // Simple text-based table - use direct content without AI extraction
-          console.log(
+          console.error(
             `[TableExtractor] Using direct extraction for ${table.type} table (skipping AI)`,
           );
           allTables.push({

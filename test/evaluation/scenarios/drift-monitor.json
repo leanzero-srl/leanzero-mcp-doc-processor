@@ -1,0 +1,13 @@
+{
+  "name": "drift-monitor",
+  "description": "Test the drift-monitor tool to verify document drift detection functionality",
+  "steps": [
+    {
+      "tool": "drift-monitor",
+      "expected": "Success - Returns drift monitoring status",
+      "params": {
+        "action": "check"
+      }
+    }
+  ]
+}

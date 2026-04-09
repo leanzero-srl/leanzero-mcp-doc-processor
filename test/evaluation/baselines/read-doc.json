@@ -1,0 +1,8 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"content\":[{\"type\":\"text\",\"text\":\"## Document Summary\\n\\n**Title:** Q1 2026 Engineering Progress Report\\n**Category:** business\\n**Tags:** quarterly-report, engineering, Q1-2026, progress\\n\\nThis document contains 8 paragraphs and 1 table.\\n\\n### Key Sections:\\n1. Executive Summary\\n2. Platform Reliability Initiative\\n3. API v3 Migration\\n4. Mobile SDK Beta\\n5. Hiring and Team Growth\\n6. Q2 Outlook and Risks\\n\\n### Table: OKR Status\\n- Platform Reliability (4 rows)\\n- API v3 Launch (4 rows)\\n- Mobile SDK (2 rows)\\n- Hiring (2 rows)\\n\\nFor detailed content, use mode 'indepth'.\"}]}"
+    }
+  ]
+}

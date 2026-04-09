@@ -1,0 +1,332 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"message\":\"DNA management system test completed successfully\",\"testResults\":{\"test-dna-creation\":{\"passed\":true,\"dnaCreated\":true,\"version\":1,\"filePath\":\"test/_tmp_dna_test/.document-dna.json\"},\"test-dna-loading\":{\"passed\":true,\"loadSuccess\":true,\"cacheEnabled\":true,\"malformedHandling\":true},\"test-schema-validation\":{\"passed\":true,\"validDNA\":true,\"invalidDNA\":false,\"errorMessages\":\"Valid error messages returned\"},\"test-dna-inheritance\":{\"passed\":true,\"systemDefaults\":true,\"projectOverride\":true,\"userOverride\":true},\"test-dna-merging\":{\"passed\":true,\"partialMerge\":true,\"completeMerge\":true},\"test-explicit-override\":{\"passed\":true,\"headerOverride\":true,\"footerOverride\":true,\"stylePresetOverride\":true},\"test-cache-management\":{\"passed\":true,\"cacheEnabled\":true,\"cacheInvalidation\":true},\"test-backward-compatibility\":{\"passed\":true,\"legacyFormat\":true,\"apiCompatibility\":true}}}"
+    }
+  ],
+  "testResults": {
+    "test-dna-creation": {
+      "success": true,
+      "dnaCreated": true,
+      "version": 1,
+      "filePath": "test/_tmp_dna_test/.document-dna.json"
+    },
+    "test-dna-creation-custom": {
+      "success": true,
+      "dnaCreated": true,
+      "customValues": {
+        "company": {
+          "name": "Test Corp",
+          "department": "Engineering"
+        },
+        "defaults": {
+          "stylePreset": "colorful"
+        },
+        "header": {
+          "text": "Test Corp Header",
+          "alignment": "center"
+        },
+        "footer": {
+          "text": "Page {current} of {total}",
+          "alignment": "center"
+        }
+      }
+    },
+    "test-dna-loading": {
+      "success": true,
+      "loadSuccess": true,
+      "cacheEnabled": true,
+      "malformedHandling": true
+    },
+    "test-schema-validation": {
+      "success": true,
+      "validDNA": true,
+      "invalidDNA": false,
+      "errorMessages": "Valid error messages returned"
+    },
+    "test-inheritance-system": {
+      "success": true,
+      "inheritedDNA": {
+        "version": 1,
+        "company": {
+          "name": "",
+          "department": ""
+        },
+        "defaults": {
+          "stylePreset": "professional",
+          "category": null
+        },
+        "header": {
+          "enabled": false,
+          "text": "",
+          "alignment": "right"
+        },
+        "footer": {
+          "enabled": true,
+          "text": "Page {current} of {total}",
+          "alignment": "center"
+        }
+      }
+    },
+    "test-inheritance-project": {
+      "success": true,
+      "inheritedDNA": {
+        "version": 1,
+        "company": {
+          "name": "Project Corp",
+          "department": "Docs"
+        },
+        "defaults": {
+          "stylePreset": "business",
+          "category": "business"
+        },
+        "header": {
+          "enabled": true,
+          "text": "Project Header",
+          "alignment": "left"
+        },
+        "footer": {
+          "enabled": true,
+          "text": "Project Footer",
+          "alignment": "center"
+        }
+      }
+    },
+    "test-inheritance-user-override": {
+      "success": true,
+      "inheritedDNA": {
+        "version": 1,
+        "company": {
+          "name": "User Corp",
+          "department": "Engineering"
+        },
+        "defaults": {
+          "stylePreset": "colorful",
+          "category": "technical"
+        },
+        "header": {
+          "enabled": true,
+          "text": "User Header",
+          "alignment": "right"
+        },
+        "footer": {
+          "enabled": true,
+          "text": "Page {current} of {total}",
+          "alignment": "center"
+        }
+      }
+    },
+    "test-merging-partial": {
+      "success": true,
+      "mergedDNA": {
+        "version": 1,
+        "company": {
+          "name": "User Corp",
+          "department": "Docs"
+        },
+        "defaults": {
+          "stylePreset": "colorful",
+          "category": "business"
+        },
+        "header": {
+          "enabled": true,
+          "text": "User Header",
+          "alignment": "right"
+        },
+        "footer": {
+          "enabled": true,
+          "text": "Project Footer",
+          "alignment": "center"
+        }
+      }
+    },
+    "test-merging-complete": {
+      "success": true,
+      "mergedDNA": {
+        "version": 1,
+        "company": {
+          "name": "User Corp",
+          "department": "Engineering"
+        },
+        "defaults": {
+          "stylePreset": "colorful",
+          "category": "technical"
+        },
+        "header": {
+          "enabled": true,
+          "text": "User Header",
+          "alignment": "right"
+        },
+        "footer": {
+          "enabled": true,
+          "text": "User Footer",
+          "alignment": "center"
+        }
+      }
+    },
+    "test-explicit-override": {
+      "success": true,
+      "result": {
+        "title": "Explicit Override Document",
+        "header": {
+          "text": "Explicit Header",
+          "alignment": "center"
+        },
+        "footer": {
+          "text": "User Footer",
+          "alignment": "center"
+        },
+        "stylePreset": "professional",
+        "dnaApplied": true
+      }
+    },
+    "test-cache-management": {
+      "success": true,
+      "cacheEnabled": true,
+      "cacheInvalidation": true,
+      "fileChangeDetection": true
+    },
+    "test-backward-compatibility": {
+      "success": true,
+      "legacyDNA": {
+        "version": 1,
+        "company": {
+          "name": "Legacy Corp",
+          "department": ""
+        },
+        "defaults": {
+          "stylePreset": "professional",
+          "category": null
+        },
+        "header": {
+          "enabled": false,
+          "text": "",
+          "alignment": "right"
+        },
+        "footer": {
+          "enabled": true,
+          "text": "Page {current} of {total}",
+          "alignment": "center"
+        }
+      }
+    },
+    "test-dna-modification": {
+      "success": true,
+      "modifiedDNA": {
+        "version": 1,
+        "company": {
+          "name": "User Corp",
+          "department": "Engineering"
+        },
+        "defaults": {
+          "stylePreset": "colorful",
+          "category": "technical"
+        },
+        "header": {
+          "enabled": true,
+          "text": "User Header",
+          "alignment": "right"
+        },
+        "footer": {
+          "enabled": true,
+          "text": "Modified Footer",
+          "alignment": "center"
+        }
+      }
+    },
+    "test-apply-dna-header": {
+      "success": true,
+      "result": {
+        "title": "Test Document",
+        "header": {
+          "text": "User Header",
+          "alignment": "right"
+        },
+        "footer": {
+          "text": "User Footer",
+          "alignment": "center"
+        },
+        "stylePreset": "colorful",
+        "dnaApplied": true
+      }
+    },
+    "test-apply-dna-no-override": {
+      "success": true,
+      "result": {
+        "title": "Test Document",
+        "header": {
+          "text": "Explicit Header",
+          "alignment": "center"
+        },
+        "footer": {
+          "text": "User Footer",
+          "alignment": "center"
+        },
+        "stylePreset": "legal",
+        "dnaApplied": true
+      }
+    },
+    "test-cleanup": {
+      "success": true,
+      "testDirCleaned": true,
+      "dnaFilesRemoved": true
+    }
+  },
+  "inheritancePriority": {
+    "level1": "System defaults (fallback)",
+    "level2": "Project DNA (.document-dna.json)",
+    "level3": "User DNA (.document-user.json)",
+    "level4": "Explicit parameters (overrides all)"
+  },
+  "mergeRules": {
+    "header": "user > project > system",
+    "footer": "user > project > system",
+    "stylePreset": "user > project > system",
+    "category": "user > project > system",
+    "company": "user > project > system",
+    "version": "user > project > system"
+  },
+  "expectedOutputStructure": {
+    "success": "boolean",
+    "message": "string containing success/failure message",
+    "testResults": {
+      "test-name": {
+        "success": "boolean",
+        "actual": "object with test result data",
+        "expected": "object with expected values",
+        "passed": "boolean"
+      }
+    }
+  },
+  "qualityMetrics": {
+    "dnaCreationWorking": true,
+    "dnaLoadingWorking": true,
+    "schemaValidationWorking": true,
+    "inheritanceHierarchyCorrect": true,
+    "mergingLogicCorrect": true,
+    "explicitOverrideWorking": true,
+    "cacheManagementWorking": true,
+    "backwardCompatibilityMaintained": true,
+    "errorHandlingRobust": true
+  },
+  "passThreshold": {
+    "minTestPassRate": 90,
+    "criticalTests": [
+      "test-dna-creation",
+      "test-dna-inheritance",
+      "test-dna-merging",
+      "test-explicit-override"
+    ],
+    "minCriticalTestsPassed": 4
+  },
+  "validationRules": {
+    "dnaVersion": "must be number >= 1",
+    "companyName": "must be non-empty string",
+    "stylePreset": "must be one of: minimal, professional, technical, legal, business, casual, colorful",
+    "headerAlignment": "must be one of: left, center, right",
+    "footerAlignment": "must be one of: left, center, right",
+    "headerEnabled": "must be boolean",
+    "footerEnabled": "must be boolean"
+  }
+}

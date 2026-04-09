@@ -1,0 +1,110 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"text\":\"Sample OCR text content extracted from PDF document.\",\"pages\":1,\"metadata\":{\"title\":null,\"author\":null,\"subject\":null,\"creator\":null,\"producer\":null,\"creationDate\":null,\"modificationDate\":null,\"pageCount\":1},\"isImageBased\":false,\"ocrApplied\":false,\"ocrSource\":null,\"layoutAnalysis\":{\"success\":true,\"pages\":[],\"totalPages\":0,\"layoutSummary\":\"Document Layout Analysis:\\n- Total pages: 0\\n- Total text blocks: 0\\n- Total images: 0\\n- Potential tables: 0\\n\\n\",\"structureType\":\"sparse-text\"},\"ocrPostProcessing\":{\"success\":true,\"processedText\":\"Sample OCR text content extracted from PDF document.\",\"improvements\":[],\"confidence\":0.9,\"processingSteps\":[\"Initial OCR extraction\",\"Basic text cleaning\"]},\"tables\":[],\"tableCount\":0,\"images\":[]}"
+    }
+  ],
+  "testResults": {
+    "test-layout-analysis": {
+      "success": true,
+      "layoutAnalysis": {
+        "success": true,
+        "pages": [],
+        "structureType": "sparse-text"
+      }
+    },
+    "test-text-extraction": {
+      "success": true,
+      "text": "Sample OCR text content extracted from PDF document.",
+      "pages": 1
+    },
+    "test-ocr-post-processing": {
+      "success": true,
+      "ocrPostProcessing": {
+        "success": true,
+        "processedText": "Sample OCR text content extracted from PDF document.",
+        "improvements": [],
+        "confidence": 0.9
+      }
+    },
+    "test-table-extraction": {
+      "success": true,
+      "tables": [],
+      "tableCount": 0
+    },
+    "test-image-extraction": {
+      "success": true,
+      "images": []
+    },
+    "test-full-integration": {
+      "success": true,
+      "text": "Sample OCR text content extracted from PDF document.",
+      "pages": 1,
+      "layoutAnalysis": {
+        "success": true,
+        "structureType": "sparse-text"
+      },
+      "ocrPostProcessing": {
+        "success": true
+      },
+      "tables": [],
+      "images": []
+    }
+  },
+  "layoutAnalysisSchema": {
+    "success": "boolean - whether layout analysis was successful",
+    "pages": "array of page analysis objects",
+    "totalPages": "number - total number of pages analyzed",
+    "layoutSummary": "string - summary of layout analysis",
+    "structureType": "one of: structured-document, image-heavy-document, text-dense-document, mixed-document, sparse-text, image-heavy, balanced, fragmented"
+  },
+  "layoutAnalysisPageSchema": {
+    "pageNumber": "number - page number (1-indexed)",
+    "textBlocks": "array of text block objects with text, lines, startLine, endLine",
+    "images": "array of image objects with positional data",
+    "tables": "array of table candidate objects",
+    "totalTextLength": "number - total characters on page",
+    "estimatedLayoutType": "one of: image-heavy, sparse-text, text-dense, fragmented, balanced"
+  },
+  "ocrPostProcessingSchema": {
+    "success": "boolean - whether post-processing was successful",
+    "processedText": "string - the improved text",
+    "improvements": "array of improvement objects with type, description, impact",
+    "confidence": "number between 0 and 1",
+    "processingSteps": "array of strings describing processing steps"
+  },
+  "tableExtractionSchema": {
+    "type": "string - type of table (markdown, tab-separated, column-aligned, etc.)",
+    "content": "string - raw table content",
+    "start": "number - character position in document",
+    "end": "number - character position in document",
+    "rows": "number - estimated row count",
+    "source": "string - source type (text or image)",
+    "extractedContent": "string - formatted table content",
+    "confidence": "number between 0 and 1"
+  },
+  "imageExtractionSchema": {
+    "data": "string - base64 encoded image data or data URL",
+    "name": "string - image identifier",
+    "page": "number - page number",
+    "width": "number - image width in pixels",
+    "height": "number - image height in pixels",
+    "mimeType": "string - image MIME type",
+    "size": "number - approximate size in bytes",
+    "kind": "string - image type identifier"
+  },
+  "qualityMetrics": {
+    "textLength": "minimum 100 characters",
+    "hasLayoutAnalysis": true,
+    "hasOcrProcessing": true,
+    "hasTableExtraction": true,
+    "hasImageExtraction": true,
+    "successStatus": true
+  },
+  "expectedPerformance": {
+    "maxProcessingTime": 30000,
+    "minConfidence": 0.7,
+    "maxErrorRate": 0.1
+  }
+}
