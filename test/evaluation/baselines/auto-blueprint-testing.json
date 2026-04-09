@@ -1,0 +1,113 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"testResults\":{\"convertSignatureToBlueprint\":{\"validSections\":true,\"emptySignatureHandling\":true},\"generateAutoBlueprintName\":{\"baseNameGeneration\":true,\"nameReuse\":true,\"collisionHandling\":true,\"noCategoryHandling\":true},\"endToEndEvolution\":{\"autoLearnedBlueprintsCreated\":true,\"blueprintSaved\":true},\"autoMatch\":{\"matchingBlueprintTriggered\":true,\"noBlueprintsNoMatch\":true,\"differentSignatureNoMatch\":true},\"manualBlueprintIndependence\":{\"manualBlueprintWorks\":true,\"autoBlueprintWorks\":true},\"blueprintExtraction\":{\"extractionSuccessful\":true,\"structureValid\":true}},\"blueprintStructure\":{\"sections\":[{\"headingLevel\":\"heading1\",\"pattern\":\"introduction\",\"required\":true},{\"headingLevel\":\"heading2\",\"pattern\":\"data collection\",\"required\":true}],\"signature\":\"h1:introduction|h2:background|h1:methods|h2:data collection\",\"autoLearned\":true,\"dominantCategory\":\"research\"},\"message\":\"All auto-blueprint tests passed successfully. Test coverage: 100%\"}"
+    }
+  ],
+  "blueprintStructure": {
+    "sections": [
+      {
+        "headingLevel": "heading1",
+        "pattern": "introduction",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 1,
+        "charCount": 128
+      },
+      {
+        "headingLevel": "heading2",
+        "pattern": "data collection",
+        "required": true,
+        "hasTable": false,
+        "tableShape": null,
+        "paragraphCount": 1,
+        "charCount": 145
+      }
+    ],
+    "signature": "h1:introduction|h2:background|h1:methods|h2:data collection",
+    "headingCount": 4,
+    "dominantCategory": "research",
+    "occurrences": 5
+  },
+  "validationMetrics": {
+    "convertSignatureToBlueprint": {
+      "validSections": true,
+      "emptySignatureHandling": true,
+      "signaturePreserved": true,
+      "autoLearnedFlag": true
+    },
+    "generateAutoBlueprintName": {
+      "baseNameGeneration": true,
+      "nameReuse": true,
+      "collisionHandling": true,
+      "noCategoryHandling": true
+    },
+    "endToEndEvolution": {
+      "autoLearnedBlueprintsCreated": true,
+      "blueprintSaved": true,
+      "blueprintNamePrefix": "auto-"
+    },
+    "autoMatch": {
+      "matchingBlueprintTriggered": true,
+      "noBlueprintsNoMatch": true,
+      "differentSignatureNoMatch": true,
+      "similarityThreshold": 0.6
+    },
+    "manualBlueprintIndependence": {
+      "manualBlueprintWorks": true,
+      "autoBlueprintWorks": true
+    },
+    "blueprintExtraction": {
+      "extractionSuccessful": true,
+      "structureValid": true
+    }
+  },
+  "testResults": {
+    "totalTests": 12,
+    "passedTests": 12,
+    "failedTests": 0,
+    "passPercentage": 100
+  },
+  "qualityMetrics": {
+    "convertSignatureToBlueprintValid": true,
+    "generateAutoBlueprintNameCorrect": true,
+    "endToEndAutoLearning": true,
+    "blueprintMatchingWorking": true,
+    "noMatchWhenNoBlueprints": true,
+    "noMatchWhenSignatureDiffers": true,
+    "manualBlueprintIndependence": true,
+    "blueprintExtractionWorking": true,
+    "allTestsPassed": true,
+    "testCoverage": 100
+  },
+  "mcpResponseFormat": {
+    "mcpVersion": "2024-11-05",
+    "contentFormat": "text/json",
+    "successField": true,
+    "messageField": true,
+    "blueprintMatchField": true
+  },
+  "expectedOutputPatterns": {
+    "success": true,
+    "testResults": "object with test categories",
+    "blueprintStructure": "object with sections array",
+    "message": "string containing 'All auto-blueprint tests passed'",
+    "qualityMetrics": "object with all metrics true"
+  },
+  "baselineVersion": "1.0.0",
+  "lastUpdated": "2026-01-15",
+  "testScenarios": [
+    "convertSignatureToBlueprint produces valid sections",
+    "generateAutoBlueprintName generates correct names",
+    "generateAutoBlueprintName reuses name for same signature",
+    "generateAutoBlueprintName appends suffix on collision",
+    "End-to-end: similar docs evolve to auto-learn blueprint",
+    "Auto-match: create doc matching auto-blueprint triggers blueprintMatch",
+    "No match when no auto-learned blueprints exist",
+    "No match when signatures differ",
+    "Manual blueprint learn still works independently",
+    "Blueprint extraction from documents works"
+  ]
+}

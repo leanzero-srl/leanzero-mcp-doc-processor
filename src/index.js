@@ -14,26 +14,33 @@ import { setupLogging, log } from "./utils/logger.js";
 import { visionService } from "./services/vision-factory.js";
 
 // Import tool handlers
-import { handleSummary } from "./tools/summary-tool.js";
-import { handleInDepth } from "./tools/indepth-tool.js";
-import { handleFocused } from "./tools/focused-tool.js";
+import { handleReadDoc } from "./tools/read-doc-tool.js";
 import { createDoc } from "./tools/create-doc.js";
 import { createExcel } from "./tools/create-excel.js";
+import { createMarkdown } from "./tools/create-markdown.js";
 import { editDoc } from "./tools/edit-doc.js";
 import { editExcel } from "./tools/edit-excel.js";
 
 // Import registry query tools
-import { listDocuments, searchRegistry } from "./tools/utils.js";
+import { listDocuments } from "./tools/utils.js";
 
-// Import DNA manager
-import { loadDNA, createDNAFile, getDefaultDNA, analyzeProjectProfile } from "./utils/dna-manager.js";
+// Import extracted tool handlers
+import { handleDNA } from "./tools/dna-tool.js";
+import { handleBlueprint } from "./tools/blueprint-tool.js";
+import { handleDriftMonitor } from "./tools/drift-tool.js";
+import { handleGetLineage } from "./tools/lineage-tool.js";
+import { handleExtractToExcel } from "./tools/extract-to-excel-tool.js";
+import { handleAssembleDocument } from "./tools/assemble-document-tool.js";
+import { handleCheckDocument } from "./tools/check-document-tool.js";
 
-// Import AI guidance tools (lean: 3 tools instead of 7)
-import {
-  handleCheckDocument,
-  handleSaveMemory,
-  handleDeleteMemory
-} from "./tools/guidance-tools.js";
+// Tool description section markers (shared constants)
+const TOOL_DESCRIPTION_SECTIONS = {
+  ROLE: "[ROLE]",
+  CONTEXT: "[CONTEXT]",
+  TASK: "[TASK]",
+  CONSTRAINTS: "[CONSTRAINTS]",
+  FORMAT: "[FORMAT]",
+};
 
 // Initialize logging
 setupLogging();
@@ -52,288 +59,171 @@ const server = new Server(
 );
 
 /**
- * Handler for listing available tools
+ * Handler for listing available tools.
  */
 server.setRequestHandler(ListToolsRequestSchema, async () => {
+  // Shared schema fragments
+  const STYLE_PRESET_SCHEMA = {
+    type: "string",
+    enum: ["minimal", "professional", "technical", "legal", "business", "casual", "colorful"],
+    description: "Style preset. If omitted with a category, auto-selected: contracts→legal, technical→technical, business→business, meeting→professional, research→professional.",
+  };
+  const CATEGORY_SCHEMA = {
+    type: "string",
+    enum: ["contracts", "technical", "business", "legal", "meeting", "research"],
+    description: "Document category for subfolder organization (docs/{category}/).",
+  };
+  const TAGS_SCHEMA = {
+    type: "array",
+    items: { type: "string" },
+    description: "Tags for registry search and discovery.",
+  };
+  const DOC_TYPE_SCHEMA = {
+    type: "string",
+    enum: ["concise", "formal", "explanatory", "scientific"],
+    description: "The intended tone and depth of the documentation.",
+  };
+  const PARAGRAPH_ITEMS_SCHEMA = {
+    oneOf: [
+      { type: "string", description: "Simple paragraph text" },
+      {
+        type: "object",
+        properties: {
+          text: { type: "string" },
+          headingLevel: { type: "string", enum: ["heading1", "heading2", "heading3"] },
+          bold: { type: "boolean" },
+          italics: { type: "boolean" },
+          underline: { type: "boolean" },
+          alignment: { type: "string", enum: ["left", "right", "center", "both"] },
+        },
+        required: ["text"],
+      },
+    ],
+  };
+
   return {
     tools: [
+      // === DOCUMENT READING (1 unified tool) ===
       {
-        name: "get-doc-summary",
+        name: "read-doc",
         description:
-          "Get a high-level summary of a document including structure, sections, and content overview. Supports PDF, DOCX, Excel files. Extracts embedded images and includes them in the response. IMPORTANT: Use this tool to read existing documents BEFORE creating or editing them. Understanding current content prevents duplication and ensures new documents build on existing work rather than duplicating it.",
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a document analysis expert specializing in extracting and analyzing content from various file formats.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User needs to understand the content, structure, and metadata of existing documents before editing or referencing them.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} Read and analyze a document using the appropriate mode:\n` +
+          "  - 'summary': High-level overview with content preview (default)\n" +
+          "  - 'indepth': Full text, structure, formatting, and metadata extraction\n" +
+          "  - 'focused': Query-based analysis finding relevant sections\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+          "  - ALWAYS read existing documents BEFORE creating or editing them\n" +
+          "  - Use 'indepth' mode before editing to understand current formatting\n" +
+          "  - Provide context from previous responses when using 'focused' mode\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns structured analysis with content, metadata, and formatting information. Includes category classification with confidence level (high/medium/low) when auto-classifying documents. When auto-classifying, the response includes: category, path, confidence ('high'/'medium'/'low'), and scores for all categories.`,
         inputSchema: {
           type: "object",
           properties: {
-            filePath: {
-              type: "string",
-              description: "Local file path to the document",
-            },
+            filePath: { type: "string", description: "Local file path to the document" },
+            mode: { type: "string", enum: ["summary", "indepth", "focused"], description: "Read mode (default: 'summary'). Use 'indepth' before editing a document." },
+            userQuery: { type: "string", description: "User's query for focused analysis (e.g., 'tell me about liability clauses'). Only used with mode 'focused'." },
+            context: { type: "string", description: "Additional context from previous questions/responses. Only used with mode 'focused'." },
           },
           required: ["filePath"],
         },
       },
+      // === DOCUMENT CREATION/EDITING (6) ===
       {
-        name: "get-doc-indepth",
+        name: "detect-format",
         description:
-          "Get a detailed analysis of the document including full text, structure, formatting, metadata, and embedded images. Best used after focused analysis for more detail. Supports PDF, DOCX, Excel files. IMPORTANT: Use this tool to read existing documents BEFORE creating or editing them. Understanding current content prevents duplication and ensures new documents build on existing work. When you need to edit a document, ALWAYS read it first with this tool to understand what is already there.",
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a document format and tone recommendation engine.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User is asking about creating documentation but hasn't specified the format or tone. You need to analyze their intent and recommend the appropriate tool (create-markdown, create-doc, or create-excel) and documentation type (concise, formal, explanatory, scientific).\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} Analyze the user's query for keywords indicating document type and tone:\n` +
+          "  - Implementation/Technical/Plans $\\rightarrow$ recommend 'markdown' format\n" +
+          "  - High-level/Stakeholder/Confluence/Email $\\rightarrow$ recommend 'docx' format\n" +
+          "  - Data/Spreadsheet/Numbers $\\rightarrow$ recommend 'excel' format\n" +
+          "  - Tone: Match keywords to 'concise', 'formal', 'explanatory', or 'scientific'.\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+          "  - ALWAYS call this tool BEFORE creating a document if the user hasn't explicitly specified a format or tone\n" +
+          "  - Use the recommended format and docType in your subsequent create-* tool call\n" +
+          "  - If user explicitly says 'docx', 'markdown', 'excel', or a specific tone, you can skip this step\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns {format, docType, confidence, reason, matchedKeywords, suggestedTool}.`,
         inputSchema: {
           type: "object",
           properties: {
-            filePath: {
-              type: "string",
-              description: "Local file path to the document",
-            },
+            userQuery: { type: "string", description: "The user's original request or prompt" },
+            title: { type: "string", description: "Document title if known (optional)" },
+            content: { type: "string", description: "Content preview if available (optional)" },
           },
-          required: ["filePath"],
+          required: ["userQuery"],
         },
       },
+       {
+         name: "edit-doc",
+         description:
+           `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a professional document creation expert, specializing in creating well-structured DOCX files with professional formatting.\n\n` +
+           `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create or edit a Word document for high-level documentation, stakeholder reports, email attachments, Confluence uploads, or formal business documents. For technical implementation docs, use create-markdown instead.\n\n` +
+           `${TOOL_DESCRIPTION_SECTIONS.TASK} Create or modify a Word DOCX document with the following requirements:\n` +
+           "  1. Provide a specific, descriptive title (e.g., 'Q1 2026 Budget Report', not 'Document')\n" +
+           "  2. Use paragraph objects with headingLevel for document hierarchy\n" +
+           "  3. Apply style preset or let auto-selection based on category\n" +
+           "  4. Configure header/footer if needed (or use Document DNA defaults)\n\n" +
+           `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+           "  - Title MUST be specific and descriptive — generic titles are rejected\n" +
+           "  - Do NOT include markdown syntax in paragraph text — use headingLevel, bold, etc.\n" +
+           "  - USER CONFIRMATION REQUIRED: describe what you plan to create and get approval first\n" +
+           "  - Use dryRun: true for previews before actual creation\n" +
+           "  - Check blueprintMatch in response for structural template suggestions\n" +
+           "  - Document DNA automatically applies headers/footers/style if .document-dna.json exists\n\n" +
+           `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns JSON with filePath, success status, and confirmation message.`,
+         inputSchema: {
+           type: "object",
+           properties: {
+             filePath: { type: "string", description: "Path to the existing DOCX file" },
+             action: { type: "string", enum: ["append", "replace", "style", "preview"], description: "Edit action type" },
+             title: { type: "string", description: "Document title (appears as Heading 1). MUST be specific and descriptive — generic titles like 'Document' or 'Untitled' are rejected." },
+             paragraphs: { type: "array", items: PARAGRAPH_ITEMS_SCHEMA, description: "Paragraphs to append or replace with." },
+             tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Tables to append or replace with (2D arrays)" },
+             stylePreset: STYLE_PRESET_SCHEMA,
+             category: { type: "string", description: "Document category for registry" },
+             tags: TAGS_SCHEMA,
+             docType: DOC_TYPE_SCHEMA,
+           },
+           required: ["filePath", "action"],
+         },
+       },
       {
-        name: "get-doc-focused",
+        name: "create-markdown",
         description:
-          "Perform a focused analysis based on user-specific query. This tool automatically generates clarification questions to understand what aspects interest you, then processes the document accordingly. Supports PDF, DOCX, Excel files with extracted images. IMPORTANT: Use this tool to read existing documents BEFORE creating or editing them. Understanding current content prevents duplication and ensures new documents build on existing work.",
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a technical documentation expert specializing in creating lean, practical markdown files optimized for AI model consumption during implementation.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create implementation-focused documentation (technical docs, handovers, or plans) that will be used by developers or AI models to build something. The document should be copy-paste friendly with code blocks, clear headings, and bullet lists (avoid tables).\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} Create a markdown (.md) file with the following requirements:\n` +
+          "  1. Provide a specific, descriptive title (becomes H1 heading)\n" +
+          "  2. Use paragraph objects with headingLevel for document hierarchy\n" +
+          "  3. Include code blocks with language hints for any commands, config, or code snippets\n" +
+          "  4. Use bullet lists instead of tables for structured data (easier to copy)\n" +
+          "  5. Apply task list format (- [ ]) for actionable items\n" +
+          "  6. Configure category and docType if known.\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+          "  - Title MUST be specific and descriptive — generic titles are rejected\n" +
+          "  - DO NOT use tables — prefer bullet lists for copy-paste friendliness\n" +
+          "  - ALWAYS include language hints in code blocks (```javascript not just ```)\n" +
+          "  - Use inline code (`text`) for file paths, commands, and technical terms\n" +
+          "  - Keep formatting lean — this is for implementation, not presentation\n" +
+          "  - No user confirmation required (unlike create-doc/create-excel)\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns JSON with filePath, success status, and message. File is written directly to disk without confirmation prompt.`,
         inputSchema: {
           type: "object",
           properties: {
-            filePath: {
-              type: "string",
-              description: "Local file path to the document",
+            title: { type: "string", description: "Document title (becomes H1). MUST be specific and descriptive." },
+            paragraphs: { 
+              type: "array", 
+              items: PARAGRAPH_ITEMS_SCHEMA,
+              description: "Array of paragraphs with markdown-specific formatting options."
             },
-            userQuery: {
-              type: "string",
-              description:
-                "User's query to clarify the focus of analysis (e.g., 'tell me about liability clauses')",
-            },
-            context: {
-              type: "string",
-              description:
-                "Additional context from previous questions/responses to refine the analysis",
-            },
-          },
-          required: ["filePath"],
-        },
-      },
-      {
-        name: "create-doc",
-        description:
-          "Creates a Word DOCX document on DISK with title, paragraphs, tables, headers, and footers. " +
-          "USER CONFIRMATION REQUIRED: This tool writes files to disk. ALWAYS describe to the user what document you plan to create (title, sections, approximate content) and get their explicit confirmation BEFORE calling this tool. Never call create-doc without the user's approval. Use dryRun: true to generate a preview first. " +
-          "CONTENT RULES: Do NOT include markdown syntax in paragraph text. No **, *, #, -, backticks, or other markdown ornaments. Write clean prose. The tool handles formatting through its style system (headingLevel, bold, stylePreset). " +
-          'HEADING STRUCTURE: Use paragraph objects with headingLevel to create proper document hierarchy. For example, use {"text": "Core Components", "headingLevel": "heading2"} for section headings. This preserves the document structure and enables proper styling based on the selected stylePreset. ' +
-          "CONSOLIDATION: Before creating a document, gather and consolidate ALL relevant information first. Do not create multiple small documents when one comprehensive document would serve better. Structure content logically with a clear title, organized sections, and coherent flow. " +
-          "READ FIRST: If an existing document at the target path may already contain relevant content, use get-doc-summary or get-doc-indepth to read it first. Then decide whether to edit it (using edit-doc) or create a fresh version. " +
-          "CATEGORIES: Optionally specify a category to auto-organize into subfolders (docs/contracts/, docs/technical/, etc.). Documents are tracked in a registry for deduplication and discovery. " +
-          "ORGANIZATION: The tool enforces docs/ folder by default. EXTENSION: Enforces .docx extension regardless of input. Supports 7 style presets (minimal, professional, technical, legal, business, casual, colorful). " +
-          "DOCUMENT DNA: This project may have a .document-dna.json file that defines default headers, footers, and style presets. When present, documents automatically include branded headers and footers without needing to specify them. Use get-dna to check current DNA settings, or init-dna to set up project document identity. You can always override DNA defaults by explicitly passing header, footer, or stylePreset parameters.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            title: {
-              type: "string",
-              description: "Document title (appears as Heading 1)",
-            },
-            paragraphs: {
-              type: "array",
-              items: {
-                oneOf: [
-                  { type: "string", description: "Simple paragraph text" },
-                  {
-                    type: "object",
-                    properties: {
-                      text: { type: "string" },
-                      headingLevel: {
-                        type: "string",
-                        enum: ["heading1", "heading2", "heading3"],
-                        description:
-                          "Heading level for the paragraph (heading1, heading2, or heading3)",
-                      },
-                      bold: { type: "boolean" },
-                      italics: { type: "boolean" },
-                      underline: { type: "boolean" },
-                      alignment: {
-                        type: "string",
-                        enum: ["left", "right", "center", "both"],
-                      },
-                    },
-                    required: ["text"],
-                  },
-                ],
-              },
-              description:
-                "Array of paragraphs. Can be simple strings or objects with headingLevel, formatting options, and text content.",
-            },
-            tables: {
-              type: "array",
-              items: {
-                type: "array",
-                items: { type: "array", items: { type: "string" } },
-              },
-              description: "Array of tables (each table is a 2D array)",
-            },
-            stylePreset: {
-              type: "string",
-              enum: [
-                "minimal",
-                "professional",
-                "technical",
-                "legal",
-                "business",
-                "casual",
-                "colorful",
-              ],
-              description:
-                "Style preset name: minimal (clean/basic), professional (Garamond serif, full justification), technical (Arial, optimized readability), legal (Times New Roman, double-spaced), business (Calibri, modern blue palette), casual (Verdana, warm colors), colorful (vibrant, visual impact). Default: minimal. AUTO-SELECTION: If omitted and a category is provided, the style is automatically selected based on category: contracts→legal, technical→technical, business→business, meeting→professional, research→professional. Choose the appropriate category and let the system pick the matching style, or specify stylePreset explicitly to override.",
-            },
-            header: {
-              type: "object",
-              description: "Header configuration options",
-              properties: {
-                text: {
-                  type: "string",
-                  description: "Text to display in header",
-                },
-                alignment: {
-                  type: "string",
-                  enum: ["left", "center", "right"],
-                  description: "Header text alignment (default: center)",
-                },
-              },
-            },
-            footer: {
-              type: "object",
-              description:
-                "Footer configuration options. Use {current} for current page number and {total} for total pages. Example: 'Page {current} of {total}'. Legacy {{page}} syntax also supported. If Document DNA is configured, a footer is applied automatically unless you explicitly set one here.",
-              properties: {
-                text: {
-                  type: "string",
-                  description:
-                    "Text to display in footer. Use '{current}' for page number and '{total}' for total pages (e.g., 'Page {current} of {total}')",
-                },
-                alignment: {
-                  type: "string",
-                  enum: ["left", "center", "right"],
-                  description: "Footer text alignment (default: center)",
-                },
-              },
-            },
-            backgroundColor: {
-              type: "string",
-              description:
-                "Page background color as hex code (e.g., 'FFFFFF' for white, or with #: '#FFFFFF')",
-            },
-            style: {
-              type: "object",
-              description: "Custom styling options (overrides stylePreset)",
-              properties: {
-                font: {
-                  type: "object",
-                  description: "Font styling options",
-                  properties: {
-                    size: {
-                      type: "number",
-                      description: "Font size in points",
-                    },
-                    color: {
-                      type: "string",
-                      description: "Font color as hex (e.g., 'FF0000')",
-                    },
-                    bold: { type: "boolean" },
-                    italics: { type: "boolean" },
-                    underline: { type: "boolean" },
-                    fontFamily: {
-                      type: "string",
-                      description: "Font family name",
-                    },
-                  },
-                },
-                paragraph: {
-                  type: "object",
-                  description: "Paragraph formatting options",
-                  properties: {
-                    alignment: {
-                      type: "string",
-                      enum: ["left", "right", "center", "both"],
-                    },
-                    spacingBefore: {
-                      type: "number",
-                      description: "Spacing before paragraph in twips",
-                    },
-                    spacingAfter: {
-                      type: "number",
-                      description: "Spacing after paragraph in twips",
-                    },
-                    lineSpacing: {
-                      type: "number",
-                      description: "Line spacing multiplier",
-                    },
-                  },
-                },
-                table: {
-                  type: "object",
-                  description: "Table styling options",
-                  properties: {
-                    borderColor: {
-                      type: "string",
-                      description: "Border color as hex",
-                    },
-                    borderStyle: {
-                      type: "string",
-                      enum: ["single", "double", "dotted", "dashed"],
-                    },
-                    borderWidth: {
-                      type: "number",
-                      description: "Border width in points",
-                    },
-                  },
-                },
-              },
-            },
-            outputPath: {
-              type: "string",
-              description:
-                "Absolute or relative file path where the DOCX file will be written to disk. The directory will be created automatically if it doesn't exist.",
-            },
-            enforceDocsFolder: {
-              type: "boolean",
-              description:
-                "Whether to enforce docs/ folder for organized file structure (default: true).",
-            },
-            preventDuplicates: {
-              type: "boolean",
-              description:
-                "Whether to prevent duplicate file creation (default: true). Appends _1, _2, etc. if file exists.",
-            },
-            dryRun: {
-              type: "boolean",
-              description:
-                "When true, returns a preview of the document that would be created WITHOUT writing any file to disk. Use this to show the user what will be created before committing. Default: false.",
-            },
-            category: {
-              type: "string",
-              enum: [
-                "contracts",
-                "technical",
-                "business",
-                "legal",
-                "meeting",
-                "research",
-              ],
-              description:
-                "Document category for automatic subfolder organization. Files are placed in docs/{category}/. " +
-                "Available: contracts (legal agreements, NDA), technical (specs, API docs), business (reports, proposals), " +
-                "legal (memos, compliance), meeting (minutes, agendas), research (papers, whitepapers). " +
-                "If omitted, file goes to docs/ root.",
-            },
-            tags: {
-              type: "array",
-              items: { type: "string" },
-              description:
-                "Tags for document search and discovery in the registry. Example: ['Q1-2026', 'finance', 'draft']",
-            },
-            description: {
-              type: "string",
-              description:
-                "Brief description of the document for registry search. Helps find documents later.",
-            },
+            outputPath: { type: "string", description: "File path for the MD output (default: derived from title)." },
+            category: CATEGORY_SCHEMA,
+            tags: TAGS_SCHEMA,
+            description: { type: "string", description: "Brief description for registry search." },
+            dryRun: { type: "boolean", description: "Preview without writing to disk (default: false)." },
+            docType: DOC_TYPE_SCHEMA,
           },
           required: ["title"],
         },
@@ -341,476 +231,178 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "create-excel",
         description:
-          "Creates an Excel XLSX workbook on DISK with multiple sheets and data. " +
-          "USER CONFIRMATION REQUIRED: This tool writes files to disk. ALWAYS describe to the user what spreadsheet you plan to create (sheets, columns, data summary) and get their explicit confirmation BEFORE calling this tool. Never call create-excel without the user's approval. Use dryRun: true to generate a preview first. " +
-          "CONTENT RULES: Do NOT include markdown syntax in cell values. No **, *, #, -, backticks. Write plain data values. Any markdown will be automatically stripped. " +
-          "CONSOLIDATION: Organize all data into well-structured sheets before creating. Use clear column headers. Group related data into logical sheets rather than creating multiple workbooks. " +
-          "READ FIRST: If appending data to an existing spreadsheet, use get-doc-indepth to read the current contents first, then use edit-excel to add new data rather than creating a duplicate file. " +
-          "CATEGORIES: Optionally specify a category to auto-organize into subfolders (docs/contracts/, docs/technical/, etc.). Documents are tracked in a registry for deduplication and discovery. " +
-          "ORGANIZATION: The tool enforces docs/ folder by default. EXTENSION: Enforces .xlsx extension. Supports 7 style presets with optimized header backgrounds and colors. " +
-          "DOCUMENT DNA: If a .document-dna.json exists, the default style preset is applied automatically. Use get-dna to check settings.",
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a professional Excel workbook creation expert, specializing in creating well-structured XLSX files with professional formatting.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User wants to create an Excel workbook for analytical data, numbers crunching, budgets, financial reports, or spreadsheets with calculations.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} Create an Excel XLSX workbook with the following requirements:\n` +
+          "  1. Provide a descriptive 'title' for the workbook (e.g., 'Q1 2026 Budget Breakdown')\n" +
+          "  2. Use descriptive sheet names (e.g., 'Monthly Revenue', not 'Sheet1')\n" +
+          "  3. Apply style preset or let auto-selection based on category\n" +
+          "  4. Configure custom styling for fonts, columns, and rows\n" +
+          "  5. Set the appropriate docType (concise, formal, explanatory, scientific).\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+          "  - Title MUST be descriptive — generic titles like 'Workbook' or 'Data' are rejected\n" +
+          "  - Sheet names MUST be descriptive — generic names like 'Sheet1', 'Sheet2' are rejected\n" +
+          "  - Do NOT include markdown syntax in cell values — use plain text or numbers\n" +
+          "  - USER CONFIRMATION REQUIRED: describe what you plan to create and get approval first\n" +
+          "  - Use dryRun: true for previews before actual creation\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns JSON with filePath, success status, and confirmation message.`,
         inputSchema: {
           type: "object",
           properties: {
+            title: { type: "string", description: "Workbook title for filename and registry. Must be descriptive (e.g., 'Q1 2026 Budget Breakdown')." },
             sheets: {
               type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name: { type: "string" },
-                  data: { type: "array", items: { type: "array" } },
-                },
-                required: ["name", "data"],
-              },
-              description:
-                "Array of sheet definitions. Write plain data values without markdown syntax.",
+              items: { type: "object", properties: { name: { type: "string", description: "Descriptive sheet name (e.g., 'Monthly Revenue', not 'Sheet1')" }, data: { type: "array", items: { type: "array" } } }, required: ["name", "data"] },
+              description: "Array of sheet definitions with plain data values.",
             },
-            stylePreset: {
-              type: "string",
-              enum: [
-                "minimal",
-                "professional",
-                "technical",
-                "legal",
-                "business",
-                "casual",
-                "colorful",
-              ],
-              description:
-                "Style preset name: minimal (clean/basic), professional (Garamond serif, full justification), technical (Arial, optimized readability), legal (Times New Roman, double-spaced), business (Calibri, modern blue palette), casual (Verdana, warm colors), colorful (vibrant, visual impact). Default: minimal. AUTO-SELECTION: If omitted and a category is provided, the style is automatically selected: contracts→legal, technical→technical, business→business, meeting→professional, research→professional.",
-            },
+            stylePreset: STYLE_PRESET_SCHEMA,
             style: {
-              type: "object",
-              description: "Custom styling options (overrides stylePreset)",
+              type: "object", description: "Custom styling (overrides stylePreset)",
               properties: {
-                font: {
-                  type: "object",
-                  description: "Font styling options",
-                  properties: {
-                    size: {
-                      type: "number",
-                      description: "Font size in points",
-                    },
-                    color: {
-                      type: "string",
-                      description: "Font color as hex (e.g., 'FF0000')",
-                    },
-                    bold: { type: "boolean" },
-                    italics: { type: "boolean" },
-                    underline: { type: "boolean" },
-                  },
-                },
-                columnWidths: {
-                  type: "object",
-                  description: "Map of column indices to widths in characters",
-                  patternProperties: { "\\d+": { type: "number" } },
-                },
-                rowHeights: {
-                  type: "object",
-                  description: "Map of row indices to heights in points",
-                  patternProperties: { "\\d+": { type: "number" } },
-                },
+                font: { type: "object", properties: { size: { type: "number" }, color: { type: "string" }, bold: { type: "boolean" }, italics: { type: "boolean" }, underline: { type: "boolean" } } },
+                columnWidths: { type: "object", patternProperties: { "\\d+": { type: "number" } } },
+                rowHeights: { type: "object", patternProperties: { "\\d+": { type: "number" } } },
                 headerBold: { type: "boolean" },
               },
             },
-            outputPath: {
-              type: "string",
-              description:
-                "Absolute or relative file path where the XLSX file will be written to disk.",
-            },
-            enforceDocsFolder: {
-              type: "boolean",
-              description:
-                "Whether to enforce docs/ folder for organized file structure (default: true).",
-            },
-            preventDuplicates: {
-              type: "boolean",
-              description:
-                "Whether to prevent duplicate file creation (default: true). Appends _1, _2, etc. if file exists.",
-            },
-            dryRun: {
-              type: "boolean",
-              description:
-                "When true, returns a preview of the workbook that would be created WITHOUT writing any file to disk. Use this to show the user what will be created before committing. Default: false.",
-            },
-            category: {
-              type: "string",
-              enum: [
-                "contracts",
-                "technical",
-                "business",
-                "legal",
-                "meeting",
-                "research",
-              ],
-              description:
-                "Document category for automatic subfolder organization. Files are placed in docs/{category}/. " +
-                "Available: contracts (legal agreements, NDA), technical (specs, API docs), business (reports, proposals), " +
-                "legal (memos, compliance), meeting (minutes, agendas), research (papers, whitepapers). " +
-                "If omitted, file goes to docs/ root.",
-            },
-            tags: {
-              type: "array",
-              items: { type: "string" },
-              description:
-                "Tags for document search and discovery in the registry. Example: ['Q1-2026', 'finance', 'draft']",
-            },
-            description: {
-              type: "string",
-              description:
-                "Brief description of the workbook for registry search. Helps find documents later.",
-            },
+            outputPath: { type: "string", description: "File path for the XLSX output." },
+            enforceDocsFolder: { type: "boolean", description: "Enforce docs/ folder (default: true)." },
+            preventDuplicates: { type: "boolean", description: "Append _1, _2 if file exists (default: true)." },
+            dryRun: { type: "boolean", description: "Preview without writing to disk (default: false)." },
+            category: CATEGORY_SCHEMA,
+            tags: TAGS_SCHEMA,
+            description: { type: "string", description: "Brief description for registry search." },
+            docType: DOC_TYPE_SCHEMA,
           },
           required: ["sheets"],
         },
       },
       {
-        name: "edit-doc",
+        name: "edit-excel",
         description:
-          "Edits an existing Word DOCX document by appending new content or replacing all content. " +
-          "USER CONFIRMATION REQUIRED: This tool modifies files on disk. ALWAYS describe what changes you plan to make and get the user's explicit confirmation BEFORE calling this tool. " +
-          "READ FIRST: ALWAYS use get-doc-indepth to read the existing document BEFORE editing it. You must understand what content is already there to avoid duplication and ensure the edit makes sense. " +
-          "CONTENT RULES: Do NOT include markdown syntax in paragraph text. Write clean prose. Any markdown will be automatically converted to proper DOCX formatting. " +
-          'HEADING STRUCTURE: Use paragraph objects with headingLevel to maintain proper document hierarchy. For example, use {"text": "Core Components", "headingLevel": "heading2"} for section headings. This ensures consistent styling with the existing document structure. ' +
-          "ACTIONS: Use action 'append' to add new paragraphs and tables after existing content. Use action 'replace' to overwrite all content (keeping the same file path). " +
-          "NOTE: Append mode preserves existing text content but may not preserve complex original formatting (images, custom styles). For best results when appending, provide content that works well as a continuation.",
+          "Edits an existing Excel XLSX workbook. USER CONFIRMATION REQUIRED. ALWAYS read the spreadsheet first with read-doc mode 'indepth'. " +
+          "Actions: 'append-rows' adds rows, 'append-sheet' adds a sheet, 'replace-sheet' replaces a sheet's data. " +
+          "Use docType to maintain consistent tone (concise, formal, explanatory, scientific) during edits.",
         inputSchema: {
           type: "object",
           properties: {
-            filePath: {
-              type: "string",
-              description: "Path to the existing DOCX file to edit",
-            },
-            action: {
-              type: "string",
-              enum: ["append", "replace"],
-              description:
-                "Edit action: 'append' adds content after existing text, 'replace' overwrites all content",
-            },
-            paragraphs: {
-              type: "array",
-              items: {
-                oneOf: [
-                  { type: "string", description: "Simple paragraph text" },
-                  {
-                    type: "object",
-                    properties: {
-                      text: { type: "string" },
-                      headingLevel: {
-                        type: "string",
-                        enum: ["heading1", "heading2", "heading3"],
-                        description:
-                          "Heading level for the paragraph (heading1, heading2, or heading3)",
-                      },
-                      bold: { type: "boolean" },
-                      italics: { type: "boolean" },
-                      underline: { type: "boolean" },
-                      alignment: {
-                        type: "string",
-                        enum: ["left", "right", "center", "both"],
-                      },
-                    },
-                    required: ["text"],
-                  },
-                ],
-              },
-              description:
-                "Paragraphs to append or replace with. Can be simple strings or objects with headingLevel and formatting options.",
-            },
-            tables: {
-              type: "array",
-              items: {
-                type: "array",
-                items: { type: "array", items: { type: "string" } },
-              },
-              description:
-                "Tables to append or replace with (each table is a 2D array)",
-            },
-            title: {
-              type: "string",
-              description: "New document title (only used in replace mode)",
-            },
-            stylePreset: {
-              type: "string",
-              enum: [
-                "minimal",
-                "professional",
-                "technical",
-                "legal",
-                "business",
-                "casual",
-                "colorful",
-              ],
-              description:
-                "Style preset for new content. Default: minimal. AUTO-SELECTION: If omitted and a category is provided, the style is automatically selected: contracts→legal, technical→technical, business→business, meeting→professional, research→professional.",
-            },
-            category: {
-              type: "string",
-              description:
-                "Document category for registry organization (contracts, technical, business, legal, meeting, research)",
-            },
-            tags: {
-              type: "array",
-              items: { type: "string" },
-              description: "Tags for document search and organization",
-            },
+            filePath: { type: "string", description: "Path to the existing XLSX file" },
+            action: { type: "string", enum: ["append-rows", "append-sheet", "replace-sheet"], description: "Edit action type" },
+            sheetName: { type: "string", description: "Target sheet name (for append-rows and replace-sheet)" },
+            rows: { type: "array", items: { type: "array" }, description: "Rows to append (for append-rows)" },
+            sheetData: { type: "object", properties: { name: { type: "string" }, data: { type: "array", items: { type: "array" } } }, required: ["data"], description: "Sheet definition (for append-sheet or replace-sheet)" },
+            stylePreset: STYLE_PRESET_SCHEMA,
+            category: { type: "string", description: "Document category for registry" },
+            tags: TAGS_SCHEMA,
+            docType: DOC_TYPE_SCHEMA,
           },
           required: ["filePath", "action"],
         },
       },
+      // === CONSOLIDATED MANAGEMENT TOOLS (5) ===
       {
-        name: "edit-excel",
+        name: "list-templates",
         description:
-          "Edits an existing Excel XLSX workbook by appending rows, adding new sheets, or replacing sheet data. " +
-          "USER CONFIRMATION REQUIRED: This tool modifies files on disk. ALWAYS describe what changes you plan to make and get the user's explicit confirmation BEFORE calling this tool. " +
-          "READ FIRST: ALWAYS use get-doc-indepth to read the existing spreadsheet BEFORE editing it. You must understand the current sheet structure and data to avoid duplication. " +
-          "CONTENT RULES: Do NOT include markdown syntax in cell values. Write plain data. Any markdown will be automatically stripped. " +
-          "ACTIONS: 'append-rows' adds rows to an existing sheet. 'append-sheet' adds a new sheet to the workbook. 'replace-sheet' replaces all data in an existing sheet.",
+          `${TOOL_DESCRIPTION_SECTIONS.ROLE} You are a template library manager.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONTEXT} User needs to browse available document templates and blueprints for consistent document creation.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.TASK} List all available document templates and blueprints. Returns template names, descriptions, and usage statistics.\n\n` +
+          `${TOOL_DESCRIPTION_SECTIONS.CONSTRAINTS}\n` +
+          "  - Use this tool to discover available templates before creating new documents\n" +
+          "  - Templates help ensure consistency and reduce formatting effort\n\n" +
+          `${TOOL_DESCRIPTION_SECTIONS.FORMAT} Returns JSON array of templates with name, description, and usage count.`,
         inputSchema: {
           type: "object",
           properties: {
-            filePath: {
-              type: "string",
-              description: "Path to the existing XLSX file to edit",
-            },
-            action: {
-              type: "string",
-              enum: ["append-rows", "append-sheet", "replace-sheet"],
-              description:
-                "Edit action: 'append-rows' adds rows to a sheet, 'append-sheet' adds a new sheet, 'replace-sheet' replaces a sheet's data",
-            },
-            sheetName: {
-              type: "string",
-              description:
-                "Target sheet name (required for append-rows and replace-sheet)",
-            },
-            rows: {
-              type: "array",
-              items: { type: "array" },
-              description:
-                "Row arrays to append (for append-rows action). Each row is an array of cell values.",
-            },
-            sheetData: {
-              type: "object",
-              description:
-                "Sheet definition for append-sheet or replace-sheet actions",
-              properties: {
-                name: {
-                  type: "string",
-                  description: "Sheet name (required for append-sheet)",
-                },
-                data: {
-                  type: "array",
-                  items: { type: "array" },
-                  description: "2D array of cell values",
-                },
-              },
-              required: ["data"],
-            },
-            stylePreset: {
-              type: "string",
-              enum: [
-                "minimal",
-                "professional",
-                "technical",
-                "legal",
-                "business",
-                "casual",
-                "colorful",
-              ],
-              description:
-                "Style preset for new content. Default: minimal. AUTO-SELECTION: If omitted and a category is provided, the style is automatically selected: contracts→legal, technical→technical, business→business, meeting→professional, research→professional.",
-            },
-            category: {
-              type: "string",
-              description:
-                "Document category for registry organization (contracts, technical, business, legal, meeting, research)",
-            },
-            tags: {
-              type: "array",
-              items: { type: "string" },
-              description: "Tags for document search and organization",
-            },
+            category: { type: "string", description: "Filter by category (contracts, technical, business, legal, meeting, research)" },
           },
-          required: ["filePath", "action"],
         },
       },
       {
         name: "list-documents",
         description:
-          "List all documents in the document registry. Optionally filter by category, tag, or title. Returns a list of documents with metadata including id, title, filePath, category, tags, description, createdAt, and updatedAt. This tool allows you to discover what documents have been created.",
+          "List and search documents in the registry. Filter by category, tags, or title. Returns document metadata including id, title, filePath, category, tags, and timestamps.",
         inputSchema: {
           type: "object",
           properties: {
-            category: {
-              type: "string",
-              description:
-                "Filter documents by category (contracts, technical, business, legal, meeting, research)",
-            },
-            tags: {
-              type: "array",
-              items: { type: "string" },
-              description:
-                "Filter documents by tags (matches if document has any of these tags)",
-            },
-            title: {
-              type: "string",
-              description:
-                "Filter documents by title (partial match, case-insensitive)",
-            },
+            category: { type: "string", description: "Filter by category (contracts, technical, business, legal, meeting, research)" },
+            tags: { type: "array", items: { type: "string" }, description: "Filter by tags (matches any)" },
+            title: { type: "string", description: "Search by title (partial match, case-insensitive)" },
           },
         },
       },
       {
-        name: "search-registry",
+        name: "dna",
         description:
-          "Search the document registry for documents matching search criteria. Returns grouped results with total matches and matching documents. Use this to find specific documents or explore what has been created.",
+          "Manage Document DNA (.document-dna.json) — the project's document identity system. " +
+          "Actions: 'init' creates DNA with defaults, 'get' returns current config/memories/usage, " +
+          "'evolve' analyzes usage patterns, suggests improvements (use apply: true to auto-apply), and auto-learns blueprints from recurring document structures, " +
+          "'save-memory' stores a document preference, 'delete-memory' removes one by key.",
         inputSchema: {
           type: "object",
           properties: {
-            title: {
-              type: "string",
-              description:
-                "Title to search for (partial match, case-insensitive)",
-            },
-            category: {
-              type: "string",
-              description:
-                "Filter documents by category (contracts, technical, business, legal, meeting, research)",
-            },
-            tags: {
-              type: "array",
-              items: { type: "string" },
-              description:
-                "Search by tags (matches if document has any of these tags)",
-            },
+            action: { type: "string", enum: ["init", "get", "evolve", "save-memory", "delete-memory"], description: "DNA action to perform" },
+            companyName: { type: "string", description: "Company or project name for default header (init only)." },
+            stylePreset: STYLE_PRESET_SCHEMA,
+            headerText: { type: "string", description: "Default header text (init only)." },
+            headerAlignment: { type: "string", enum: ["left", "center", "right"], description: "Header alignment (init only, default: 'right')" },
+            footerText: { type: "string", description: "Default footer text (init only). Use {current}/{total} for page numbers." },
+            footerAlignment: { type: "string", enum: ["left", "center", "right"], description: "Footer alignment (init only, default: 'center')" },
+            apply: { type: "boolean", description: "Auto-apply top evolution suggestion (evolve only, default: false)" },
+            threshold: { type: "number", description: "Minimum documents before suggesting evolution (evolve only, default: 5)" },
+            memory: { type: "string", description: "The preference to remember (save-memory only)" },
+            key: { type: "string", description: "Memory key — required for delete-memory, optional for save-memory (auto-generated if omitted)." },
           },
+          required: ["action"],
         },
       },
       {
-        name: "init-dna",
+        name: "blueprint",
         description:
-          "Initialize Document DNA for this project. Creates a .document-dna.json configuration file that defines your project's document identity — company name, default headers, footers, and style preset. " +
-          "Once initialized, ALL documents created by create-doc will automatically include branded headers and footers without needing to specify them each time. " +
-          "Use get-dna first to check if DNA is already configured. You can pass company name, header text, footer text, and style preset to customize, or use defaults.",
+          "Manage document blueprints — structural templates extracted from existing documents. " +
+          "Blueprints are auto-learned from recurring document patterns during 'dna evolve' — 'learn' is only needed for external documents you haven't created through this server. " +
+          "Actions: 'learn' extracts a blueprint from DOCX/PDF, 'list' shows all saved blueprints (including auto-learned ones), 'delete' removes one. Use blueprint name in create-doc to enforce structure.",
         inputSchema: {
           type: "object",
           properties: {
-            companyName: {
-              type: "string",
-              description:
-                "Company or project name. Used in default header. Example: 'Acme Corp'",
-            },
-            stylePreset: {
-              type: "string",
-              enum: [
-                "minimal",
-                "professional",
-                "technical",
-                "legal",
-                "business",
-                "casual",
-                "colorful",
-              ],
-              description:
-                "Default style preset for all documents. Default: 'professional'",
-            },
-            headerText: {
-              type: "string",
-              description:
-                "Default header text for documents. Defaults to company name.",
-            },
-            headerAlignment: {
-              type: "string",
-              enum: ["left", "center", "right"],
-              description: "Header alignment. Default: 'right'",
-            },
-            footerText: {
-              type: "string",
-              description:
-                "Default footer text. Use {current} for page number and {total} for total pages. Default: 'Page {current} of {total}'",
-            },
-            footerAlignment: {
-              type: "string",
-              enum: ["left", "center", "right"],
-              description: "Footer alignment. Default: 'center'",
-            },
+            action: { type: "string", enum: ["learn", "list", "delete"], description: "Blueprint action to perform" },
+            filePath: { type: "string", description: "Path to source document (learn only, DOCX or PDF)" },
+            name: { type: "string", description: "Blueprint name (learn and delete)" },
+            description: { type: "string", description: "Optional description (learn only)" },
           },
+          required: ["action"],
         },
       },
-       {
-         name: "get-dna",
-         description:
-           "Get the current Document DNA configuration for this project. Returns the .document-dna.json settings including company name, default style preset, header and footer configuration. " +
-           "Returns null if DNA has not been initialized (use init-dna to set it up). " +
-           "AI models should call this at the start of document creation workflows to understand the project's document identity.",
-         inputSchema: {
-           type: "object",
-           properties: {},
-         },
-       },
-       {
-         name: "check-document",
-         description:
-           "Check if a document already exists before creating it. Returns clear guidance: 'create' (no existing doc, proceed with create-doc), " +
-           "'augment' (document exists, use edit-doc with append), or 'replace' (too many versions, old ones cleaned up, use edit-doc with replace). " +
-           "NOTE: create-doc already calls this internally and will reject duplicates. You only need this tool if you want to check BEFORE preparing content. " +
-           "For most workflows, just call create-doc directly — it will tell you if a duplicate exists.",
-         inputSchema: {
-           type: "object",
-           properties: {
-             title: {
-               type: "string",
-               description: "Title of the document you plan to create",
-             },
-             category: {
-               type: "string",
-               description: "Document category (contracts, technical, business, legal, meeting, research)",
-             },
-           },
-           required: ["title"],
-         },
-       },
-       {
-         name: "save-memory",
-         description:
-           "Save a document-related preference or instruction that persists across sessions. " +
-           "Memories are stored in .document-dna.json and influence how ALL future documents are created. " +
-           "Use this when the user expresses a preference about document creation style, tone, structure, or formatting. " +
-           "Examples: 'Always use formal tone in business documents', 'Include executive summary in reports', 'Use metric units'. " +
-           "To view current memories, use get-dna. To remove a memory, use delete-memory.",
-         inputSchema: {
-           type: "object",
-           properties: {
-             memory: {
-               type: "string",
-               description: "The preference or instruction to remember (e.g., 'Use bullet points for action items')",
-             },
-             key: {
-               type: "string",
-               description: "Optional short key for this memory. If not provided, one is generated from the text.",
-             },
-           },
-           required: ["memory"],
-         },
-       },
-       {
-         name: "delete-memory",
-         description:
-           "Delete a document memory by its key. Use get-dna to see current memories and their keys first.",
-         inputSchema: {
-           type: "object",
-           properties: {
-             key: {
-               type: "string",
-               description: "The key of the memory to delete (visible in get-dna output under 'memories')",
-             },
-           },
-           required: ["key"],
-         },
-       },
-      ],
-    };
+      // === INNOVATION TOOLS (2) ===
+      {
+        name: "drift-monitor",
+        description:
+          "Monitor documents for structural changes over time. " +
+          "Actions: 'watch' registers a document with a baseline fingerprint, 'check' compares current state against baseline. Reports heading changes, word count drift, content similarity, and category shifts.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["watch", "check"], description: "Drift action to perform" },
+            filePath: { type: "string", description: "Document path (required for watch, optional for check — omit to check all)" },
+            name: { type: "string", description: "Optional friendly name (watch only)" },
+          },
+          required: ["action"],
+        },
+      },
+      {
+        name: "get-lineage",
+        description:
+          "Get the provenance chain for a document — which sources informed it and what was derived from it. Lineage is tracked automatically when you read then create documents.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            filePath: { type: "string", description: "Document path to trace lineage for" },
+            depth: { type: "number", description: "Traversal depth (default: 3)" },
+          },
+          required: ["filePath"],
+        },
+      },
+    ],
+  };
 });
 
 /**
@@ -825,35 +417,46 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     // Validate file path exists for read and edit tools (not create tools)
     if (params && params.filePath && !name.startsWith("create-")) {
-      const resolvedPath = path.resolve(params.filePath);
-
-      if (!fs.existsSync(resolvedPath)) {
-        log("error", "File not found:", { filePath: resolvedPath });
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error: File not found at path: ${params.filePath}`,
-            },
-          ],
-          isError: true,
-        };
+      // Skip validation for tools where filePath might not exist yet or is optional
+      const skipValidation = (name === "drift-monitor" && params.action === "check") ||
+        (name === "blueprint" && params.action !== "learn") ||
+        name === "check-drift"; // backward compat — check-drift filePath is optional
+ 
+      if (!skipValidation) {
+        const resolvedPath = path.resolve(params.filePath);
+ 
+        if (!fs.existsSync(resolvedPath)) {
+          log("error", "File not found:", { filePath: resolvedPath });
+          return {
+            content: [{ type: "text", text: `Error: File not found at path: ${params.filePath}` }],
+            isError: true,
+          };
+        }
+ 
+        params.filePath = resolvedPath;
       }
-
-      // Update param with resolved path
-      params.filePath = resolvedPath;
     }
 
     switch (name) {
+      case "read-doc":
+        return await handleReadDoc(params);
+ 
+      // Backward-compatible aliases for the old 3-tool read API
       case "get-doc-summary":
-        return await handleSummary(params);
-
+        return await handleReadDoc({ ...params, mode: "summary" });
+ 
       case "get-doc-indepth":
-        return await handleInDepth(params);
-
+        return await handleReadDoc({ ...params, mode: "indepth" });
+ 
       case "get-doc-focused":
-        return await handleFocused(params, params.userQuery, params.context);
-
+        return await handleReadDoc({ ...params, mode: "focused" });
+ 
+      case "detect-format": {
+        const { detectFormat } = await import("./services/format-router.js");
+        const result = await detectFormat(params);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+ 
       case "create-doc": {
         const docResult = await createDoc(params);
         if (docResult.success) {
@@ -861,27 +464,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ? docResult.message
             : `DOCX FILE WRITTEN TO DISK at: ${docResult.filePath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.`;
           return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  { ...docResult, message: responseMessage },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
-        } else {
-          return {
-            content: [
-              { type: "text", text: JSON.stringify(docResult, null, 2) },
-            ],
-            isError: true,
+            content: [{ type: "text", text: JSON.stringify({ ...docResult, message: responseMessage }, null, 2) }],
           };
         }
+        return {
+          content: [{ type: "text", text: JSON.stringify(docResult, null, 2) }],
+          isError: true,
+        };
       }
-
+ 
+      case "create-markdown": {
+        const markdownResult = await createMarkdown(params);
+        if (markdownResult.success) {
+          const responseMessage = markdownResult.dryRun
+            ? markdownResult.message
+            : `MARKDOWN FILE WRITTEN TO DISK at: ${markdownResult.filePath}\n\nIMPORTANT: This tool has created an actual .md file on your filesystem. The document is available at the absolute path shown above.`;
+          return {
+            content: [{ type: "text", text: JSON.stringify({ ...markdownResult, message: responseMessage }, null, 2) }],
+          };
+        }
+        return {
+          content: [{ type: "text", text: JSON.stringify(markdownResult, null, 2) }],
+          isError: true,
+        };
+      }
+ 
       case "create-excel": {
         const excelResult = await createExcel(params);
         if (excelResult.success) {
@@ -889,266 +496,108 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ? excelResult.message
             : `EXCEL FILE WRITTEN TO DISK at: ${excelResult.filePath}\n\nIMPORTANT: This tool has created an actual .xlsx file on your filesystem. Do NOT create any additional markdown or text files. The workbook is available at the absolute path shown above.`;
           return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  { ...excelResult, message: responseMessage },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
-        } else {
-          return {
-            content: [
-              { type: "text", text: JSON.stringify(excelResult, null, 2) },
-            ],
-            isError: true,
+            content: [{ type: "text", text: JSON.stringify({ ...excelResult, message: responseMessage }, null, 2) }],
           };
         }
+        return {
+          content: [{ type: "text", text: JSON.stringify(excelResult, null, 2) }],
+          isError: true,
+        };
       }
-
+ 
       case "edit-doc": {
         const editDocResult = await editDoc(params);
-        if (editDocResult.success) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(editDocResult, null, 2),
-              },
-            ],
-          };
-        } else {
-          return {
-            content: [
-              { type: "text", text: JSON.stringify(editDocResult, null, 2) },
-            ],
-            isError: true,
-          };
-        }
+        return {
+          content: [{ type: "text", text: JSON.stringify(editDocResult, null, 2) }],
+          isError: !editDocResult.success,
+        };
       }
-
+ 
       case "edit-excel": {
         const editExcelResult = await editExcel(params);
-        if (editExcelResult.success) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(editExcelResult, null, 2),
-              },
-            ],
-          };
-        } else {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(editExcelResult, null, 2),
-              },
-            ],
-            isError: true,
-          };
-        }
-      }
-
-      case "list-documents": {
+        return {
+          content: [{ type: "text", text: JSON.stringify(editExcelResult, null, 2) }],
+          isError: !editExcelResult.success,
+        };
+      } 
+ 
+      case "list-documents":
+      case "search-registry": {
         const docs = await listDocuments(params || {});
         if (docs) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(docs, null, 2),
-              },
-            ],
-          };
-        } else {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  { error: "Failed to list documents" },
-                  null,
-                  2,
-                ),
-              },
-            ],
-            isError: true,
-          };
+          return { content: [{ type: "text", text: JSON.stringify(docs, null, 2) }] };
         }
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: "Failed to list documents" }, null, 2) }],
+          isError: true,
+        };
       }
-
-      case "search-registry": {
-        const results = await searchRegistry(params || {});
-        if (results) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(results, null, 2),
-              },
-            ],
-          };
-        } else {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  { error: "Failed to search registry" },
-                  null,
-                  2,
-                ),
-              },
-            ],
-            isError: true,
-          };
-        }
+ 
+      case "list-templates":
+      case "blueprint list": {
+        const { listBlueprints } = await import("./utils/blueprint-store.js");
+        const templates = listBlueprints();
+        return { content: [{ type: "text", text: JSON.stringify(templates, null, 2) }] };
       }
-
-      case "init-dna": {
-        try {
-          const result = createDNAFile({
-            company: { name: params.companyName },
-            defaults: { stylePreset: params.stylePreset },
-            header: {
-              text: params.headerText || params.companyName,
-              alignment: params.headerAlignment,
-            },
-            footer: {
-              text: params.footerText,
-              alignment: params.footerAlignment,
-            },
-          });
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  {
-                    success: true,
-                    path: result.path,
-                    config: result.config,
-                    message:
-                      `Document DNA initialized at: ${result.path}\n\n` +
-                      `All future documents created with create-doc will automatically include:\n` +
-                      `- Header: "${result.config.header.text}" (${result.config.header.alignment}-aligned)\n` +
-                      `- Footer: "${result.config.footer.text}" (${result.config.footer.alignment}-aligned)\n` +
-                      `- Style: ${result.config.defaults.stylePreset}\n\n` +
-                      `You can override any of these by explicitly passing header, footer, or stylePreset to create-doc.`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
-        } catch (err) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  { success: false, error: err.message },
-                  null,
-                  2,
-                ),
-              },
-            ],
-            isError: true,
-          };
-        }
-      }
-
-      case "get-dna": {
-         const dna = loadDNA();
-         const memoriesList = dna && dna.memories
-           ? Object.entries(dna.memories).map(([key, val]) => `  - ${key}: "${val.text}"`)
-           : [];
-         const profile = analyzeProjectProfile();
-
-         let profileMsg = "";
-         if (profile) {
-           profileMsg = `\n\nProject profile (${profile.totalDocs} documents created):`;
-           if (profile.dominantCategory) {
-             profileMsg += `\n  Most used category: ${profile.dominantCategory} (${profile.dominantCategoryPct}%)`;
-           }
-           if (profile.dominantStyle) {
-             profileMsg += `\n  Most used style: ${profile.dominantStyle} (${profile.dominantStylePct}%)`;
-           }
-           if (profile.suggestion) {
-             profileMsg += `\n  Suggestion: ${profile.suggestion}`;
-           }
-         }
-
+ 
+      // === CONSOLIDATED: dna (was init-dna + get-dna + evolve-dna) ===
+      case "dna":
+      case "init-dna":
+      case "get-dna":
+      case "evolve-dna":
+        return await handleDNA(params, name);
+ 
+      // === CONSOLIDATED: memory folded into dna ===
+      case "memory":
+      case "save-memory":
+      case "delete-memory":
+        return await handleDNA(params, name);
+ 
+      // === CONSOLIDATED: blueprint (was learn-blueprint + list-blueprints) ===
+      case "blueprint":
+      case "learn-blueprint":
+      case "list-blueprints":
+        return await handleBlueprint(params, name);
+ 
+      // === CONSOLIDATED: drift-monitor (was watch-document + check-drift) ===
+      case "drift-monitor":
+      case "watch-document":
+      case "check-drift":
+        return await handleDriftMonitor(params, name);
+ 
+       case "get-lineage":
+         return await handleGetLineage(params);
+ 
+       // Backward-compatible aliases (removed from tool listing, kept for legacy clients)
+       case "extract-to-excel": {
+         const result = await handleExtractToExcel(params);
          return {
-           content: [
-             {
-               type: "text",
-               text: JSON.stringify(
-                 {
-                   initialized: dna !== null,
-                   config: dna || null,
-                   memoriesCount: memoriesList.length,
-                   projectProfile: profile,
-                   message: dna
-                     ? "Document DNA is configured. All new documents will use these defaults unless overridden." +
-                       (memoriesList.length > 0
-                         ? `\n\nActive document memories (${memoriesList.length}):\n${memoriesList.join("\n")}\n\nThese memories influence how documents are created. Use save-memory to add new ones, delete-memory to remove.`
-                         : "\n\nNo document memories stored yet. Use save-memory to store document preferences.") +
-                       profileMsg
-                     : "Document DNA is not initialized. Use init-dna to set up project document identity.",
-                 },
-                 null,
-                 2,
-               ),
-             },
-           ],
+           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+           isError: !result.success,
          };
        }
-       
+ 
+       case "assemble-document": {
+         const result = await handleAssembleDocument(params);
+         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }], isError: !result.success };
+       }
+ 
        case "check-document": {
-         return await handleCheckDocument(params);
+         const result = await handleCheckDocument(params);
+         return { content: [{ type: "text", text: JSON.stringify({ action: result.action, existingPath: result.existingPath }, null, 2) }], isError: false };
        }
-
-       case "save-memory": {
-         return await handleSaveMemory(params);
-       }
-
-       case "delete-memory": {
-         return await handleDeleteMemory(params);
-       }
-
+ 
        default:
         log("error", "Unknown tool requested:", { toolName });
         return {
-          content: [
-            {
-              type: "text",
-              text: `Unknown tool: ${name}`,
-            },
-          ],
+          content: [{ type: "text", text: `Unknown tool: ${name}` }],
           isError: true,
         };
     }
   } catch (error) {
-    log("error", "Error executing tool:", {
-      toolName,
-      error: error.message,
-      stack: error.stack,
-    });
+    log("error", "Error executing tool:", { toolName, error: error.message, stack: error.stack });
     return {
-      content: [
-        {
-          type: "text",
-          text: `Error: ${error.message || "Unknown error occurred"}`,
-        },
-      ],
+      content: [{ type: "text", text: `Error: ${error.message || "Unknown error occurred"}` }],
       isError: true,
     };
   }

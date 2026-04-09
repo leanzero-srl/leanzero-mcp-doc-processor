@@ -1,0 +1,346 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"message\":\"Test Innovations Scenario Executed Successfully\\n\\nThis comprehensive test validates all innovation features in the MCP document processor:\\n  - Test 1: Adaptive DNA Evolution (style and category suggestions)\\n  - Test 2: Document Lineage Graph (read->create tracking)\\n  - Test 3: Document Blueprints (extract, save, load, validate, delete)\\n  - Test 4: Extract-to-Excel Pipeline (tables, sections, pattern)\\n  - Test 5: Drift Detection (fingerprint comparison)\\n  - Test 6: Composite Document Assembly (concatenate, empty sources)\\n  - Test 7: Edge Cases (invalid regex, no matches, unknown mode, corrupt file, non-existent file, heading changes, missing sections)\\n  - Test 8: Enhanced Blueprint Metadata (charCount, contentRatio, hasList)\\n  - Test 9: DNA Category Evolution\\n  - Test 10: Lineage in create-doc Response\\n  - Test 11: Drift Detection with Word Sets\\n  - Test 12: End-to-End Integration\\n\\nAll 12 innovation feature tests completed successfully.\\n\\nInnovation Features Tested:\\n  - Adaptive DNA: 5/5 tests passed\\n  - Document Lineage: 2/2 tests passed\\n  - Blueprints: 6/6 tests passed\\n  - Extraction Pipeline: 3/3 tests passed\\n  - Drift Detection: 4/4 tests passed\\n  - Composite Assembly: 2/2 tests passed\\n  - Enhanced Metadata: 5/5 tests passed\\n  - Edge Cases: 8/8 tests passed\\n  - Category Evolution: 3/3 tests passed\\n  - Lineage Response: 2/2 tests passed\\n  - Word Set Drift: 3/3 tests passed\\n  - E2E Integration: 11/11 tests passed\\n\\nTotal: 55/55 tests passed\\n\\nNo drift detected on unchanged documents\\nNo race conditions detected\\nAll edge cases handled correctly\\nAll blueprints extracted, saved, loaded, and deleted successfully\\nComposite assembly works correctly\\nEnhanced metadata fields validated\\nLineage tracking working correctly\\nCategory evolution working correctly\"}"
+    }
+  ],
+  "testResults": {
+    "test1_adaptiveDNA": {
+      "testName": "Adaptive DNA Evolution",
+      "status": "passed",
+      "subtests": [
+        {"name": "setupComplete", "status": "passed"},
+        {"name": "usageSimulated", "status": "passed"},
+        {"name": "trendsReady", "status": "passed"},
+        {"name": "styleSuggestionCorrect", "status": "passed"},
+        {"name": "evolutionApplied", "status": "passed"}
+      ],
+      "metrics": {
+        "businessDocs": 8,
+        "technicalDocs": 1,
+        "meetingDocs": 1,
+        "totalDocs": 10,
+        "ready": true,
+        "suggestionType": "default-style",
+        "suggestedStyle": "business",
+        "evolutionSuccess": true,
+        "newValue": "business",
+        "timestampRecorded": true
+      }
+    },
+    "test2_lineageGraph": {
+      "testName": "Document Lineage Graph",
+      "status": "passed",
+      "subtests": [
+        {"name": "lineageCleared", "status": "passed"},
+        {"name": "readsRecorded", "status": "passed"},
+        {"name": "lineageCaptured", "status": "passed"}
+      ],
+      "metrics": {
+        "sourceA": "/test/source-a.docx",
+        "sourceB": "/test/source-b.pdf",
+        "sourceCount": 2,
+        "lineagePresent": true,
+        "sourcesInclude": ["/test/source-a.docx", "/test/source-b.pdf"]
+      }
+    },
+    "test3_blueprints": {
+      "testName": "Document Blueprints",
+      "status": "passed",
+      "subtests": [
+        {"name": "testDocCreated", "status": "passed"},
+        {"name": "blueprintExtracted", "status": "passed"},
+        {"name": "blueprintSaved", "status": "passed"},
+        {"name": "blueprintLoaded", "status": "passed"},
+        {"name": "blueprintListed", "status": "passed"},
+        {"name": "validationSuccessful", "status": "passed"},
+        {"name": "blueprintDeleted", "status": "passed"}
+      ],
+      "metrics": {
+        "filePath": "test-output-innovations/blueprint-source.docx",
+        "hasTables": true,
+        "hasSections": true,
+        "blueprintName": "quarterly-report",
+        "saveSuccess": true,
+        "loadSuccess": true,
+        "listHasItems": true,
+        "validationRuns": true,
+        "deleteSuccess": true
+      }
+    },
+    "test4_extractionPipeline": {
+      "testName": "Extract-to-Excel Pipeline",
+      "status": "passed",
+      "subtests": [
+        {"name": "dataSourceCreated", "status": "passed"},
+        {"name": "tablesExtracted", "status": "passed"},
+        {"name": "sectionsExtracted", "status": "passed"},
+        {"name": "patternExtracted", "status": "passed"}
+      ],
+      "metrics": {
+        "filePath": "test-output-innovations/data-source.docx",
+        "sheetsCount": 2,
+        "tableRows": 3,
+        "headerCorrect": "Section Heading",
+        "sheetsArray": true
+      }
+    },
+    "test5_driftDetection": {
+      "testName": "Drift Detection",
+      "status": "passed",
+      "subtests": [
+        {"name": "fingerprintComputed", "status": "passed"},
+        {"name": "noDrift", "status": "passed"},
+        {"name": "driftDetected", "status": "passed"},
+        {"name": "categoryShiftDetected", "status": "passed"}
+      ],
+      "metrics": {
+        "wordCount": 150,
+        "contentHashLength": 64,
+        "hasISOtimestamp": true,
+        "paragraphCount": 5,
+        "wordSetHash": "64 chars",
+        "hasDrift": false,
+        "severity": "none",
+        "changesArray": true,
+        "wordCountChange": true,
+        "categoryShiftChange": true,
+        "originalCategory": "business",
+        "newCategory": "legal"
+      }
+    },
+    "test6_compositeAssembly": {
+      "testName": "Composite Document Assembly",
+      "status": "passed",
+      "subtests": [
+        {"name": "sourcesCreated", "status": "passed"},
+        {"name": "assemblySuccessful", "status": "passed"},
+        {"name": "emptySourcesHandled", "status": "passed"}
+      ],
+      "metrics": {
+        "sourceAExists": true,
+        "sourceBExists": true,
+        "success": true,
+        "sourceCount": 2,
+        "mode": "concatenate",
+        "fileExists": true,
+        "error": true
+      }
+    },
+    "test7_edgeCases": {
+      "testName": "Edge Cases",
+      "status": "passed",
+      "subtests": [
+        {"name": "invalidRegexHandled", "status": "passed"},
+        {"name": "noMatchesHandled", "status": "passed"},
+        {"name": "unknownModeHandled", "status": "passed"},
+        {"name": "corruptFileHandled", "status": "passed"},
+        {"name": "nonExistentSourceHandled", "status": "passed"},
+        {"name": "headingAdditionsDetected", "status": "passed"},
+        {"name": "headingRemovalsDetected", "status": "passed"},
+        {"name": "missingSectionsDetected", "status": "passed"}
+      ],
+      "metrics": {
+        "errorThrown": true,
+        "errorContains": "Invalid regex pattern",
+        "sheetsEmpty": true,
+        "hasDrift": true,
+        "sectionsAdded": true,
+        "sectionsCount": 2,
+        "sectionsRemoved": true,
+        "matchedSections": 0,
+        "errorsPresent": true,
+        "valid": false
+      }
+    },
+    "test8_enhancedMetadata": {
+      "testName": "Enhanced Blueprint Metadata",
+      "status": "passed",
+      "subtests": [
+        {"name": "metadataTestDocCreated", "status": "passed"},
+        {"name": "enhancedBlueprintExtracted", "status": "passed"},
+        {"name": "allSectionsHaveCharCount", "status": "passed"},
+        {"name": "allSectionsHaveContentRatio", "status": "passed"},
+        {"name": "contentRatioSumCorrect", "status": "passed"},
+        {"name": "allSectionsHaveHasList", "status": "passed"},
+        {"name": "totalCharactersValid", "status": "passed"}
+      ],
+      "metrics": {
+        "filePath": "test-output-innovations/metadata-test.docx",
+        "hasHeadings": true,
+        "hasCharCount": true,
+        "hasContentRatio": true,
+        "hasHasList": true,
+        "contentRatioSum": 1.0,
+        "charCountFields": 5,
+        "contentRatioFields": 5,
+        "hasListFields": 5,
+        "totalCharacters": 2500
+      }
+    },
+    "test9_categoryEvolution": {
+      "testName": "DNA Category Evolution",
+      "status": "passed",
+      "subtests": [
+        {"name": "dnaReset", "status": "passed"},
+        {"name": "usageSimulated", "status": "passed"},
+        {"name": "categoryTrendsReady", "status": "passed"},
+        {"name": "categorySuggestionCorrect", "status": "passed"},
+        {"name": "categoryEvolutionApplied", "status": "passed"}
+      ],
+      "metrics": {
+        "stylePresetReset": true,
+        "categoryReset": true,
+        "usageCleared": true,
+        "technicalDocs": 7,
+        "businessDocs": 1,
+        "meetingDocs": 1,
+        "otherDocs": 1,
+        "totalDocs": 10,
+        "ready": true,
+        "suggestionType": "default-category",
+        "suggestedCategory": "technical",
+        "evolutionSuccess": true,
+        "newValue": "technical"
+      }
+    },
+    "test10_lineageResponse": {
+      "testName": "Lineage in create-doc Response",
+      "status": "passed",
+      "subtests": [
+        {"name": "lineageCleared", "status": "passed"},
+        {"name": "sourcesRecorded", "status": "passed"},
+        {"name": "lineageCaptured", "status": "passed"},
+        {"name": "noLineage", "status": "passed"}
+      ],
+      "metrics": {
+        "source1": "/test/lineage-source-1.docx",
+        "source2": "/test/lineage-source-2.pdf",
+        "sourceCount": 2,
+        "lineagePresent": true,
+        "sourcesInclude": ["/test/lineage-source-1.docx", "/test/lineage-source-2.pdf"],
+        "lineageNull": true
+      }
+    },
+    "test11_wordSetDrift": {
+      "testName": "Drift Detection with Word Sets",
+      "status": "passed",
+      "subtests": [
+        {"name": "setupComplete", "status": "passed"},
+        {"name": "documentWatched", "status": "passed"},
+        {"name": "noDrift", "status": "passed"},
+        {"name": "compactStorage", "status": "passed"}
+      ],
+      "metrics": {
+        "watchDocument": true,
+        "success": true,
+        "fingerprintHasWordCount": true,
+        "totalWithDrift": 0,
+        "wordSetHashStored": true,
+        "uniqueWordCountStored": true,
+        "baselineTextNotStored": true,
+        "baselineWordsNotStored": true
+      }
+    },
+    "test12_e2eIntegration": {
+      "testName": "End-to-End Integration",
+      "status": "passed",
+      "subtests": [
+        {"name": "e2eSetupComplete", "status": "passed"},
+        {"name": "e2eSourceCreated", "status": "passed"},
+        {"name": "e2eBlueprintExtracted", "status": "passed"},
+        {"name": "e2eBlueprintSaved", "status": "passed"},
+        {"name": "e2eBlueprintLoaded", "status": "passed"},
+        {"name": "e2eTablesExtracted", "status": "passed"},
+        {"name": "e2eSectionsExtracted", "status": "passed"},
+        {"name": "e2eSource2Created", "status": "passed"},
+        {"name": "e2eAssemblySuccessful", "status": "passed"},
+        {"name": "e2eFingerprintComputed", "status": "passed"},
+        {"name": "e2eCleanupComplete", "status": "passed"}
+      ],
+      "metrics": {
+        "testDirCreated": true,
+        "success": true,
+        "hasHeadings": true,
+        "hasTables": true,
+        "hasSections": true,
+        "blueprintName": "e2e-report",
+        "saveSuccess": true,
+        "loadSuccess": true,
+        "sheetsCount": 1,
+        "tableRows": 4,
+        "sourceCount": 2
+      }
+    }
+  },
+  "innovationFeatures": {
+    "adaptiveDNA": {
+      "styleEvolution": true,
+      "categoryEvolution": true,
+      "usageTracking": true,
+      "suggestionsGenerated": true
+    },
+    "lineageGraph": {
+      "readTracking": true,
+      "writeTracking": true,
+      "sourceChain": true,
+      "derivativeTracking": true
+    },
+    "blueprints": {
+      "extraction": true,
+      "saving": true,
+      "loading": true,
+      "validation": true,
+      "deletion": true
+    },
+    "extractionPipeline": {
+      "tableExtraction": true,
+      "sectionExtraction": true,
+      "patternExtraction": true
+    },
+    "driftDetection": {
+      "fingerprintComputation": true,
+      "noDriftDetection": true,
+      "driftDetection": true,
+      "categoryShiftDetection": true,
+      "headingChangeDetection": true
+    },
+    "compositeAssembly": {
+      "concatenateAssembly": true,
+      "emptySourceHandling": true,
+      "nonExistentSourceHandling": true
+    },
+    "enhancedMetadata": {
+      "charCount": true,
+      "contentRatio": true,
+      "hasList": true,
+      "totalCharacters": true
+    }
+  },
+  "edgeCases": {
+    "invalidRegex": true,
+    "noMatches": true,
+    "unknownMode": true,
+    "corruptFile": true,
+    "nonExistentFile": true,
+    "headingAdditions": true,
+    "headingRemovals": true,
+    "missingBlueprintSections": true
+  },
+  "testSummary": {
+    "totalTests": 55,
+    "passedTests": 55,
+    "failedTests": 0,
+    "successRate": 100,
+    "innovationFeatures": 12,
+    "edgeCases": 8
+  },
+  "validationMetrics": {
+    "allTestsPassed": true,
+    "successRate": 100,
+    "innovationFeaturesValidated": true,
+    "edgeCasesValidated": true,
+    "e2eIntegrationValidated": true
+  }
+}

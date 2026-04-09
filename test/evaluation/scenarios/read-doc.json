@@ -1,0 +1,40 @@
+{
+  "name": "read-doc",
+  "description": "Model reads and analyzes documents using read-doc tool",
+  "steps": [
+    {
+      "name": "Tool selection",
+      "check": "Tool name is 'read-doc'",
+      "validate": "toolName === 'read-doc'"
+    },
+    {
+      "name": "Mode selection",
+      "check": "Appropriate mode (summary/indepth/focused) is used",
+      "validate": "params.mode === 'summary' || params.mode === 'indepth' || params.mode === 'focused'"
+    },
+    {
+      "name": "Response format",
+      "check": "Response follows expected format for mode",
+      "validate": "result.content && Array.isArray(result.content) && result.content.length > 0 && result.content[0].type === 'text'"
+    },
+    {
+      "name": "Content quality",
+      "check": "Response contains meaningful content",
+      "validate": "result.content && result.content[0] && result.content[0].text && result.content[0].text.length > 10"
+    }
+  ],
+  "expectedOutput": {
+    "content": [
+      {
+        "type": "text",
+        "text": "string containing document analysis"
+      }
+    ]
+  },
+  "qualityMetrics": {
+    "hasContentArray": true,
+    "textContentType": "text",
+    "textContentLength": "> 10 characters"
+  },
+  "baseline": "read-doc"
+}

@@ -1,0 +1,13 @@
+{
+  "name": "dna-get",
+  "description": "Test the dna tool with get action to verify DNA configuration retrieval",
+  "steps": [
+    {
+      "tool": "dna",
+      "expected": "Success - Returns current DNA configuration",
+      "params": {
+        "action": "get"
+      }
+    }
+  ]
+}

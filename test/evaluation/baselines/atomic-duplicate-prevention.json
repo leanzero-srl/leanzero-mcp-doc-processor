@@ -1,0 +1,8 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"results\":{\"allUnique\":true,\"uniquePathCount\":20,\"duplicateCount\":0,\"errorCount\":0},\"lockCleanup\":{\"lockDirsCleaned\":true,\"lockDirCount\":0},\"pathValidation\":{\"allPathsValid\":true,\"extensionCorrect\":true,\"namingPattern\":\"concurrent-test[_N].docx\"},\"concurrentExecution\":{\"requestsLaunched\":20,\"requestsCompleted\":20,\"uniquePathsGenerated\":20},\"message\":\"CONCURRENT DUPLICATE PREVENTION TEST PASSED\\n\\nTest Results:\\n  - 20 concurrent requests launched\\n  - 20 unique paths generated\\n  - 0 duplicates found\\n  - All lock directories cleaned up\\n  - No race conditions detected\\n\\nThis test validates the atomic lock mechanism in preventDuplicateFiles() that prevents TOCTOU (Time Of Check To Time Of Use) race conditions. When multiple concurrent requests try to create files with the same path, they should all receive unique filenames without any duplicates.\\n\\nSample unique paths generated:\\n  - test/output/atomic-tests/concurrent-test.docx\\n  - test/output/atomic-tests/concurrent-test_1.docx\\n  - test/output/atomic-tests/concurrent-test_2.docx\\n  - ... (up to _19)\\n\\nAll 20 requests successfully received unique paths, confirming the atomic lock mechanism works correctly under concurrent load.\"}"
+    }
+  ]
+}

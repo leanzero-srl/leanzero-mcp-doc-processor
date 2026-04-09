@@ -1,0 +1,558 @@
+{
+  "name": "verify-fix",
+  "description": "Verify formatting fixes for document and Excel creation tools",
+  "purpose": "Test various document formatting issues and verify that fixes have been applied correctly",
+  "category": "formatting",
+  "version": "1.0.0",
+  "scenarios": [
+    {
+      "name": "paragraphs-on-single-page",
+      "description": "Verify that multiple paragraphs fit on a single page without excessive spacing",
+      "testType": "formatting",
+      "input": {
+        "title": "Single Page Test",
+        "paragraphs": [
+          "First paragraph - should fit on first page",
+          "Second paragraph - should also fit on first page",
+          "Third paragraph - should still be on first page",
+          "Fourth paragraph - still first page",
+          "Fifth paragraph - still first page"
+        ],
+        "outputPath": "./test/output/verify-single-page.docx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document creation succeeds",
+          "check": "Document creation is successful",
+          "validate": "result.success === true",
+          "severity": "critical"
+        },
+        {
+          "name": "File path exists",
+          "check": "Output file path is provided",
+          "validate": "result.filePath && result.filePath.endsWith('.docx')",
+          "severity": "critical"
+        },
+        {
+          "name": "Message format correct",
+          "check": "Message contains 'WRITTEN TO DISK'",
+          "validate": "result.message && result.message.includes('WRITTEN TO DISK')",
+          "severity": "high"
+        },
+        {
+          "name": "Enforcement info present",
+          "check": "Response includes enforcement details",
+          "validate": "result.enforcement && result.enforcement.docsFolderEnforced !== undefined",
+          "severity": "medium"
+        },
+        {
+          "name": "Style configuration present",
+          "check": "Response includes style configuration",
+          "validate": "result.stylePreset !== undefined && result.styleConfig !== undefined",
+          "severity": "medium"
+        },
+        {
+          "name": "Category info present",
+          "check": "Response includes category information",
+          "validate": "result.category !== undefined",
+          "severity": "low"
+        }
+      ],
+      "formattingChecks": {
+        "spacingIssues": {
+          "description": "Check for excessive spacing that would cause content separation",
+          "checks": [
+            {
+              "name": "Title spacing",
+              "check": "Title spacing should be reasonable (not excessive)",
+              "validate": "result.styleConfig && result.styleConfig.paragraph && result.styleConfig.paragraph.spacingBefore < 2000",
+              "severity": "critical"
+            },
+            {
+              "name": "Paragraph spacing",
+              "check": "Paragraph spacing should be reasonable",
+              "validate": "result.styleConfig && result.styleConfig.paragraph && result.styleConfig.paragraph.spacingAfter < 1000",
+              "severity": "critical"
+            }
+          ]
+        },
+        "fontSizes": {
+          "description": "Check that font sizes are applied correctly",
+          "checks": [
+            {
+              "name": "Title size",
+              "check": "Title should have reasonable size",
+              "validate": "result.styleConfig && result.styleConfig.font && result.styleConfig.font.size > 0 && result.styleConfig.font.size <= 72",
+              "severity": "high"
+            }
+          ]
+        }
+      },
+      "expectedResults": {
+        "success": true,
+        "pageCount": "1-2 pages",
+        "spacing": "reasonable (not excessive)",
+        "fontSizes": "readable (10-16pt range)"
+      }
+    },
+    {
+      "name": "one-letter-per-page-fixed",
+      "description": "Verify that the 'one letter per page' issue has been fixed",
+      "testType": "formatting",
+      "input": {
+        "title": "Fixed Spacing Test",
+        "paragraphs": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
+        "outputPath": "./test/output/verify-one-letter-fixed.docx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document creation succeeds",
+          "check": "Document creation is successful",
+          "validate": "result.success === true",
+          "severity": "critical"
+        },
+        {
+          "name": "File path exists",
+          "check": "Output file path is provided",
+          "validate": "result.filePath && result.filePath.endsWith('.docx')",
+          "severity": "critical"
+        },
+        {
+          "name": "Message format correct",
+          "check": "Message contains 'WRITTEN TO DISK'",
+          "validate": "result.message && result.message.includes('WRITTEN TO DISK')",
+          "severity": "high"
+        },
+        {
+          "name": "Content fits on pages",
+          "check": "Content should fit on 1-2 pages, not 10 pages",
+          "validate": "result.filePath && result.success === true",
+          "severity": "critical"
+        },
+        {
+          "name": "No excessive spacing",
+          "check": "No excessive spacing between paragraphs",
+          "validate": "result.styleConfig && result.styleConfig.paragraph && result.styleConfig.paragraph.spacingAfter < 1000",
+          "severity": "critical"
+        }
+      ],
+      "formattingChecks": {
+        "spacingIssues": {
+          "description": "Verify that excessive spacing has been fixed",
+          "checks": [
+            {
+              "name": "Title spacing",
+              "check": "Title spacing should be reasonable",
+              "validate": "result.styleConfig && result.styleConfig.paragraph && result.styleConfig.paragraph.spacingBefore < 2000",
+              "severity": "critical"
+            },
+            {
+              "name": "Paragraph spacing",
+              "check": "Paragraph spacing should be reasonable",
+              "validate": "result.styleConfig && result.styleConfig.paragraph && result.styleConfig.paragraph.spacingAfter < 1000",
+              "severity": "critical"
+            }
+          ]
+        }
+      },
+      "expectedResults": {
+        "success": true,
+        "pageCount": "1-2 pages (not 10)",
+        "spacing": "reasonable",
+        "content": "All letters should fit on 1-2 pages"
+      }
+    },
+    {
+      "name": "font-sizes-reasonable",
+      "description": "Verify that font sizes are reasonable and readable",
+      "testType": "formatting",
+      "input": {
+        "title": "Font Size Test",
+        "paragraphs": [
+          {
+            "text": "This is a normal paragraph (default size 12pt)",
+            "size": 12
+          },
+          {
+            "text": "This is a heading (size 16pt)",
+            "size": 16,
+            "bold": true
+          },
+          {
+            "text": "This is smaller text (size 10pt)",
+            "size": 10
+          },
+          {
+            "text": "This is larger text (size 14pt)",
+            "size": 14
+          }
+        ],
+        "outputPath": "./test/output/verify-font-sizes.docx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document creation succeeds",
+          "check": "Document creation is successful",
+          "validate": "result.success === true",
+          "severity": "critical"
+        },
+        {
+          "name": "File path exists",
+          "check": "Output file path is provided",
+          "validate": "result.filePath && result.filePath.endsWith('.docx')",
+          "severity": "critical"
+        },
+        {
+          "name": "Message format correct",
+          "check": "Message contains 'WRITTEN TO DISK'",
+          "validate": "result.message && result.message.includes('WRITTEN TO DISK')",
+          "severity": "high"
+        },
+        {
+          "name": "Font sizes applied",
+          "check": "Font sizes should be applied correctly",
+          "validate": "result.styleConfig && result.styleConfig.font && result.styleConfig.font.size >= 8 && result.styleConfig.font.size <= 72",
+          "severity": "high"
+        },
+        {
+          "name": "Style configuration present",
+          "check": "Response includes style configuration",
+          "validate": "result.stylePreset !== undefined && result.styleConfig !== undefined",
+          "severity": "medium"
+        }
+      ],
+      "formattingChecks": {
+        "fontSizes": {
+          "description": "Check that font sizes are in reasonable range",
+          "checks": [
+            {
+              "name": "Font size range",
+              "check": "Font sizes should be between 8 and 72 points",
+              "validate": "result.styleConfig && result.styleConfig.font && result.styleConfig.font.size >= 8 && result.styleConfig.font.size <= 72",
+              "severity": "high"
+            }
+          ]
+        }
+      },
+      "expectedResults": {
+        "success": true,
+        "fontSizes": "10-16pt range",
+        "readable": true
+      }
+    },
+    {
+      "name": "table-formatting-appropriate",
+      "description": "Verify that table formatting is appropriate and tables fit on pages",
+      "testType": "formatting",
+      "input": {
+        "title": "Table Formatting Test",
+        "paragraphs": ["Paragraph before table", "Paragraph after table"],
+        "tables": [
+          [
+            ["Column 1", "Column 2", "Column 3"],
+            ["Data 1", "Data 2", "Data 3"],
+            ["Data 4", "Data 5", "Data 6"],
+            ["Data 7", "Data 8", "Data 9"]
+          ]
+        ],
+        "outputPath": "./test/output/verify-table-format.docx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document creation succeeds",
+          "check": "Document creation is successful",
+          "validate": "result.success === true",
+          "severity": "critical"
+        },
+        {
+          "name": "File path exists",
+          "check": "Output file path is provided",
+          "validate": "result.filePath && result.filePath.endsWith('.docx')",
+          "severity": "critical"
+        },
+        {
+          "name": "Message format correct",
+          "check": "Message contains 'WRITTEN TO DISK'",
+          "validate": "result.message && result.message.includes('WRITTEN TO DISK')",
+          "severity": "high"
+        },
+        {
+          "name": "Table formatting applied",
+          "check": "Table formatting should be applied",
+          "validate": "result.styleConfig && result.styleConfig.table !== undefined",
+          "severity": "medium"
+        },
+        {
+          "name": "Document structure",
+          "check": "Document should have proper structure with paragraphs and tables",
+          "validate": "result.documentStructure && result.documentStructure.hasTables === true",
+          "severity": "medium"
+        }
+      ],
+      "formattingChecks": {
+        "tableFormatting": {
+          "description": "Check that table formatting is appropriate",
+          "checks": [
+            {
+              "name": "Table border color",
+              "check": "Table border color should be set",
+              "validate": "result.styleConfig && result.styleConfig.table && result.styleConfig.table.borderColor !== undefined",
+              "severity": "medium"
+            },
+            {
+              "name": "Table border style",
+              "check": "Table border style should be set",
+              "validate": "result.styleConfig && result.styleConfig.table && result.styleConfig.table.borderStyle !== undefined",
+              "severity": "medium"
+            }
+          ]
+        }
+      },
+      "expectedResults": {
+        "success": true,
+        "tableFormat": "appropriate",
+        "fitOnPage": true
+      }
+    },
+    {
+      "name": "excel-formatting-applied",
+      "description": "Verify that Excel formatting is applied correctly",
+      "testType": "formatting",
+      "input": {
+        "sheets": [
+          {
+            "name": "Formatted Sheet",
+            "data": [
+              ["Header 1", "Header 2", "Header 3"],
+              ["Data A", "Data B", "Data C"],
+              ["Data D", "Data E", "Data F"]
+            ]
+          }
+        ],
+        "style": {
+          "font": {
+            "bold": true,
+            "size": 12
+          },
+          "headerBold": true,
+          "columnWidths": {
+            "0": 20,
+            "1": 20,
+            "2": 20
+          }
+        },
+        "outputPath": "./test/output/verify-excel-format.xlsx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .xlsx",
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Excel creation succeeds",
+          "check": "Excel creation is successful",
+          "validate": "result.success === true",
+          "severity": "critical"
+        },
+        {
+          "name": "File path exists",
+          "check": "Output file path is provided",
+          "validate": "result.filePath && result.filePath.endsWith('.xlsx')",
+          "severity": "critical"
+        },
+        {
+          "name": "Message format correct",
+          "check": "Message contains 'WRITTEN TO DISK'",
+          "validate": "result.message && result.message.includes('WRITTEN TO DISK')",
+          "severity": "high"
+        },
+        {
+          "name": "Style configuration present",
+          "check": "Response includes style configuration",
+          "validate": "result.styleConfig !== undefined",
+          "severity": "medium"
+        },
+        {
+          "name": "Sheets created",
+          "check": "Sheets should be created successfully",
+          "validate": "result.sheets && result.sheets.length > 0",
+          "severity": "medium"
+        }
+      ],
+      "formattingChecks": {
+        "columnWidths": {
+          "description": "Check that column widths are applied",
+          "checks": [
+            {
+              "name": "Column width applied",
+              "check": "Column widths should be applied",
+              "validate": "result.styleConfig && result.styleConfig.columnWidths !== undefined",
+              "severity": "high"
+            }
+          ]
+        },
+        "fontStyling": {
+          "description": "Check that font styling is applied",
+          "checks": [
+            {
+              "name": "Font styling applied",
+              "check": "Font styling should be applied",
+              "validate": "result.styleConfig && result.styleConfig.font && result.styleConfig.font.bold !== undefined",
+              "severity": "high"
+            }
+          ]
+        }
+      },
+      "expectedResults": {
+        "success": true,
+        "columnWidths": "applied",
+        "fontStyling": "applied"
+      }
+    },
+    {
+      "name": "document-readability",
+      "description": "Verify overall document readability and professional appearance",
+      "testType": "formatting",
+      "input": {
+        "title": "Document Readability Test",
+        "paragraphs": [
+          {
+            "text": "Introduction to Document",
+            "headingLevel": "heading1",
+            "size": 16,
+            "bold": true
+          },
+          "This is the introduction paragraph. It should be easy to read with proper spacing.",
+          {
+            "text": "Section 1: Key Points",
+            "headingLevel": "heading2",
+            "size": 14,
+            "bold": true
+          },
+          "This is the first section with important information about the document.",
+          "Here is another paragraph in the first section.",
+          {
+            "text": "Section 2: Details",
+            "headingLevel": "heading2",
+            "size": 14,
+            "bold": true
+          },
+          "This section provides detailed information about the topic.",
+          "Additional details are provided here."
+        ],
+        "tables": [
+          [
+            ["Item", "Quantity", "Price"],
+            ["Widget A", "10", "$5.00"],
+            ["Widget B", "5", "$7.50"],
+            ["Widget C", "20", "$3.00"]
+          ]
+        ],
+        "outputPath": "./test/output/verify-readability.docx",
+        "preventDuplicates": false
+      },
+      "expectedOutput": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "message": "string containing 'WRITTEN TO DISK'"
+      },
+      "checks": [
+        {
+          "name": "Document creation succeeds",
+          "check": "Document creation is successful",
+          "validate": "result.success === true",
+          "severity": "critical"
+        },
+        {
+          "name": "File path exists",
+          "check": "Output file path is provided",
+          "validate": "result.filePath && result.filePath.endsWith('.docx')",
+          "severity": "critical"
+        },
+        {
+          "name": "Message format correct",
+          "check": "Message contains 'WRITTEN TO DISK'",
+          "validate": "result.message && result.message.includes('WRITTEN TO DISK')",
+          "severity": "high"
+        },
+        {
+          "name": "Document structure",
+          "check": "Document should have proper structure with headings and paragraphs",
+          "validate": "result.documentStructure && result.documentStructure.hasHeaders === true",
+          "severity": "medium"
+        },
+        {
+          "name": "Table formatting",
+          "check": "Table should be formatted correctly",
+          "validate": "result.documentStructure && result.documentStructure.hasTables === true",
+          "severity": "medium"
+        }
+      ],
+      "formattingChecks": {
+        "overallReadability": {
+          "description": "Check overall document readability",
+          "checks": [
+            {
+              "name": "Proper spacing",
+              "check": "Document should have proper spacing",
+              "validate": "result.styleConfig && result.styleConfig.paragraph && result.styleConfig.paragraph.spacingAfter < 1000",
+              "severity": "critical"
+            },
+            {
+              "name": "Headings styled",
+              "check": "Headings should be properly styled",
+              "validate": "result.styleConfig && result.styleConfig.font && result.styleConfig.font.bold !== undefined",
+              "severity": "high"
+            }
+          ]
+        }
+      },
+      "expectedResults": {
+        "success": true,
+        "readability": "high",
+        "professionalAppearance": true
+      }
+    }
+  ],
+  "qualityMetrics": {
+    "successRate": {
+      "description": "Percentage of tests that pass",
+      "threshold": 90
+    },
+    "formattingScore": {
+      "description": "Overall formatting quality score",
+      "threshold": 80
+    },
+    "spacingIssues": {
+      "description": "Number of spacing issues detected",
+      "threshold": 0
+    }
+  },
+  "baseline": "verify-fix"
+}

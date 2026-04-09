@@ -1,0 +1,14 @@
+{
+  "name": "dna-delete-memory",
+  "description": "Test the dna tool with delete-memory action to verify memory deletion functionality",
+  "steps": [
+    {
+      "tool": "dna",
+      "expected": "Success - Memory deleted successfully",
+      "params": {
+        "action": "delete-memory",
+        "key": "test-preference"
+      }
+    }
+  ]
+}

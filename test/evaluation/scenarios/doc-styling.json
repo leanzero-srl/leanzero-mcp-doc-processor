@@ -1,0 +1,267 @@
+{
+  "name": "doc-styling",
+  "description": "Model creates documents with different style presets and verifies styling is applied correctly, including custom styling overrides",
+  "category": "styling",
+  "version": "1.0.0",
+  "steps": [
+    {
+      "name": "Style Preset Testing",
+      "description": "Test all available style presets",
+      "presets": [
+        {
+          "name": "minimal",
+          "description": "Clean, simple styling for basic documents"
+        },
+        {
+          "name": "professional",
+          "description": "Standard professional style for business documents"
+        },
+        {
+          "name": "technical",
+          "description": "Technical documentation style with clear hierarchy"
+        },
+        {
+          "name": "legal",
+          "description": "Formal legal document style with traditional formatting"
+        },
+        {
+          "name": "business",
+          "description": "Modern business style with contemporary design elements"
+        },
+        {
+          "name": "casual",
+          "description": "Friendly, approachable style for informal documents"
+        },
+        {
+          "name": "colorful",
+          "description": "Vibrant styling with accent colors for creative documents"
+        }
+      ],
+      "validation": "params.stylePreset && ['minimal', 'professional', 'technical', 'legal', 'business', 'casual', 'colorful'].includes(params.stylePreset)"
+    },
+    {
+      "name": "Document Creation with Styling",
+      "description": "Create documents using each style preset",
+      "check": "result.stylePreset === params.stylePreset && result.success === true",
+      "outputFormat": {
+        "success": true,
+        "filePath": "string ending with .docx",
+        "stylePreset": "string from available presets",
+        "styleConfig": "object with font, paragraph, table styling"
+      }
+    },
+    {
+      "name": "Styling Verification",
+      "description": "Verify styling attributes are applied correctly",
+      "checks": [
+        {
+          "name": "Font Family",
+          "check": "result.styleConfig.font.family !== undefined",
+          "expected": "Font family should be specified"
+        },
+        {
+          "name": "Font Size",
+          "check": "result.styleConfig.font.size !== undefined",
+          "expected": "Font size should be specified"
+        },
+        {
+          "name": "Font Color",
+          "check": "result.styleConfig.font.color !== undefined",
+          "expected": "Font color should be specified"
+        },
+        {
+          "name": "Paragraph Spacing",
+          "check": "result.styleConfig.paragraph !== undefined",
+          "expected": "Paragraph styling should be specified"
+        },
+        {
+          "name": "Table Styling",
+          "check": "result.styleConfig.table !== undefined",
+          "expected": "Table styling should be specified"
+        }
+      ]
+    },
+    {
+      "name": "Custom Styling Overrides",
+      "description": "Test custom styling overrides functionality",
+      "scenarios": [
+        {
+          "name": "Custom Font Override",
+          "description": "Override font properties while keeping preset base",
+          "params": {
+            "stylePreset": "professional",
+            "style": {
+              "font": {
+                "size": 14,
+                "color": "FF0000",
+                "bold": true
+              }
+            }
+          },
+          "check": "result.styleConfig.font.size === 14 && result.styleConfig.font.color === 'FF0000'"
+        },
+        {
+          "name": "Custom Paragraph Override",
+          "description": "Override paragraph spacing while keeping preset base",
+          "params": {
+            "stylePreset": "professional",
+            "style": {
+              "paragraph": {
+                "spacingBefore": 300,
+                "spacingAfter": 300,
+                "lineSpacing": 1.5
+              }
+            }
+          },
+          "check": "result.styleConfig.paragraph.spacingBefore === 300"
+        },
+        {
+          "name": "Custom Table Override",
+          "description": "Override table styling while keeping preset base",
+          "params": {
+            "stylePreset": "professional",
+            "style": {
+              "table": {
+                "borderColor": "FF5733",
+                "headerFill": "C0C0C0"
+              }
+            }
+          },
+          "check": "result.styleConfig.table.borderColor === 'FF5733'"
+        },
+        {
+          "name": "Complete Custom Styling",
+          "description": "Apply comprehensive custom styling",
+          "params": {
+            "stylePreset": "professional",
+            "style": {
+              "font": {
+                "family": "Verdana",
+                "size": 12,
+                "color": "333333",
+                "bold": true
+              },
+              "paragraph": {
+                "alignment": "center",
+                "spacingBefore": 200,
+                "spacingAfter": 200,
+                "lineSpacing": 1.3
+              },
+              "table": {
+                "borderColor": "0000FF",
+                "borderStyle": "double",
+                "borderWidth": 1,
+                "headerFill": "DDEBF7",
+                "zebraFill": "E7E6E6"
+              }
+            }
+          },
+          "check": "result.styleConfig.font.family === 'Verdana' && result.styleConfig.font.size === 12"
+        }
+      ]
+    },
+    {
+      "name": "Baseline Comparison",
+      "description": "Compare styling output against baseline",
+      "baselineFile": "test/evaluation/baselines/doc-styling.json",
+      "checks": [
+        {
+          "name": "Style Preset Applied",
+          "check": "result.stylePreset === params.stylePreset",
+          "expected": "Style preset should match requested preset"
+        },
+        {
+          "name": "Style Configuration Present",
+          "check": "result.styleConfig !== undefined",
+          "expected": "Style configuration should be present"
+        },
+        {
+          "name": "Styling Applied to Document",
+          "check": "result.filePath && result.filePath.endsWith('.docx')",
+          "expected": "Document should be created with styling"
+        }
+      ]
+    },
+    {
+      "name": "Output Validation",
+      "description": "Validate final output format",
+      "outputFormat": {
+        "success": true,
+        "filePath": "string",
+        "stylePreset": "string",
+        "styleConfig": {
+          "font": {
+            "family": "string",
+            "size": "number",
+            "color": "string"
+          },
+          "paragraph": {
+            "alignment": "string",
+            "spacingBefore": "number",
+            "spacingAfter": "number",
+            "lineSpacing": "number"
+          },
+          "table": {
+            "borderColor": "string",
+            "borderStyle": "string",
+            "borderWidth": "number",
+            "headerFill": "string",
+            "zebraFill": "string"
+          }
+        },
+        "enforcement": {
+          "docsFolderEnforced": "boolean",
+          "duplicatePrevented": "boolean",
+          "categorized": "boolean"
+        },
+        "message": "string containing 'WRITTEN TO DISK'"
+      }
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "filePath": "string ending with .docx",
+    "stylePreset": "string from available presets",
+    "styleConfig": {
+      "font": {
+        "family": "string",
+        "size": "number",
+        "color": "string",
+        "bold": "boolean",
+        "italics": "boolean",
+        "underline": "boolean"
+      },
+      "paragraph": {
+        "alignment": "string",
+        "spacingBefore": "number",
+        "spacingAfter": "number",
+        "lineSpacing": "number"
+      },
+      "table": {
+        "borderColor": "string",
+        "borderStyle": "string",
+        "borderWidth": "number",
+        "headerFill": "string",
+        "zebraFill": "string",
+        "zebraInterval": "number"
+      }
+    },
+    "enforcement": {
+      "docsFolderEnforced": "boolean",
+      "duplicatePrevented": "boolean",
+      "categorized": "boolean"
+    },
+    "message": "string containing 'WRITTEN TO DISK'"
+  },
+  "qualityMetrics": {
+    "stylePresetApplied": true,
+    "styleConfigPresent": true,
+    "fontPropertiesDefined": true,
+    "paragraphPropertiesDefined": true,
+    "tablePropertiesDefined": true,
+    "customOverridesApplied": true,
+    "messageContainsDisk": true,
+    "filePathIsAbsolute": true
+  },
+  "baseline": "doc-styling"
+}

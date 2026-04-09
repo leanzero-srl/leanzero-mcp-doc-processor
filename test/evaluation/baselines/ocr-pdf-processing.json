@@ -1,0 +1,303 @@
+{
+  "scenario": "ocr-pdf-processing",
+  "version": "1.0.0",
+  "description": "Baseline for OCR PDF processing test scenarios",
+  "created": "2024-01-15",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"text\":\"Sample OCR text content extracted from PDF document. This document contains multiple pages with various content types including text, images, and tables. The OCR processing has successfully extracted the content with good accuracy.\",\"pages\":3,\"metadata\":{\"title\":\"Sample PDF Document\",\"author\":\"Test Author\",\"subject\":\"Test Document\",\"creator\":\"PDF Generator\",\"producer\":\"Test Producer\",\"creationDate\":\"2024-01-01\",\"modificationDate\":\"2024-01-15\",\"pageCount\":3},\"isImageBased\":false,\"ocrApplied\":false,\"ocrSource\":null,\"layoutAnalysis\":{\"success\":true,\"pages\":[{\"pageNumber\":1,\"textBlocks\":[{\"text\":\"Section 1 Introduction\",\"lines\":[{\"text\":\"Introduction\",\"startLine\":0,\"endLine\":2}],\"startLine\":0,\"endLine\":5}],\"images\":[{\"name\":\"image1.png\",\"page\":1,\"width\":800,\"height\":600,\"mimeType\":\"image/png\"}],\"tables\":[],\"totalTextLength\":1250,\"estimatedLayoutType\":\"text-dense\"},{\"pageNumber\":2,\"textBlocks\":[{\"text\":\"Section 2 Main Content\",\"lines\":[{\"text\":\"Main content paragraph\",\"startLine\":0,\"endLine\":3}],\"startLine\":0,\"endLine\":10}],\"images\":[],\"tables\":[{\"type\":\"markdown\",\"content\":\"| Column 1 | Column 2 |\\n|----------|----------|\\n| Data 1   | Data 2   |\",\"start\":500,\"end\":600,\"rows\":3,\"source\":\"text\",\"extractedContent\":\"| Column 1 | Column 2 |\\n|----------|----------|\\n| Data 1   | Data 2   |\",\"confidence\":0.95}],\"totalTextLength\":2500,\"estimatedLayoutType\":\"mixed\"},{\"pageNumber\":3,\"textBlocks\":[{\"text\":\"Section 3 Conclusion\",\"lines\":[{\"text\":\"Conclusion\",\"startLine\":0,\"endLine\":1}],\"startLine\":0,\"endLine\":3}],\"images\":[{\"name\":\"image2.png\",\"page\":3,\"width\":600,\"height\":400,\"mimeType\":\"image/png\"}],\"tables\":[],\"totalTextLength\":1800,\"estimatedLayoutType\":\"text-dense\"}],\"totalPages\":3,\"layoutSummary\":\"Document Layout Analysis:\\n- Total pages: 3\\n- Total text blocks: 6\\n- Total images: 2\\n- Potential tables: 1\\n\\nStructure Type: mixed-document\\n\\nPage-by-page analysis:\\nPage 1: text-dense layout with 1 text block, 1 image\\nPage 2: mixed layout with 1 text block, 0 images, 1 table candidate\\nPage 3: text-dense layout with 1 text block, 1 image\",\"structureType\":\"mixed-document\"},\"ocrPostProcessing\":{\"success\":true,\"processedText\":\"Sample OCR text content extracted from PDF document. This document contains multiple pages with various content types including text, images, and tables. The OCR processing has successfully extracted the content with good accuracy.\",\"improvements\":[{\"type\":\"whitespace\",\"description\":\"Fixed inconsistent whitespace between words\",\"impact\":\"improved readability\"},{\"type\":\"hyphenation\",\"description\":\"Rejoined hyphenated words at line breaks\",\"impact\":\"improved text continuity\"},{\"type\":\"encoding\",\"description\":\"Fixed character encoding issues\",\"impact\":\"improved text accuracy\"}],\"confidence\":0.92,\"processingSteps\":[\"Initial OCR extraction\",\"Basic text cleaning\",\"Whitespace normalization\",\"Hyphenation repair\",\"Encoding correction\",\"Quality assessment\"]},\"tables\":[{\"type\":\"markdown\",\"content\":\"| Column 1 | Column 2 |\\n|----------|----------|\\n| Data 1   | Data 2   |\",\"start\":500,\"end\":600,\"rows\":3,\"source\":\"text\",\"extractedContent\":\"| Column 1 | Column 2 |\\n|----------|----------|\\n| Data 1   | Data 2   |\",\"confidence\":0.95}],\"tableCount\":1,\"images\":[{\"data\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\"name\":\"image1.png\",\"page\":1,\"width\":800,\"height\":600,\"mimeType\":\"image/png\",\"size\":1234,\"kind\":\"png\"},{\"data\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\"name\":\"image2.png\",\"page\":3,\"width\":600,\"height\":400,\"mimeType\":\"image/png\",\"size\":987,\"kind\":\"png\"}],\"processingTime\":15234}"
+    }
+  ],
+  "testResults": {
+    "test-layout-analysis": {
+      "success": true,
+      "layoutAnalysis": {
+        "success": true,
+        "pages": [
+          {
+            "pageNumber": 1,
+            "textBlocks": [
+              {
+                "text": "Section 1 Introduction",
+                "lines": [
+                  {
+                    "text": "Introduction",
+                    "startLine": 0,
+                    "endLine": 2
+                  }
+                ],
+                "startLine": 0,
+                "endLine": 5
+              }
+            ],
+            "images": [
+              {
+                "name": "image1.png",
+                "page": 1,
+                "width": 800,
+                "height": 600,
+                "mimeType": "image/png"
+              }
+            ],
+            "tables": [],
+            "totalTextLength": 1250,
+            "estimatedLayoutType": "text-dense"
+          },
+          {
+            "pageNumber": 2,
+            "textBlocks": [
+              {
+                "text": "Section 2 Main Content",
+                "lines": [
+                  {
+                    "text": "Main content paragraph",
+                    "startLine": 0,
+                    "endLine": 3
+                  }
+                ],
+                "startLine": 0,
+                "endLine": 10
+              }
+            ],
+            "images": [],
+            "tables": [
+              {
+                "type": "markdown",
+                "content": "| Column 1 | Column 2 |\n|----------|----------|\n| Data 1   | Data 2   |",
+                "start": 500,
+                "end": 600,
+                "rows": 3,
+                "source": "text",
+                "extractedContent": "| Column 1 | Column 2 |\n|----------|----------|\n| Data 1   | Data 2   |",
+                "confidence": 0.95
+              }
+            ],
+            "totalTextLength": 2500,
+            "estimatedLayoutType": "mixed"
+          },
+          {
+            "pageNumber": 3,
+            "textBlocks": [
+              {
+                "text": "Section 3 Conclusion",
+                "lines": [
+                  {
+                    "text": "Conclusion",
+                    "startLine": 0,
+                    "endLine": 1
+                  }
+                ],
+                "startLine": 0,
+                "endLine": 3
+              }
+            ],
+            "images": [
+              {
+                "name": "image2.png",
+                "page": 3,
+                "width": 600,
+                "height": 400,
+                "mimeType": "image/png"
+              }
+            ],
+            "tables": [],
+            "totalTextLength": 1800,
+            "estimatedLayoutType": "text-dense"
+          }
+        ],
+        "totalPages": 3,
+        "layoutSummary": "Document Layout Analysis:\n- Total pages: 3\n- Total text blocks: 6\n- Total images: 2\n- Potential tables: 1\n\nStructure Type: mixed-document\n\nPage-by-page analysis:\nPage 1: text-dense layout with 1 text block, 1 image\nPage 2: mixed layout with 1 text block, 0 images, 1 table candidate\nPage 3: text-dense layout with 1 text block, 1 image",
+        "structureType": "mixed-document"
+      }
+    },
+    "test-text-extraction": {
+      "success": true,
+      "text": "Sample OCR text content extracted from PDF document. This document contains multiple pages with various content types including text, images, and tables. The OCR processing has successfully extracted the content with good accuracy.",
+      "pages": 3
+    },
+    "test-ocr-post-processing": {
+      "success": true,
+      "ocrPostProcessing": {
+        "success": true,
+        "processedText": "Sample OCR text content extracted from PDF document. This document contains multiple pages with various content types including text, images, and tables. The OCR processing has successfully extracted the content with good accuracy.",
+        "improvements": [
+          {
+            "type": "whitespace",
+            "description": "Fixed inconsistent whitespace between words",
+            "impact": "improved readability"
+          },
+          {
+            "type": "hyphenation",
+            "description": "Rejoined hyphenated words at line breaks",
+            "impact": "improved text continuity"
+          },
+          {
+            "type": "encoding",
+            "description": "Fixed character encoding issues",
+            "impact": "improved text accuracy"
+          }
+        ],
+        "confidence": 0.92,
+        "processingSteps": [
+          "Initial OCR extraction",
+          "Basic text cleaning",
+          "Whitespace normalization",
+          "Hyphenation repair",
+          "Encoding correction",
+          "Quality assessment"
+        ]
+      }
+    },
+    "test-table-extraction": {
+      "success": true,
+      "tables": [
+        {
+          "type": "markdown",
+          "content": "| Column 1 | Column 2 |\n|----------|----------|\n| Data 1   | Data 2   |",
+          "start": 500,
+          "end": 600,
+          "rows": 3,
+          "source": "text",
+          "extractedContent": "| Column 1 | Column 2 |\n|----------|----------|\n| Data 1   | Data 2   |",
+          "confidence": 0.95
+        }
+      ],
+      "tableCount": 1
+    },
+    "test-image-extraction": {
+      "success": true,
+      "images": [
+        {
+          "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+          "name": "image1.png",
+          "page": 1,
+          "width": 800,
+          "height": 600,
+          "mimeType": "image/png",
+          "size": 1234,
+          "kind": "png"
+        },
+        {
+          "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+          "name": "image2.png",
+          "page": 3,
+          "width": 600,
+          "height": 400,
+          "mimeType": "image/png",
+          "size": 987,
+          "kind": "png"
+        }
+      ]
+    },
+    "test-full-integration": {
+      "success": true,
+      "text": "Sample OCR text content extracted from PDF document. This document contains multiple pages with various content types including text, images, and tables. The OCR processing has successfully extracted the content with good accuracy.",
+      "pages": 3,
+      "layoutAnalysis": {
+        "success": true,
+        "structureType": "mixed-document"
+      },
+      "ocrPostProcessing": {
+        "success": true,
+        "confidence": 0.92
+      },
+      "tables": [
+        {
+          "type": "markdown",
+          "confidence": 0.95
+        }
+      ],
+      "images": [
+        {
+          "name": "image1.png",
+          "page": 1
+        },
+        {
+          "name": "image2.png",
+          "page": 3
+        }
+      ]
+    }
+  },
+  "layoutAnalysisSchema": {
+    "success": "boolean - whether layout analysis was successful",
+    "pages": "array of page analysis objects",
+    "totalPages": "number - total number of pages analyzed",
+    "layoutSummary": "string - summary of layout analysis",
+    "structureType": "one of: structured-document, image-heavy-document, text-dense-document, mixed-document, sparse-text, image-heavy, balanced, fragmented"
+  },
+  "layoutAnalysisPageSchema": {
+    "pageNumber": "number - page number (1-indexed)",
+    "textBlocks": "array of text block objects with text, lines, startLine, endLine",
+    "images": "array of image objects with positional data",
+    "tables": "array of table candidate objects",
+    "totalTextLength": "number - total characters on page",
+    "estimatedLayoutType": "one of: image-heavy, sparse-text, text-dense, fragmented, balanced"
+  },
+  "ocrPostProcessingSchema": {
+    "success": "boolean - whether post-processing was successful",
+    "processedText": "string - the improved text",
+    "improvements": "array of improvement objects with type, description, impact",
+    "confidence": "number between 0 and 1",
+    "processingSteps": "array of strings describing processing steps"
+  },
+  "tableExtractionSchema": {
+    "type": "string - type of table (markdown, tab-separated, column-aligned, etc.)",
+    "content": "string - raw table content",
+    "start": "number - character position in document",
+    "end": "number - character position in document",
+    "rows": "number - estimated row count",
+    "source": "string - source type (text or image)",
+    "extractedContent": "string - formatted table content",
+    "confidence": "number between 0 and 1"
+  },
+  "imageExtractionSchema": {
+    "data": "string - base64 encoded image data or data URL",
+    "name": "string - image identifier",
+    "page": "number - page number",
+    "width": "number - image width in pixels",
+    "height": "number - image height in pixels",
+    "mimeType": "string - image MIME type",
+    "size": "number - approximate size in bytes",
+    "kind": "string - image type identifier"
+  },
+  "qualityMetrics": {
+    "textLength": {
+      "min": 100,
+      "max": 1000000,
+      "description": "Minimum text length in characters"
+    },
+    "hasLayoutAnalysis": true,
+    "hasOcrProcessing": true,
+    "hasTableExtraction": true,
+    "hasImageExtraction": true,
+    "successStatus": true,
+    "layoutAnalysisPages": {
+      "min": 1
+    },
+    "ocrConfidence": {
+      "min": 0.5
+    },
+    "processingTime": {
+      "max": 30000
+    }
+  },
+  "expectedPerformance": {
+    "maxProcessingTime": 30000,
+    "minConfidence": 0.7,
+    "maxErrorRate": 0.1,
+    "minPagesAnalyzed": 1,
+    "minTablesFound": 0,
+    "minImagesFound": 0
+  },
+  "passThresholds": {
+    "success": true,
+    "textLength": "> 100",
+    "pages": "> 0",
+    "layoutAnalysisSuccess": true,
+    "ocrProcessingSuccess": true,
+    "maxProcessingTime": 30000,
+    "minConfidence": 0.5
+  }
+}

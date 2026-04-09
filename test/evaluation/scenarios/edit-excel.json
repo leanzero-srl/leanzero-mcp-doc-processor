@@ -1,0 +1,36 @@
+{
+  "name": "edit-excel",
+  "description": "Test the edit-excel tool to verify Excel workbook editing functionality",
+  "steps": [
+    {
+      "tool": "read-doc",
+      "expected": "Success - Excel file content retrieved",
+      "params": {
+        "filePath": "./testfiles/factura avans Perdum Mihai.pdf",
+        "mode": "summary"
+      }
+    },
+    {
+      "tool": "create-excel",
+      "expected": "Success - Excel file created",
+      "params": {
+        "title": "Test Excel for Editing",
+        "sheets": [{
+          "name": "Test Sheet",
+          "data": [["A1", "B1"], ["A2", "B2"]]
+        }],
+        "outputPath": "./test/output/edit-excel-test.xlsx",
+        "preventDuplicates": false
+      }
+    },
+    {
+      "tool": "edit-excel",
+      "expected": "Success - Excel file edited",
+      "params": {
+        "filePath": "./test/output/edit-excel-test.xlsx",
+        "action": "append-rows",
+        "rows": [["C1", "D1"], ["C2", "D2"]]
+      }
+    }
+  ]
+}

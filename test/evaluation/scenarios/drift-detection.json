@@ -1,0 +1,125 @@
+{
+  "name": "drift-detection",
+  "description": "Model monitors a document for structural changes using drift-monitor tool",
+  "steps": [
+    {
+      "name": "Tool selection",
+      "check": "Tool name is 'drift-monitor'",
+      "validate": "toolName === 'drift-monitor'"
+    },
+    {
+      "name": "Action validation - watch",
+      "check": "Action is 'watch' to establish baseline",
+      "validate": "params.action === 'watch'"
+    },
+    {
+      "name": "File path validation",
+      "check": "Document path is specified and exists",
+      "validate": "params.filePath && params.filePath.length > 0"
+    },
+    {
+      "name": "Response format - watch",
+      "check": "Response contains success status and document info",
+      "validate": "result.success === true && result.filePath && result.name"
+    },
+    {
+      "name": "Fingerprint verification",
+      "check": "Response includes fingerprint with required fields",
+      "validate": "result.fingerprint && result.fingerprint.wordCount && result.fingerprint.headingTree && result.fingerprint.contentHash"
+    },
+    {
+      "name": "Action validation - check",
+      "check": "Action is 'check' to detect drift",
+      "validate": "params.action === 'check'"
+    },
+    {
+      "name": "Response format - check",
+      "check": "Response contains drift reports",
+      "validate": "result.success === true && result.reports && Array.isArray(result.reports)"
+    },
+    {
+      "name": "Drift detection verification",
+      "check": "Drift is detected when document has changed",
+      "validate": "result.reports[0].hasDrift === true"
+    },
+    {
+      "name": "Heading change detection",
+      "check": "Response includes heading-level-changes in changes array",
+      "validate": "result.reports[0].changes && result.reports[0].changes.some(c => c.type === 'heading-level-changes')"
+    },
+    {
+      "name": "Severity assessment",
+      "check": "Severity is appropriately set based on drift type",
+      "validate": "result.reports[0].severity === 'medium' || result.reports[0].severity === 'high'"
+    },
+    {
+      "name": "Summary completeness",
+      "check": "Response includes summary of changes",
+      "validate": "result.reports[0].summary && result.reports[0].summary.length > 0"
+    }
+  ],
+  "expectedOutput": {
+    "watch": {
+      "success": true,
+      "filePath": "string",
+      "name": "string",
+      "fingerprint": {
+        "wordCount": "number",
+        "headingTree": "array",
+        "contentHash": "string",
+        "headingCount": "number",
+        "category": "string"
+      },
+      "message": "string containing 'is now being watched'"
+    },
+    "check": {
+      "success": true,
+      "reports": [
+        {
+          "filePath": "string",
+          "name": "string",
+          "hasDrift": true,
+          "severity": "low|medium|high",
+          "changes": [
+            {
+              "type": "heading-level-changes",
+              "detail": "string describing level changes"
+            }
+          ],
+          "summary": "string summarizing changes"
+        }
+      ],
+      "totalChecked": "number",
+      "totalWithDrift": "number",
+      "message": "string describing drift status"
+    }
+  },
+  "qualityMetrics": {
+    "mcpFormatValid": true,
+    "toolActionValid": true,
+    "driftDetectionWorking": true,
+    "headingChangesDetected": true,
+    "severityAssessmentValid": true,
+    "summaryComplete": true
+  },
+  "baseline": "drift-detection",
+  "testData": {
+    "testDocument": {
+      "title": "Drift Detection Test Document",
+      "paragraphs": [
+        "Initial content for drift detection testing.",
+        "This document will be modified to simulate drift."
+      ],
+      "outputPath": "./test/output/drift-test.docx"
+    },
+    "modifiedDocument": {
+      "title": "Drift Detection Test Document",
+      "paragraphs": [
+        "Initial content for drift detection testing.",
+        "This document has been modified to simulate drift.",
+        "Additional content has been added to detect drift."
+      ],
+      "outputPath": "./test/output/drift-test.docx"
+    }
+  }
+}

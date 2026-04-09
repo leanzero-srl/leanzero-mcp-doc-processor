@@ -1,0 +1,333 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/docs/report.docx\",\"category\":null,\"tags\":[],\"wasCategorized\":false,\"registryEntry\":null,\"stylePreset\":\"professional\",\"styleReason\":\"user-specified\",\"styleConfig\":{\"preset\":\"professional\",\"description\":\"Professional style for business documents\",\"font\":{\"family\":\"Garamond\",\"size\":11,\"color\":\"000000\",\"bold\":false,\"italics\":false,\"underline\":false},\"paragraph\":{\"alignment\":\"justify\",\"spacingBefore\":0,\"spacingAfter\":8,\"lineSpacing\":1.15},\"table\":{\"borderColor\":\"000000\",\"borderStyle\":\"single\",\"borderWidth\":0.5,\"headerFill\":\"e0e0e0\",\"headerFontColor\":\"000000\",\"zebraFill\":\"f0f0f0\",\"zebraInterval\":2}},\"heading1\":{\"run\":{\"bold\":true,\"size\":16,\"color\":\"000000\"},\"paragraph\":{\"spacingBefore\":240,\"spacingAfter\":120,\"alignment\":\"left\"}},\"heading2\":{\"run\":{\"bold\":true,\"size\":13,\"color\":\"000000\"},\"paragraph\":{\"spacingBefore\":120,\"spacingAfter\":60,\"alignment\":\"left\"}},\"heading3\":{\"run\":{\"bold\":true,\"size\":11,\"color\":\"000000\"},\"paragraph\":{\"spacingBefore\":60,\"spacingAfter\":60,\"alignment\":\"left\"}},\"document\":{\"run\":{\"font\":\"Garamond\",\"size\":22,\"color\":\"000000\"},\"paragraph\":{\"alignment\":\"justify\",\"spacingBefore\":0,\"spacingAfter\":8,\"lineSpacing\":1.15}},\"dnaApplied\":false,\"header\":null,\"footer\":null,\"enforcement\":{\"docsFolderEnforced\":false,\"duplicatePrevented\":false,\"categorized\":false,\"categoryApplied\":null},\"memoriesApplied\":0,\"blueprintMatch\":null,\"lineage\":null,\"message\":\"DOCX FILE WRITTEN TO DISK at: /path/to/docs/report.docx\\n\\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\\n\\nNOTE: Document categorized as null and placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\\n\\nNOTE: No DNA template was applied to this document.\"}"
+    }
+  ],
+  "stylePresets": {
+    "minimal": {
+      "description": "Minimal clean style for basic documents",
+      "font": {
+        "family": "Arial",
+        "size": 11,
+        "color": "000000",
+        "bold": false,
+        "italics": false,
+        "underline": false
+      },
+      "paragraph": {
+        "alignment": "left",
+        "spacingBefore": 0,
+        "spacingAfter": 8,
+        "lineSpacing": 1.15
+      },
+      "table": {
+        "borderColor": "000000",
+        "borderStyle": "single",
+        "borderWidth": 0.5,
+        "headerFill": "e0e0e0",
+        "headerFontColor": "000000",
+        "zebraFill": "f0f0f0",
+        "zebraInterval": 2
+      }
+    },
+    "professional": {
+      "description": "Professional style for business documents",
+      "font": {
+        "family": "Garamond",
+        "size": 11,
+        "color": "000000",
+        "bold": false,
+        "italics": false,
+        "underline": false
+      },
+      "paragraph": {
+        "alignment": "justify",
+        "spacingBefore": 0,
+        "spacingAfter": 8,
+        "lineSpacing": 1.15
+      },
+      "table": {
+        "borderColor": "000000",
+        "borderStyle": "single",
+        "borderWidth": 0.5,
+        "headerFill": "e0e0e0",
+        "headerFontColor": "000000",
+        "zebraFill": "f0f0f0",
+        "zebraInterval": 2
+      }
+    },
+    "technical": {
+      "description": "Technical documentation style",
+      "font": {
+        "family": "Courier New",
+        "size": 10,
+        "color": "000000",
+        "bold": false,
+        "italics": false,
+        "underline": false
+      },
+      "paragraph": {
+        "alignment": "left",
+        "spacingBefore": 0,
+        "spacingAfter": 6,
+        "lineSpacing": 1.0
+      },
+      "table": {
+        "borderColor": "000000",
+        "borderStyle": "single",
+        "borderWidth": 0.5,
+        "headerFill": "d0d0d0",
+        "headerFontColor": "000000",
+        "zebraFill": "e8e8e8",
+        "zebraInterval": 2
+      }
+    },
+    "legal": {
+      "description": "Formal legal document style",
+      "font": {
+        "family": "Times New Roman",
+        "size": 12,
+        "color": "000000",
+        "bold": false,
+        "italics": false,
+        "underline": false
+      },
+      "paragraph": {
+        "alignment": "justify",
+        "spacingBefore": 0,
+        "spacingAfter": 0,
+        "lineSpacing": 2.0
+      },
+      "table": {
+        "borderColor": "000000",
+        "borderStyle": "single",
+        "borderWidth": 0.5,
+        "headerFill": "f0f0f0",
+        "headerFontColor": "000000",
+        "zebraFill": "e8e8e8",
+        "zebraInterval": 2
+      }
+    },
+    "business": {
+      "description": "Modern business style",
+      "font": {
+        "family": "Calibri",
+        "size": 11,
+        "color": "1F4E79",
+        "bold": false,
+        "italics": false,
+        "underline": false
+      },
+      "paragraph": {
+        "alignment": "justify",
+        "spacingBefore": 0,
+        "spacingAfter": 8,
+        "lineSpacing": 1.15
+      },
+      "table": {
+        "borderColor": "1F4E79",
+        "borderStyle": "single",
+        "borderWidth": 0.5,
+        "headerFill": "DDEBF7",
+        "headerFontColor": "1F4E79",
+        "zebraFill": "E7E6E6",
+        "zebraInterval": 2
+      }
+    },
+    "casual": {
+      "description": "Friendly, approachable style",
+      "font": {
+        "family": "Arial",
+        "size": 11,
+        "color": "000000",
+        "bold": false,
+        "italics": false,
+        "underline": false
+      },
+      "paragraph": {
+        "alignment": "left",
+        "spacingBefore": 0,
+        "spacingAfter": 10,
+        "lineSpacing": 1.25
+      },
+      "table": {
+        "borderColor": "000000",
+        "borderStyle": "single",
+        "borderWidth": 0.5,
+        "headerFill": "e0e0e0",
+        "headerFontColor": "000000",
+        "zebraFill": "f0f0f0",
+        "zebraInterval": 2
+      }
+    },
+    "colorful": {
+      "description": "Vibrant styling with accent colors",
+      "font": {
+        "family": "Verdana",
+        "size": 11,
+        "color": "333333",
+        "bold": true,
+        "italics": false,
+        "underline": false
+      },
+      "paragraph": {
+        "alignment": "left",
+        "spacingBefore": 0,
+        "spacingAfter": 12,
+        "lineSpacing": 1.3
+      },
+      "table": {
+        "borderColor": "FF5733",
+        "borderStyle": "single",
+        "borderWidth": 0.75,
+        "headerFill": "FFC000",
+        "headerFontColor": "FFFFFF",
+        "zebraFill": "FFD700",
+        "zebraInterval": 2
+      }
+    }
+  },
+  "customStyling": {
+    "fontOverride": {
+      "description": "Custom font properties override",
+      "check": "result.styleConfig.font.size === 14 && result.styleConfig.font.color === 'FF0000'",
+      "expected": {
+        "font": {
+          "family": "string",
+          "size": 14,
+          "color": "FF0000",
+          "bold": true
+        }
+      }
+    },
+    "paragraphOverride": {
+      "description": "Custom paragraph properties override",
+      "check": "result.styleConfig.paragraph.spacingBefore === 300",
+      "expected": {
+        "paragraph": {
+          "spacingBefore": 300,
+          "spacingAfter": 300,
+          "lineSpacing": 1.5
+        }
+      }
+    },
+    "tableOverride": {
+      "description": "Custom table properties override",
+      "check": "result.styleConfig.table.borderColor === 'FF5733'",
+      "expected": {
+        "table": {
+          "borderColor": "FF5733",
+          "headerFill": "C0C0C0"
+        }
+      }
+    },
+    "completeOverride": {
+      "description": "Comprehensive custom styling override",
+      "check": "result.styleConfig.font.family === 'Verdana' && result.styleConfig.font.size === 12",
+      "expected": {
+        "font": {
+          "family": "Verdana",
+          "size": 12,
+          "color": "333333",
+          "bold": true
+        },
+        "paragraph": {
+          "alignment": "center",
+          "spacingBefore": 200,
+          "spacingAfter": 200,
+          "lineSpacing": 1.3
+        },
+        "table": {
+          "borderColor": "0000FF",
+          "borderStyle": "double",
+          "borderWidth": 1,
+          "headerFill": "DDEBF7",
+          "zebraFill": "E7E6E6"
+        }
+      }
+    }
+  },
+  "headingStyles": {
+    "heading1": {
+      "description": "Main heading style",
+      "run": {
+        "bold": true,
+        "size": 16,
+        "color": "000000"
+      },
+      "paragraph": {
+        "spacingBefore": 240,
+        "spacingAfter": 120,
+        "alignment": "left"
+      }
+    },
+    "heading2": {
+      "description": "Secondary heading style",
+      "run": {
+        "bold": true,
+        "size": 13,
+        "color": "000000"
+      },
+      "paragraph": {
+        "spacingBefore": 120,
+        "spacingAfter": 60,
+        "alignment": "left"
+      }
+    },
+    "heading3": {
+      "description": "Tertiary heading style",
+      "run": {
+        "bold": true,
+        "size": 11,
+        "color": "000000"
+      },
+      "paragraph": {
+        "spacingBefore": 60,
+        "spacingAfter": 60,
+        "alignment": "left"
+      }
+    }
+  },
+  "documentStyle": {
+    "description": "Default document style",
+    "run": {
+      "font": "Garamond",
+      "size": 22,
+      "color": "000000"
+    },
+    "paragraph": {
+      "alignment": "justify",
+      "spacingBefore": 0,
+      "spacingAfter": 8,
+      "lineSpacing": 1.15
+    }
+  },
+  "qualityMetrics": {
+    "success": true,
+    "stylePresetApplied": true,
+    "styleConfigPresent": true,
+    "fontPropertiesDefined": true,
+    "paragraphPropertiesDefined": true,
+    "tablePropertiesDefined": true,
+    "headingStylesApplied": true,
+    "documentStyleApplied": true,
+    "customOverridesApplied": true,
+    "messageContainsDisk": true,
+    "filePathIsAbsolute": true,
+    "stylePreservation": true,
+    "consistency": true,
+    "baselineValid": true
+  },
+  "baselineComparison": {
+    "description": "Comparison against baseline doc-styling",
+    "check": "result.stylePreset === 'professional' && result.styleConfig.font.family === 'Garamond'",
+    "expected": {
+      "stylePreset": "professional",
+      "fontFamily": "Garamond",
+      "fontSize": 11,
+      "alignment": "justify"
+    }
+  }
+}

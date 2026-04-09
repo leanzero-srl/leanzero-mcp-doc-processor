@@ -1,0 +1,685 @@
+{
+  "name": "style-presets",
+  "description": "Comprehensive test of all style presets (minimal, professional, technical, legal, business, casual, colorful) for both DOCX and Excel documents",
+  "version": "1.0.0",
+  "author": "MCP Test Framework",
+  "created": "2025-01-15",
+  "tags": ["styling", "style-presets", "docx", "excel", "document-creation"],
+  "scenarioType": "functionality-test",
+  "descriptionLong": "This test validates all available style presets (minimal, professional, technical, legal, business, casual, colorful) for both DOCX and Excel document generation. It verifies that each preset applies the correct font, paragraph, table, and Excel-specific styling configurations.",
+  "objectives": [
+    "Verify all 7 style presets (minimal, professional, technical, legal, business, casual, colorful) are available",
+    "Test DOCX document creation with each style preset",
+    "Test Excel workbook creation with each style preset",
+    "Verify preset description and metadata",
+    "Test custom style overrides on top of presets",
+    "Validate style configuration structure and properties",
+    "Verify preset application in both DOCX and Excel formats"
+  ],
+  "testSetup": {
+    "outputDirectory": "test/output/style-presets",
+    "cleanupBeforeTest": true,
+    "cleanupAfterTest": false,
+    "testFiles": {
+      "docx": ["minimal", "professional", "technical", "legal", "business", "casual", "colorful"],
+      "excel": ["minimal", "professional", "technical", "legal", "business", "casual", "colorful"]
+    }
+  },
+  "steps": [
+    {
+      "name": "Preset Discovery",
+      "description": "Verify all available style presets are accessible",
+      "action": "list_presets",
+      "validation": "presets.length === 7 && presets.includes('minimal') && presets.includes('professional')",
+      "expected": {
+        "presetCount": 7,
+        "presetNames": ["minimal", "professional", "technical", "legal", "business", "casual", "colorful"]
+      }
+    },
+    {
+      "name": "Preset Description Verification",
+      "description": "Verify each preset has a descriptive text",
+      "action": "get_descriptions",
+      "validation": "descriptions.length === 7 && descriptions.every(d => typeof d === 'string' && d.length > 10)",
+      "expected": {
+        "descriptionCount": 7,
+        "hasMeaningfulDescriptions": true
+      }
+    },
+    {
+      "name": "DOCX Preset Testing - Minimal",
+      "description": "Test minimal style preset for DOCX documents",
+      "action": "create_doc",
+      "params": {
+        "title": "Minimal Style Test Document",
+        "paragraphs": [
+          {
+            "text": "Section 1: Introduction",
+            "headingLevel": "heading1"
+          },
+          "This document demonstrates the minimal style preset.",
+          {
+            "text": "Section 2: Content",
+            "headingLevel": "heading2"
+          },
+          "This section contains test content with the minimal styling."
+        ],
+        "tables": [
+          [
+            ["Column 1", "Column 2"],
+            ["Data A", "Data B"]
+          ]
+        ],
+        "stylePreset": "minimal",
+        "outputPath": "test/output/style-presets/minimal.docx"
+      },
+      "validation": "result.success === true && result.stylePreset === 'minimal' && result.styleConfig.font.family === 'Arial'",
+      "expected": {
+        "success": true,
+        "stylePreset": "minimal",
+        "styleConfig": {
+          "font": {
+            "family": "Arial",
+            "size": 11,
+            "color": "333333"
+          },
+          "paragraph": {
+            "alignment": "left",
+            "lineSpacing": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "DOCX Preset Testing - Professional",
+      "description": "Test professional style preset for DOCX documents",
+      "action": "create_doc",
+      "params": {
+        "title": "Professional Style Test Document",
+        "paragraphs": [
+          {
+            "text": "Executive Summary",
+            "headingLevel": "heading1"
+          },
+          "This document demonstrates the professional style preset with sophisticated serif typography.",
+          {
+            "text": "Key Findings",
+            "headingLevel": "heading2"
+          },
+          "This section contains professionally formatted content."
+        ],
+        "tables": [
+          [
+            ["Metric", "Value"],
+            ["Revenue", "$1.5M"]
+          ]
+        ],
+        "stylePreset": "professional",
+        "outputPath": "test/output/style-presets/professional.docx"
+      },
+      "validation": "result.success === true && result.stylePreset === 'professional' && result.styleConfig.font.family === 'Garamond'",
+      "expected": {
+        "success": true,
+        "stylePreset": "professional",
+        "styleConfig": {
+          "font": {
+            "family": "Garamond",
+            "size": 11,
+            "color": "2C2C2C"
+          },
+          "paragraph": {
+            "alignment": "both",
+            "lineSpacing": 1.25
+          }
+        }
+      }
+    },
+    {
+      "name": "DOCX Preset Testing - Technical",
+      "description": "Test technical style preset for DOCX documents",
+      "action": "create_doc",
+      "params": {
+        "title": "Technical Documentation",
+        "paragraphs": [
+          {
+            "text": "Technical Specifications",
+            "headingLevel": "heading1"
+          },
+          "This document demonstrates the technical style preset optimized for developer documentation.",
+          {
+            "text": "Implementation Details",
+            "headingLevel": "heading2"
+          },
+          "Technical documentation requires clear hierarchy and readability."
+        ],
+        "tables": [
+          [
+            ["Component", "Version"],
+            ["Framework", "5.0"]
+          ]
+        ],
+        "stylePreset": "technical",
+        "outputPath": "test/output/style-presets/technical.docx"
+      },
+      "validation": "result.success === true && result.stylePreset === 'technical' && result.styleConfig.font.family === 'Arial'",
+      "expected": {
+        "success": true,
+        "stylePreset": "technical",
+        "styleConfig": {
+          "font": {
+            "family": "Arial",
+            "size": 11,
+            "color": "1A1A1A"
+          },
+          "paragraph": {
+            "alignment": "left",
+            "lineSpacing": 1.15
+          }
+        }
+      }
+    },
+    {
+      "name": "DOCX Preset Testing - Legal",
+      "description": "Test legal style preset for DOCX documents",
+      "action": "create_doc",
+      "params": {
+        "title": "SERVICE AGREEMENT",
+        "paragraphs": [
+          {
+            "text": "ARTICLE I: PARTIES",
+            "headingLevel": "heading1"
+          },
+          "This document demonstrates the legal style preset with formal double-spacing.",
+          {
+            "text": "Section 1.1: Definitions",
+            "headingLevel": "heading2"
+          },
+          "Legal documents require specific formatting conventions."
+        ],
+        "tables": [
+          [
+            ["Term", "Definition"],
+            ["Party", "The parties involved"]
+          ]
+        ],
+        "stylePreset": "legal",
+        "outputPath": "test/output/style-presets/legal.docx"
+      },
+      "validation": "result.success === true && result.stylePreset === 'legal' && result.styleConfig.font.family === 'Times New Roman'",
+      "expected": {
+        "success": true,
+        "stylePreset": "legal",
+        "styleConfig": {
+          "font": {
+            "family": "Times New Roman",
+            "size": 12,
+            "color": "000000"
+          },
+          "paragraph": {
+            "alignment": "both",
+            "lineSpacing": 2.0
+          }
+        }
+      }
+    },
+    {
+      "name": "DOCX Preset Testing - Business",
+      "description": "Test business style preset for DOCX documents",
+      "action": "create_doc",
+      "params": {
+        "title": "Business Report",
+        "paragraphs": [
+          {
+            "text": "Q1 2025 Report",
+            "headingLevel": "heading1"
+          },
+          "This document demonstrates the business style preset with modern corporate styling.",
+          {
+            "text": "Financial Highlights",
+            "headingLevel": "heading2"
+          },
+          "Business documents use blue accent colors and modern formatting."
+        ],
+        "tables": [
+          [
+            ["Metric", "Q1 2025"],
+            ["Revenue", "$2.5M"]
+          ]
+        ],
+        "stylePreset": "business",
+        "outputPath": "test/output/style-presets/business.docx"
+      },
+      "validation": "result.success === true && result.stylePreset === 'business' && result.styleConfig.font.family === 'Calibri'",
+      "expected": {
+        "success": true,
+        "stylePreset": "business",
+        "styleConfig": {
+          "font": {
+            "family": "Calibri",
+            "size": 11,
+            "color": "333333"
+          },
+          "paragraph": {
+            "alignment": "left",
+            "lineSpacing": 1.2
+          }
+        }
+      }
+    },
+    {
+      "name": "DOCX Preset Testing - Casual",
+      "description": "Test casual style preset for DOCX documents",
+      "action": "create_doc",
+      "params": {
+        "title": "Newsletter",
+        "paragraphs": [
+          {
+            "text": "Monthly Newsletter",
+            "headingLevel": "heading1"
+          },
+          "This document demonstrates the casual style preset with warm, friendly formatting.",
+          {
+            "text": "What's New",
+            "headingLevel": "heading2"
+          },
+          "Casual documents use warm colors and readable formatting."
+        ],
+        "tables": [
+          [
+            ["Event", "Date"],
+            ["Meeting", "Jan 15"]
+          ]
+        ],
+        "stylePreset": "casual",
+        "outputPath": "test/output/style-presets/casual.docx"
+      },
+      "validation": "result.success === true && result.stylePreset === 'casual' && result.styleConfig.font.family === 'Verdana'",
+      "expected": {
+        "success": true,
+        "stylePreset": "casual",
+        "styleConfig": {
+          "font": {
+            "family": "Verdana",
+            "size": 12,
+            "color": "333333"
+          },
+          "paragraph": {
+            "alignment": "left",
+            "lineSpacing": 1.15
+          }
+        }
+      }
+    },
+    {
+      "name": "DOCX Preset Testing - Colorful",
+      "description": "Test colorful style preset for DOCX documents",
+      "action": "create_doc",
+      "params": {
+        "title": "Presentation Document",
+        "paragraphs": [
+          {
+            "text": "Project Presentation",
+            "headingLevel": "heading1"
+          },
+          "This document demonstrates the colorful style preset with vibrant styling.",
+          {
+            "text": "Key Highlights",
+            "headingLevel": "heading2"
+          },
+          "Colorful documents use vibrant colors for visual impact."
+        ],
+        "tables": [
+          [
+            ["Category", "Score"],
+            ["Quality", "95"]
+          ]
+        ],
+        "stylePreset": "colorful",
+        "outputPath": "test/output/style-presets/colorful.docx"
+      },
+      "validation": "result.success === true && result.stylePreset === 'colorful' && result.styleConfig.font.family === 'Arial'",
+      "expected": {
+        "success": true,
+        "stylePreset": "colorful",
+        "styleConfig": {
+          "font": {
+            "family": "Arial",
+            "size": 12,
+            "color": "4A148C"
+          },
+          "paragraph": {
+            "alignment": "center",
+            "lineSpacing": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Excel Preset Testing",
+      "description": "Test all style presets for Excel workbooks",
+      "action": "create_excel",
+      "scenarios": [
+        {
+          "name": "Excel Minimal",
+          "params": {
+            "sheets": [
+              {
+                "name": "Minimal Data",
+                "data": [
+                  ["Header 1", "Header 2"],
+                  ["Data A", "Data B"]
+                ]
+              }
+            ],
+            "stylePreset": "minimal",
+            "outputPath": "test/output/style-presets/minimal.xlsx"
+          },
+          "validation": "result.success === true && result.stylePreset === 'minimal'",
+          "expected": {
+            "success": true,
+            "stylePreset": "minimal",
+            "styleConfig": {
+              "headerBold": true,
+              "headerSize": 11,
+              "headerColor": "FFFFFF",
+              "headerBackground": "4472C4"
+            }
+          }
+        },
+        {
+          "name": "Excel Professional",
+          "params": {
+            "sheets": [
+              {
+                "name": "Professional Data",
+                "data": [
+                  ["Header 1", "Header 2"],
+                  ["Data A", "Data B"]
+                ]
+              }
+            ],
+            "stylePreset": "professional",
+            "outputPath": "test/output/style-presets/professional.xlsx"
+          },
+          "validation": "result.success === true && result.stylePreset === 'professional'",
+          "expected": {
+            "success": true,
+            "stylePreset": "professional",
+            "styleConfig": {
+              "headerBold": true,
+              "headerSize": 11,
+              "headerColor": "FFFFFF",
+              "headerBackground": "3A3A3A"
+            }
+          }
+        },
+        {
+          "name": "Excel Business",
+          "params": {
+            "sheets": [
+              {
+                "name": "Business Data",
+                "data": [
+                  ["Header 1", "Header 2"],
+                  ["Data A", "Data B"]
+                ]
+              }
+            ],
+            "stylePreset": "business",
+            "outputPath": "test/output/style-presets/business.xlsx"
+          },
+          "validation": "result.success === true && result.stylePreset === 'business'",
+          "expected": {
+            "success": true,
+            "stylePreset": "business",
+            "styleConfig": {
+              "headerBold": true,
+              "headerSize": 11,
+              "headerColor": "FFFFFF",
+              "headerBackground": "1F4E79"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Custom Style Overrides",
+      "description": "Test custom styling that overrides preset defaults",
+      "scenarios": [
+        {
+          "name": "Custom Font Override",
+          "description": "Override font properties while keeping preset base",
+          "action": "create_doc",
+          "params": {
+            "title": "Custom Override Test",
+            "paragraphs": ["Test content"],
+            "stylePreset": "professional",
+            "style": {
+              "font": {
+                "size": 14,
+                "color": "FF0000",
+                "bold": true
+              }
+            },
+            "outputPath": "test/output/style-presets/custom-override.docx"
+          },
+          "validation": "result.success === true && result.styleConfig.font.size === 14 && result.styleConfig.font.color === 'FF0000'",
+          "expected": {
+            "success": true,
+            "styleConfig": {
+              "font": {
+                "size": 14,
+                "color": "FF0000",
+                "bold": true
+              }
+            }
+          }
+        },
+        {
+          "name": "Custom Paragraph Override",
+          "description": "Override paragraph spacing",
+          "action": "create_doc",
+          "params": {
+            "title": "Custom Paragraph Test",
+            "paragraphs": ["Test content"],
+            "stylePreset": "professional",
+            "style": {
+              "paragraph": {
+                "spacingBefore": 300,
+                "spacingAfter": 300,
+                "lineSpacing": 1.5
+              }
+            },
+            "outputPath": "test/output/style-presets/custom-paragraph.docx"
+          },
+          "validation": "result.success === true && result.styleConfig.paragraph.spacingBefore === 300",
+          "expected": {
+            "success": true,
+            "styleConfig": {
+              "paragraph": {
+                "spacingBefore": 300,
+                "spacingAfter": 300,
+                "lineSpacing": 1.5
+              }
+            }
+          }
+        },
+        {
+          "name": "Complete Custom Styling",
+          "description": "Apply comprehensive custom styling",
+          "action": "create_doc",
+          "params": {
+            "title": "Complete Custom Test",
+            "paragraphs": ["Test content"],
+            "stylePreset": "professional",
+            "style": {
+              "font": {
+                "family": "Verdana",
+                "size": 12,
+                "color": "333333",
+                "bold": true
+              },
+              "paragraph": {
+                "alignment": "center",
+                "spacingBefore": 200,
+                "spacingAfter": 200,
+                "lineSpacing": 1.3
+              },
+              "table": {
+                "borderColor": "0000FF",
+                "headerFill": "DDEBF7"
+              }
+            },
+            "outputPath": "test/output/style-presets/custom-complete.docx"
+          },
+          "validation": "result.success === true && result.styleConfig.font.family === 'Verdana' && result.styleConfig.font.size === 12",
+          "expected": {
+            "success": true,
+            "styleConfig": {
+              "font": {
+                "family": "Verdana",
+                "size": 12,
+                "color": "333333",
+                "bold": true
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Baseline Comparison",
+      "description": "Compare output against baseline expectations",
+      "action": "compare_baseline",
+      "baselineFile": "test/evaluation/baselines/style-presets.json",
+      "checks": [
+        {
+          "name": "Preset Applied",
+          "check": "result.stylePreset === params.stylePreset",
+          "expected": "Style preset should match requested preset"
+        },
+        {
+          "name": "Style Configuration Present",
+          "check": "result.styleConfig !== undefined",
+          "expected": "Style configuration should be present"
+        },
+        {
+          "name": "Font Properties Defined",
+          "check": "result.styleConfig.font !== undefined",
+          "expected": "Font properties should be defined"
+        },
+        {
+          "name": "Paragraph Properties Defined",
+          "check": "result.styleConfig.paragraph !== undefined",
+          "expected": "Paragraph properties should be defined"
+        },
+        {
+          "name": "Table Properties Defined",
+          "check": "result.styleConfig.table !== undefined",
+          "expected": "Table properties should be defined"
+        },
+        {
+          "name": "Excel Header Styling",
+          "check": "result.styleConfig.headerBold === true && result.styleConfig.headerBackground !== undefined",
+          "expected": "Excel header styling should be applied"
+        }
+      ]
+    },
+    {
+      "name": "Output Validation",
+      "description": "Validate final output format for all presets",
+      "action": "validate_output",
+      "checks": [
+        {
+          "name": "DOCX Files Created",
+          "check": "docxFiles.every(f => f.exists && f.size > 0)",
+          "expected": "All 7 DOCX files should be created with content"
+        },
+        {
+          "name": "Excel Files Created",
+          "check": "excelFiles.every(f => f.exists && f.size > 0)",
+          "expected": "All 7 Excel files should be created with content"
+        },
+        {
+          "name": "File Paths Are Absolute",
+          "check": "allFilePaths.every(p => p.startsWith('/') || p.includes(':\\\\'))",
+          "expected": "All file paths should be absolute"
+        },
+        {
+          "name": "Message Contains Disk Write",
+          "check": "result.message.includes('WRITTEN TO DISK')",
+          "expected": "Message should indicate file was written to disk"
+        }
+      ]
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "stylePreset": "string from available presets",
+    "styleConfig": {
+      "font": {
+        "family": "string",
+        "size": "number",
+        "color": "string",
+        "bold": "boolean",
+        "italics": "boolean",
+        "underline": "boolean|object"
+      },
+      "heading1": {
+        "size": "number",
+        "color": "string",
+        "bold": "boolean"
+      },
+      "heading2": {
+        "size": "number",
+        "color": "string",
+        "bold": "boolean"
+      },
+      "heading3": {
+        "size": "number",
+        "color": "string",
+        "bold": "boolean"
+      },
+      "paragraph": {
+        "alignment": "string",
+        "spacingBefore": "number",
+        "spacingAfter": "number",
+        "lineSpacing": "number"
+      },
+      "table": {
+        "borderColor": "string",
+        "borderStyle": "string",
+        "borderWidth": "number",
+        "headerFill": "string",
+        "headerFontColor": "string",
+        "zebraFill": "string",
+        "zebraInterval": "number"
+      },
+      "headerBold": "boolean",
+      "headerSize": "number",
+      "headerColor": "string",
+      "headerBackground": "string"
+    },
+    "enforcement": {
+      "docsFolderEnforced": "boolean",
+      "duplicatePrevented": "boolean",
+      "categorized": "boolean"
+    },
+    "message": "string containing 'WRITTEN TO DISK'"
+  },
+  "qualityMetrics": {
+    "stylePresetApplied": true,
+    "styleConfigPresent": true,
+    "fontPropertiesDefined": true,
+    "paragraphPropertiesDefined": true,
+    "tablePropertiesDefined": true,
+    "excelHeaderStyling": true,
+    "customOverridesApplied": true,
+    "messageContainsDisk": true,
+    "filePathIsAbsolute": true,
+    "allPresetsTested": true,
+    "docxFilesCreated": 7,
+    "excelFilesCreated": 7
+  },
+  "baseline": "style-presets"
+}
