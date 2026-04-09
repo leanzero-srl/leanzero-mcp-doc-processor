@@ -1,0 +1,137 @@
+{
+  "name": "atomic-duplicate-prevention",
+  "description": "Test atomic duplicate prevention TOCTOU race condition with 20 concurrent parallel requests",
+  "version": "1.0.0",
+  "author": "MCP Test Framework",
+  "created": "2024-01-15",
+  "tags": ["race-condition", "concurrency", "atomicity", "duplicate-prevention"],
+  "scenarioType": "concurrency-test",
+  "descriptionLong": "This test validates the atomic lock mechanism in preventDuplicateFiles() that prevents TOCTOU (Time Of Check To Time Of Use) race conditions. When multiple concurrent requests try to create files with the same path, they should all receive unique filenames without any duplicates.",
+  "objectives": [
+    "Verify that concurrent calls to create-doc with the same file path result in unique filenames",
+    "Test the atomic lock mechanism with 20 parallel requests",
+    "Verify that all 20 calls get unique paths (no duplicates)",
+    "Verify that .lock directories are cleaned up after completion",
+    "Test the spin-wait retry mechanism under load",
+    "Verify error handling when lock acquisition times out"
+  ],
+  "testSetup": {
+    "testDir": "test/output/atomic-tests",
+    "cleanupBeforeTest": true,
+    "cleanupAfterTest": true,
+    "concurrentRequests": 20,
+    "maxRetries": 50,
+    "retryDelayMs": 20,
+    "randomDelayRange": [0, 50]
+  },
+  "steps": [
+    {
+      "name": "Setup: Clean test directory",
+      "check": "Test output directory is clean",
+      "action": "cleanup",
+      "validate": "testDirCleaned === true",
+      "expected": "No files in test/output/atomic-tests"
+    },
+    {
+      "name": "Setup: Create initial file",
+      "check": "Initial file exists for duplicate testing",
+      "action": "create_file",
+      "validate": "initialFileCreated === true",
+      "expected": "test/output/atomic-tests/concurrent-test.docx exists"
+    },
+    {
+      "name": "Concurrent request launch",
+      "check": "All 20 parallel requests are initiated",
+      "action": "concurrent_launch",
+      "validate": "concurrentLaunchSuccessful === true",
+      "expected": "20 concurrent tool calls initiated"
+    },
+    {
+      "name": "Concurrent execution",
+      "check": "Concurrent requests execute without errors",
+      "action": "execute",
+      "validate": "allRequestsCompleted === true",
+      "expected": "All 20 requests complete with unique paths"
+    },
+    {
+      "name": "Uniqueness verification",
+      "check": "All 20 results have unique file paths",
+      "action": "verify_uniqueness",
+      "validate": "uniquePathsCount === 20",
+      "expected": "20 unique paths generated, no duplicates"
+    },
+    {
+      "name": "Duplicate prevention check",
+      "check": "No duplicate paths in results",
+      "action": "check_duplicates",
+      "validate": "duplicateCount === 0",
+      "expected": "Zero duplicate paths found"
+    },
+    {
+      "name": "Lock cleanup verification",
+      "check": "All .lock directories are cleaned up",
+      "action": "verify_cleanup",
+      "validate": "lockDirsCleaned === true",
+      "expected": "No .lock.* directories remain in test directory"
+    },
+    {
+      "name": "Path format verification",
+      "check": "All paths have correct .docx extension",
+      "action": "verify_format",
+      "validate": "allPathsValid === true",
+      "expected": "All paths end with .docx extension"
+    },
+    {
+      "name": "Naming convention verification",
+      "check": "Paths follow expected naming pattern",
+      "action": "verify_naming",
+      "validate": "namingPatternCorrect === true",
+      "expected": "Paths follow pattern: concurrent-test[_N].docx"
+    }
+  ],
+  "concurrentTestConfig": {
+    "numConcurrentRequests": 20,
+    "randomDelayRange": [0, 50],
+    "maxRetries": 50,
+    "retryDelayMs": 20,
+    "timeoutMs": 30000
+  },
+  "expectedOutput": {
+    "success": true,
+    "results": {
+      "allUnique": true,
+      "uniquePathCount": 20,
+      "duplicateCount": 0,
+      "errorCount": 0
+    },
+    "lockCleanup": {
+      "lockDirsCleaned": true,
+      "lockDirCount": 0
+    },
+    "pathValidation": {
+      "allPathsValid": true,
+      "extensionCorrect": true,
+      "namingPattern": "concurrent-test[_N].docx"
+    },
+    "concurrentExecution": {
+      "requestsLaunched": 20,
+      "requestsCompleted": 20,
+      "uniquePathsGenerated": 20
+    }
+  },
+  "qualityMetrics": {
+    "atomicLockWorking": true,
+    "noRaceConditions": true,
+    "lockCleanupSuccessful": true,
+    "concurrentUniquePaths": true,
+    "errorRate": 0,
+    "duplicatePrevented": true
+  },
+  "baseline": "atomic-duplicate-prevention",
+  "passThreshold": {
+    "uniquePathsPercentage": 100,
+    "noDuplicates": true,
+    "lockCleanup": true,
+    "successRate": 100
+  }
+}

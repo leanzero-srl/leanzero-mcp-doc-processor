@@ -1,7 +1,10 @@
 /**
  * LM Studio Vision Service
  * Integrates with LM Studio's VLM (Vision Language Models) for OCR and image analysis
+ * Uses PromptEngineer for optimized 8B VL model prompts
  */
+
+import { promptEngineer } from "./prompt-engineer.js";
 
 export class LmStudioService {
   constructor() {
@@ -256,18 +259,21 @@ export class LmStudioService {
   }
 
   /**
-   * Extract text from an image using the selected VLM model
+   * Extract text from an image using the selected VLM model with optimized PromptEngineer prompts
    * @param {string} imageData - Base64 data URL of the image
-   * @param {string} prompt - Optional prompt for extraction guidance
+   * @param {Object|String} options - Extraction options or text hint string
    * @returns {Promise<Object>} Extraction result
    */
-  async extractText(
-    imageData,
-    prompt = "Extract all text from this image. Preserve the original formatting and structure as much as possible.",
-  ) {
+  async extractText(imageData, options = {}) {
     console.error(
       `[LmStudio] ==================== EXTRACT TEXT (OCR) ====================`,
     );
+    
+    // Normalize options parameter
+    const textHint = typeof options === "string" ? options : (options.textHint || "");
+    const layoutAnalysis = typeof options === "object" ? (options.layoutAnalysis || null) : null;
+    const documentType = typeof options === "object" ? (options.documentType || null) : null;
+
     if (!this.vlmModelId) {
       console.error(
         `[LmStudio] VLM model not initialized, initializing now...`,
@@ -289,20 +295,22 @@ export class LmStudioService {
         `[LmStudio] Extracting text with VLM model: ${this.vlmModelId}`,
       );
 
-      const systemPrompt = `You are an advanced OCR and text extraction specialist. Your task is to accurately extract and recognize text from images.
+      // Generate optimized prompt using PromptEngineer
+      const customInstructions = typeof options === "object" ? (options.customInstructions || "") : "";
+      
+      const promptConfig = promptEngineer.generateExtractionPrompt(imageData, {
+        textHint,
+        layoutAnalysis,
+        documentType,
+        customInstructions,
+      });
 
-Key responsibilities:
-1. Extract ALL visible text from the image with high accuracy
-2. Preserve the original formatting, layout, and structure
-3. For documents with tables, maintain table structure using markdown
-4. For code snippets, identify the programming language and format appropriately
-5. Handle multiple languages if present
-6. Note any text that is unclear or partially visible
-
-Output format:
-- Return the extracted text in a clean, readable format
-- Use markdown formatting where appropriate (headers, lists, tables, code blocks)
-- If the image contains structured data (invoices, forms), preserve that structure`;
+      console.error(
+        `[LmStudio] Document type detected: ${promptConfig.documentType} (confidence: ${promptConfig.confidence})`,
+      );
+      console.error(
+        `[LmStudio] Using temperature: ${promptConfig.temperature}`,
+      );
 
       // Prepare the image first
       let preparedImageId;
@@ -321,7 +329,7 @@ Output format:
       const messages = [
         {
           role: "system",
-          content: systemPrompt,
+          content: promptConfig.systemInstruction,
         },
         {
           role: "user",
@@ -334,7 +342,7 @@ Output format:
             },
             {
               type: "text",
-              text: prompt,
+              text: promptConfig.userPrompt,
             },
           ],
         },
@@ -343,7 +351,7 @@ Output format:
       console.error(
         `[LmStudio] Sending OCR request with 1 image (base64 data URL)`,
       );
-      console.error(`[LmStudio] Prompt: ${prompt.substring(0, 100)}...`);
+      console.error(`[LmStudio] Prompt length: ${promptConfig.userPrompt.length} chars`);
 
       const result = await this.callChatCompletions(messages);
 
@@ -355,6 +363,9 @@ Output format:
         text: result,
         source: "lm-studio-vlm",
         model: this.vlmModelId,
+        documentType: promptConfig.documentType,
+        confidence: promptConfig.confidence,
+        temperatureUsed: promptConfig.temperature,
       };
     } catch (error) {
       console.error(`[LmStudio] ❌ Text extraction failed: ${error.message}`);
@@ -364,6 +375,140 @@ Output format:
         details: error,
       };
     }
+  }
+
+  /**
+   * Extract text using multi-stage pipeline (task decomposition)
+   * @param {string} imageData - Base64 data URL of the image
+   * @param {Object|String} options - Extraction options or text hint string
+   * @returns {Promise<Object>} Pipeline extraction result
+   */
+  async extractWithPipeline(imageData, options = {}) {
+    console.error(
+      `[LmStudio] ==================== EXTRACT WITH PIPELINE ====================`,
+    );
+    
+    const textHint = typeof options === "string" ? options : (options.textHint || "");
+    const layoutAnalysis = typeof options === "object" ? (options.layoutAnalysis || null) : null;
+
+    if (!this.vlmModelId) {
+      console.error(
+        `[LmStudio] VLM model not initialized, initializing now...`,
+      );
+      const model = await this.initialize();
+      if (!model) {
+        console.error(
+          `[LmStudio] ❌ Failed to initialize - No VLM models available`,
+        );
+        return {
+          success: false,
+          error: "No VLM models available in LM Studio",
+        };
+      }
+    }
+
+    const pipeline = promptEngineer.createExtractionPipeline(imageData, {
+      textHint,
+      layoutAnalysis,
+    });
+
+    const results = [];
+    
+    for (const stage of pipeline) {
+      try {
+        console.error(`[LmStudio] Pipeline stage: ${stage.stage} (${stage.description})`);
+        console.error(`[LmStudio] Using temperature: ${stage.temperature || this.extractionTemperature}`);
+
+        // Use stage-specific temperature if available, otherwise use default
+        const stageTemp = stage.temperature !== undefined ? stage.temperature : this.extractionTemperature;
+
+        const messages = [
+          { role: "system", content: stage.prompt },
+          {
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: imageData } },
+            ],
+          },
+        ];
+
+        const result = await this.callChatCompletionsWithTemperature(messages, stageTemp);
+        results.push({ stage: stage.stage, result, success: true });
+      } catch (error) {
+        results.push({ stage: stage.stage, result: null, success: false, error: error.message });
+      }
+    }
+
+    // Get final assembly result
+    const finalResult = results.find(r => r.stage === "validation-assembly")?.result;
+    
+    return {
+      success: true,
+      text: finalResult || "",
+      source: "lm-studio-vlm-pipeline",
+      model: this.vlmModelId,
+      pipelineResults: results,
+    };
+  }
+
+  /**
+   * Call LM Studio chat completions endpoint with custom temperature
+   * @param {Array} messages - Messages array for the API
+   * @param {number} customTemperature - Custom temperature override
+   * @returns {Promise<string>} API response content
+   */
+  async callChatCompletionsWithTemperature(messages, customTemperature) {
+    const chatUrl = `${this.baseUrl}/chat/completions`;
+
+    console.error(`[LmStudio] ==================== CALLING CHAT COMPLETIONS (custom temp) ====================`);
+
+    // Convert messages to LM Studio format - handle images properly
+    const formattedMessages = messages.map((msg) => ({
+      role: msg.role,
+      content: msg.content || "",
+      ...(msg.images && { images: msg.images }),
+    }));
+
+    const requestBody = {
+      model: this.vlmModelId,
+      messages: formattedMessages,
+      stream: false,
+      temperature: customTemperature,
+      top_p: this.topP,
+      max_tokens: this.maxTokens,
+    };
+
+    const response = await fetch(chatUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(this.timeout),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(
+        `[LmStudio] ❌ Chat completions FAILED: HTTP ${response.status}`,
+      );
+      console.error(`[LmStudio] Error response: ${errorText}`);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    // Parse the response
+    let content;
+    if (data.choices && data.choices.length > 0) {
+      const choice = data.choices[0];
+      content = choice.message.content || "";
+    } else {
+      console.error(`[LmStudio] ❌ Invalid API response: missing choices`);
+      throw new Error("Invalid API response: missing choices");
+    }
+
+    return content;
   }
 
   /**

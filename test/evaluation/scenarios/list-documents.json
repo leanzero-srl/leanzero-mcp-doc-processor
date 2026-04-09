@@ -1,0 +1,11 @@
+{
+  "name": "list-documents",
+  "description": "Test the list-documents tool to verify document registry functionality",
+  "steps": [
+    {
+      "tool": "list-documents",
+      "expected": "Success - Returns list of documents in registry",
+      "params": {}
+    }
+  ]
+}

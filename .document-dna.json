@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "company": {
+    "name": "",
+    "department": ""
+  },
+  "defaults": {
+    "stylePreset": "professional",
+    "category": null
+  },
+  "header": {
+    "enabled": false,
+    "text": "",
+    "alignment": "right"
+  },
+  "footer": {
+    "enabled": true,
+    "text": "Page {current} of {total}",
+    "alignment": "center"
+  },
+  "memories": {},
+  "usage": {
+    "categories": {
+      "engineering": 1,
+      "business": 2,
+      "executive": 1,
+      "technical": 1
+    },
+    "styles": {
+      "business": 3,
+      "technical": 1,
+      "professional": 1
+    },
+    "totalDocs": 5,
+    "overrides": {
+      "stylePreset": 4,
+      "footer": 5
+    },
+    "correlations": {
+      "engineering+business": 1,
+      "business+business": 1,
+      "executive+business": 1,
+      "technical+technical": 1,
+      "business+professional": 1
+    },
+    "structures": [
+      {
+        "signature": "h1:executive summary|h1:key metrics",
+        "category": "engineering",
+        "style": "business",
+        "createdAt": "2026-03-01T19:00:21.701Z"
+      },
+      {
+        "signature": "h1:q1 2026 engineering summary|h1:key accomplishments",
+        "category": "business",
+        "style": "business",
+        "createdAt": "2026-03-01T19:00:21.709Z"
+      },
+      {
+        "signature": "h1:q1 2026 executive summary|h1:key highlights",
+        "category": "executive",
+        "style": "business",
+        "createdAt": "2026-03-01T19:00:21.717Z"
+      },
+      {
+        "signature": "h1:this is a heading",
+        "category": "technical",
+        "style": "technical",
+        "createdAt": "2026-03-01T19:09:11.107Z"
+      },
+      {
+        "signature": "h1:this document outlines all requirements and action|h2:submission process|h2:required issue contents|h2:documentation status|h2:approval criteria|h2:pre-submission checklist|h2:timeline",
+        "category": "business",
+        "style": "professional",
+        "createdAt": "2026-03-15T09:04:35.103Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "edit-doc",
+  "description": "Test the edit-doc tool to verify document editing functionality",
+  "steps": [
+    {
+      "tool": "read-doc",
+      "expected": "Success - Document content retrieved",
+      "params": {
+        "filePath": "./docs/documents/source-document.docx",
+        "mode": "indepth"
+      }
+    },
+    {
+      "tool": "edit-doc",
+      "expected": "Success - Document edited successfully",
+      "params": {
+        "filePath": "./docs/documents/source-document.docx",
+        "action": "append",
+        "paragraphs": ["Test paragraph added via testing"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,569 @@
+{
+  "name": "dna-schema",
+  "description": "Model tests DNA schema validation, structure verification, and inheritance system",
+  "tags": ["dna", "schema-validation", "inheritance", "configuration"],
+  "steps": [
+    {
+      "name": "Schema Structure Verification",
+      "description": "Verify the DNA schema has all required fields and proper structure",
+      "tool": "dna",
+      "params": {
+        "action": "schema"
+      },
+      "expected": {
+        "success": true,
+        "schema": {
+          "version": {
+            "type": "number",
+            "required": true,
+            "min": 1
+          },
+          "company": {
+            "type": "object",
+            "required": true,
+            "properties": ["name", "department"]
+          },
+          "defaults": {
+            "type": "object",
+            "required": true,
+            "properties": ["stylePreset", "category"]
+          },
+          "header": {
+            "type": "object",
+            "required": false,
+            "properties": ["enabled", "text", "alignment"]
+          },
+          "footer": {
+            "type": "object",
+            "required": false,
+            "properties": ["enabled", "text", "alignment"]
+          }
+        }
+      }
+    },
+    {
+      "name": "Valid DNA Validation",
+      "description": "Validate a properly structured DNA configuration",
+      "tool": "dna",
+      "params": {
+        "action": "validate",
+        "dna": {
+          "version": 1,
+          "company": {
+            "name": "Test Corp",
+            "department": "Engineering"
+          },
+          "defaults": {
+            "stylePreset": "professional",
+            "category": "technical"
+          },
+          "header": {
+            "enabled": true,
+            "text": "Test Corp Header",
+            "alignment": "right"
+          },
+          "footer": {
+            "enabled": true,
+            "text": "Page {current} of {total}",
+            "alignment": "center"
+          }
+        }
+      },
+      "expected": {
+        "success": true,
+        "valid": true,
+        "errors": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "Invalid DNA Validation - Missing Required Fields",
+      "description": "Validate DNA with missing required fields",
+      "tool": "dna",
+      "params": {
+        "action": "validate",
+        "dna": {
+          "version": "1",
+          "company": {}
+        }
+      },
+      "expected": {
+        "success": true,
+        "valid": false,
+        "errors": [
+          "string containing 'version must be a number'",
+          "string containing 'company.name is required'",
+          "string containing 'defaults is required'"
+        ]
+      }
+    },
+    {
+      "name": "Invalid DNA Validation - Invalid Values",
+      "description": "Validate DNA with invalid values for various fields",
+      "tool": "dna",
+      "params": {
+        "action": "validate",
+        "dna": {
+          "version": 1,
+          "company": {
+            "name": "Test Corp"
+          },
+          "defaults": {
+            "stylePreset": "invalid-style",
+            "category": "test"
+          },
+          "header": {
+            "enabled": "true",
+            "text": "Test",
+            "alignment": "bottom"
+          },
+          "footer": {
+            "enabled": false,
+            "text": "Test Footer",
+            "alignment": "invalid"
+          }
+        }
+      },
+      "expected": {
+        "success": true,
+        "valid": false,
+        "errors": [
+          "string containing 'defaults.stylePreset must be one of'",
+          "string containing 'header.enabled must be a boolean'",
+          "string containing 'header.alignment must be one of'"
+        ]
+      }
+    },
+    {
+      "name": "DNA Migration - Version 1",
+      "description": "Test DNA migration for version 1 (no migration needed)",
+      "tool": "dna",
+      "params": {
+        "action": "migrate",
+        "dna": {
+          "version": 1,
+          "company": {
+            "name": "Test Corp"
+          },
+          "defaults": {
+            "stylePreset": "professional"
+          }
+        }
+      },
+      "expected": {
+        "success": true,
+        "version": 1,
+        "migrated": true
+      }
+    },
+    {
+      "name": "System Defaults Verification",
+      "description": "Verify system defaults are correctly configured",
+      "tool": "dna",
+      "params": {
+        "action": "defaults"
+      },
+      "expected": {
+        "success": true,
+        "defaults": {
+          "version": 1,
+          "company": {
+            "name": "",
+            "department": ""
+          },
+          "defaults": {
+            "stylePreset": "professional",
+            "category": null
+          },
+          "header": {
+            "enabled": false,
+            "text": "",
+            "alignment": "right"
+          },
+          "footer": {
+            "enabled": true,
+            "text": "Page {current} of {total}",
+            "alignment": "center"
+          }
+        }
+      }
+    },
+    {
+      "name": "DNA Inheritance - User Override",
+      "description": "Test that user DNA overrides project DNA",
+      "tool": "dna",
+      "params": {
+        "action": "inheritance",
+        "userDNA": {
+          "version": 1,
+          "company": {
+            "name": "User Corp",
+            "department": "Engineering"
+          },
+          "defaults": {
+            "stylePreset": "colorful",
+            "category": "technical"
+          },
+          "header": {
+            "enabled": true,
+            "text": "User Header",
+            "alignment": "right"
+          },
+          "footer": {
+            "enabled": true,
+            "text": "Page {current} of {total}",
+            "alignment": "center"
+          }
+        },
+        "projectDNA": {
+          "version": 1,
+          "company": {
+            "name": "Project Corp",
+            "department": "Docs"
+          },
+          "defaults": {
+            "stylePreset": "business",
+            "category": "business"
+          },
+          "header": {
+            "enabled": true,
+            "text": "Project Header",
+            "alignment": "left"
+          },
+          "footer": {
+            "enabled": true,
+            "text": " Confidential ",
+            "alignment": "center"
+          }
+        }
+      },
+      "expected": {
+        "success": true,
+        "merged": {
+          "company": {
+            "name": "User Corp",
+            "department": "Engineering"
+          },
+          "defaults": {
+            "stylePreset": "colorful",
+            "category": "technical"
+          },
+          "header": {
+            "enabled": true,
+            "text": "User Header",
+            "alignment": "right"
+          },
+          "footer": {
+            "enabled": true,
+            "text": "Page {current} of {total}",
+            "alignment": "center"
+          }
+        }
+      }
+    },
+    {
+      "name": "DNA Inheritance - Partial Override",
+      "description": "Test that un-overridden values from project DNA are preserved",
+      "tool": "dna",
+      "params": {
+        "action": "inheritance",
+        "userDNA": {
+          "version": 1,
+          "company": {
+            "name": "User Corp"
+          },
+          "defaults": {
+            "stylePreset": "colorful"
+          },
+          "header": {
+            "enabled": true,
+            "text": "User Header",
+            "alignment": "right"
+          }
+        },
+        "projectDNA": {
+          "version": 1,
+          "company": {
+            "name": "Project Corp",
+            "department": "Docs"
+          },
+          "defaults": {
+            "stylePreset": "business",
+            "category": "business"
+          },
+          "header": {
+            "enabled": true,
+            "text": "Project Header",
+            "alignment": "left"
+          },
+          "footer": {
+            "enabled": true,
+            "text": "Project Footer",
+            "alignment": "center"
+          }
+        }
+      },
+      "expected": {
+        "success": true,
+        "merged": {
+          "company": {
+            "name": "User Corp",
+            "department": "Docs"
+          },
+          "defaults": {
+            "stylePreset": "colorful",
+            "category": "business"
+          },
+          "header": {
+            "enabled": true,
+            "text": "User Header",
+            "alignment": "right"
+          },
+          "footer": {
+            "enabled": true,
+            "text": "Project Footer",
+            "alignment": "center"
+          }
+        }
+      }
+    },
+    {
+      "name": "Valid Style Presets Verification",
+      "description": "Verify all valid style presets are recognized",
+      "tool": "dna",
+      "params": {
+        "action": "validate",
+        "dna": {
+          "version": 1,
+          "company": {
+            "name": "Test Corp"
+          },
+          "defaults": {
+            "stylePreset": "professional"
+          }
+        }
+      },
+      "expected": {
+        "success": true,
+        "valid": true,
+        "validPresets": ["minimal", "professional", "technical", "legal", "business", "casual", "colorful"]
+      }
+    },
+    {
+      "name": "Valid Alignments Verification",
+      "description": "Verify all valid alignments are recognized for header and footer",
+      "tool": "dna",
+      "params": {
+        "action": "validate",
+        "dna": {
+          "version": 1,
+          "company": {
+            "name": "Test Corp"
+          },
+          "defaults": {
+            "stylePreset": "professional"
+          },
+          "header": {
+            "enabled": true,
+            "text": "Test",
+            "alignment": "center"
+          },
+          "footer": {
+            "enabled": true,
+            "text": "Test",
+            "alignment": "left"
+          }
+        }
+      },
+      "expected": {
+        "success": true,
+        "valid": true,
+        "validAlignments": ["left", "center", "right"]
+      }
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "schemaValidated": true,
+    "inheritanceWorking": true,
+    "allTestsPassed": true
+  },
+  "qualityMetrics": {
+    "schemaStructureCorrect": true,
+    "validationWorking": true,
+    "inheritancePriorityCorrect": true,
+    "migrationsWorking": true,
+    "defaultsCorrect": true,
+    "allValidValuesRecognized": true
+  },
+  "baseline": "dna-schema",
+  "testScenarios": [
+    {
+      "name": "test-schema-structure",
+      "description": "Test that DNA schema has all required fields with proper structure",
+      "setup": "Load DNA schema definition",
+      "params": {
+        "action": "schema"
+      },
+      "expected": {
+        "success": true,
+        "schema": {
+          "version": { "type": "number", "required": true, "min": 1 },
+          "company": { "type": "object", "required": true },
+          "defaults": { "type": "object", "required": true },
+          "header": { "type": "object", "required": false },
+          "footer": { "type": "object", "required": false }
+        }
+      }
+    },
+    {
+      "name": "test-validation-required-fields",
+      "description": "Test validation rejects DNA missing required fields",
+      "setup": "Call validateDNA with missing required fields",
+      "params": {
+        "action": "validate",
+        "dna": {
+          "version": "not-a-number",
+          "company": {}
+        }
+      },
+      "expected": {
+        "success": true,
+        "valid": false,
+        "errors": [
+          "string containing 'version must be a number'",
+          "string containing 'company.name is required'",
+          "string containing 'defaults is required'"
+        ]
+      }
+    },
+    {
+      "name": "test-validation-style-preset",
+      "description": "Test validation rejects invalid style presets",
+      "setup": "Call validateDNA with invalid style preset",
+      "params": {
+        "action": "validate",
+        "dna": {
+          "version": 1,
+          "company": {
+            "name": "Test Corp"
+          },
+          "defaults": {
+            "stylePreset": "invalid-style"
+          }
+        }
+      },
+      "expected": {
+        "success": true,
+        "valid": false,
+        "errors": [
+          "string containing 'defaults.stylePreset must be one of'"
+        ]
+      }
+    },
+    {
+      "name": "test-validation-alignment",
+      "description": "Test validation rejects invalid alignments",
+      "setup": "Call validateDNA with invalid alignment",
+      "params": {
+        "action": "validate",
+        "dna": {
+          "version": 1,
+          "company": {
+            "name": "Test Corp"
+          },
+          "defaults": {
+            "stylePreset": "professional"
+          },
+          "header": {
+            "enabled": true,
+            "text": "Test",
+            "alignment": "bottom"
+          }
+        }
+      },
+      "expected": {
+        "success": true,
+        "valid": false,
+        "errors": [
+          "string containing 'header.alignment must be one of'"
+        ]
+      }
+    },
+    {
+      "name": "test-inheritance-user-override",
+      "description": "Test that user DNA properly overrides project DNA",
+      "setup": "Create user DNA and project DNA files, then merge them",
+      "params": {
+        "userDNA": {
+          "version": 1,
+          "company": { "name": "User Corp" },
+          "defaults": { "stylePreset": "colorful" }
+        },
+        "projectDNA": {
+          "version": 1,
+          "company": { "name": "Project Corp", "department": "Docs" },
+          "defaults": { "stylePreset": "business" }
+        }
+      },
+      "expected": {
+        "success": true,
+        "merged": {
+          "company": { "name": "User Corp", "department": "Docs" },
+          "defaults": { "stylePreset": "colorful" }
+        }
+      }
+    },
+    {
+      "name": "test-inheritance-partial-override",
+      "description": "Test that un-overridden values from project are preserved",
+      "setup": "Merge user DNA (partial) with project DNA",
+      "params": {
+        "userDNA": {
+          "version": 1,
+          "company": { "name": "User Corp" }
+        },
+        "projectDNA": {
+          "version": 1,
+          "company": { "name": "Project Corp", "department": "Docs" },
+          "defaults": { "stylePreset": "business" }
+        }
+      },
+      "expected": {
+        "success": true,
+        "merged": {
+          "company": { "name": "User Corp", "department": "Docs" },
+          "defaults": { "stylePreset": "business" }
+        }
+      }
+    },
+    {
+      "name": "test-system-defaults",
+      "description": "Test system defaults are correctly configured",
+      "setup": "Get system defaults",
+      "params": {
+        "action": "defaults"
+      },
+      "expected": {
+        "success": true,
+        "defaults": {
+          "version": 1,
+          "defaults": { "stylePreset": "professional" },
+          "footer": { "enabled": true }
+        }
+      }
+    }
+  ],
+  "setupInstructions": [
+    "1. Ensure DNA schema module is available",
+    "2. Create test directory for DNA files",
+    "3. Set up DNA files if testing file-based operations",
+    "4. Run test scenarios using harness",
+    "5. Verify results against baseline"
+  ],
+  "cleanupInstructions": [
+    "1. Remove test DNA files",
+    "2. Clear DNA cache",
+    "3. Remove generated test documents"
+  ]
+}

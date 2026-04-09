@@ -1,0 +1,115 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/test/output/edit-excel-test.xlsx\",\"action\":\"append-rows\",\"sheetName\":\"Test Sheet\",\"rowsAdded\":2,\"enforcement\":{\"docsFolderEnforced\":false,\"duplicatePrevented\":false,\"categorized\":false,\"categoryApplied\":null},\"category\":null,\"message\":\"Excel file UPDATED at: /path/to/test/output/edit-excel-test.xlsx\\n\\nAppended 2 row(s) to sheet 'Test Sheet'. Existing cell styling preserved.\"}"
+    }
+  ],
+  "testResults": {
+    "test-append-rows": {
+      "success": true,
+      "action": "append-rows",
+      "sheetName": "Test Sheet",
+      "rowsAdded": 2,
+      "filePath": "/path/to/test/output/edit-excel-test.xlsx",
+      "messageContainsUpdated": true,
+      "messageContainsRowsAdded": true
+    },
+    "test-append-sheet": {
+      "success": true,
+      "action": "append-sheet",
+      "sheetName": "New Data",
+      "totalSheets": 3,
+      "filePath": "/path/to/test/output/edit-excel-test.xlsx",
+      "messageContainsUpdated": true,
+      "messageContainsNewSheet": true
+    },
+    "test-replace-sheet": {
+      "success": true,
+      "action": "replace-sheet",
+      "sheetName": "Test Sheet",
+      "filePath": "/path/to/test/output/edit-excel-test.xlsx",
+      "messageContainsUpdated": true,
+      "messageContainsReplaced": true
+    },
+    "test-append-sheet-with-category": {
+      "success": true,
+      "action": "append-sheet",
+      "sheetName": "Budget Data",
+      "category": "finance",
+      "tags": ["budget", "finance", "q1-2026"],
+      "filePath": "/path/to/test/output/edit-excel-test.xlsx",
+      "messageContainsUpdated": true
+    },
+    "test-append-rows-with-category": {
+      "success": true,
+      "action": "append-rows",
+      "sheetName": "Test Sheet",
+      "category": "sales",
+      "tags": ["sales", "q4", "2026"],
+      "filePath": "/path/to/test/output/edit-excel-test.xlsx",
+      "messageContainsUpdated": true
+    }
+  },
+  "expectedResponses": {
+    "append-rows": {
+      "success": true,
+      "filePath": "string (absolute path to .xlsx file)",
+      "action": "append-rows",
+      "sheetName": "string (target sheet name)",
+      "rowsAdded": "number (count of rows added)",
+      "enforcement": {
+        "docsFolderEnforced": "boolean",
+        "duplicatePrevented": "boolean",
+        "categorized": "boolean",
+        "categoryApplied": "string or null"
+      },
+      "category": "string or null",
+      "message": "string containing 'UPDATED' and 'Appended X row(s)'"
+    },
+    "append-sheet": {
+      "success": true,
+      "filePath": "string (absolute path to .xlsx file)",
+      "action": "append-sheet",
+      "sheetName": "string (new sheet name)",
+      "rows": "number (rows in new sheet)",
+      "totalSheets": "number (total sheets after adding)",
+      "enforcement": {
+        "docsFolderEnforced": "boolean",
+        "duplicatePrevented": "boolean",
+        "categorized": "boolean",
+        "categoryApplied": "string or null"
+      },
+      "category": "string or null",
+      "message": "string containing 'UPDATED' and 'Added new sheet'"
+    },
+    "replace-sheet": {
+      "success": true,
+      "filePath": "string (absolute path to .xlsx file)",
+      "action": "replace-sheet",
+      "sheetName": "string (replaced sheet name)",
+      "rows": "number (rows in replaced sheet)",
+      "enforcement": {
+        "docsFolderEnforced": "boolean",
+        "duplicatePrevented": "boolean",
+        "categorized": "boolean",
+        "categoryApplied": "string or null"
+      },
+      "category": "string or null",
+      "message": "string containing 'UPDATED' and 'Replaced sheet'"
+    }
+  },
+  "validationRules": {
+    "filePathMustExist": true,
+    "actionMustMatchRequest": true,
+    "messageContainsActionDescription": true,
+    "enforcementStructurePresent": true,
+    "categoryInfoPresent": true
+  },
+  "commonErrors": {
+    "fileNotFound": "File not found: {filePath}",
+    "sheetNotFound": "Sheet '{sheetName}' not found. Available sheets: {availableSheets}",
+    "invalidAction": "Invalid action. Valid actions: 'append-rows', 'append-sheet', 'replace-sheet', 'preview'",
+    "missingRequiredField": "{field} is required for {action} action"
+  }
+}

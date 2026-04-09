@@ -44,69 +44,78 @@ export function applyExcelStyling(ws, data, styleConfig, preset, startRow = 0) {
       // Font styling
       ws[cellRef].s.font = ws[cellRef].s.font || {};
 
-      if (isHeader) {
-        // Header row styling
-        ws[cellRef].s.font = {
-          name: config.font?.family || "Arial",
-          sz: config.headerSize || 11,
-          bold: config.headerBold !== false,
-          color: hexToRgb(config.headerColor || "000000"),
-        };
+       if (isHeader) {
+         // Header row styling - Dashboard Look
+         ws[cellRef].s.font = {
+           name: config.font?.family || "Arial",
+           sz: config.headerSize || 11,
+           bold: config.headerBold !== false,
+           color: hexToRgb(config.headerColor || "FFFFFF"), // Default to white for dark headers
+         };
+         
+         // Header background color
+         if (config.headerBackground && config.headerBackground !== "FFFFFF") {
+           ws[cellRef].s.fill = {
+             patternType: "solid",
+             fgColor: hexToRgb(config.headerBackground),
+           };
+         }
+         
+         // Header border - Sophisticated bottom accent
+         ws[cellRef].s.border = {
+           top: { style: "thin", color: { auto: 1 } },
+           bottom: { style: "medium", color: hexToRgb(config.headerBackground || "000000") }, // Darker accent
+           left: { style: "thin", color: { auto: 1 } },
+           right: { style: "thin", color: { auto: 1 } },
+         };
+         
+         // Header alignment
+         ws[cellRef].s.alignment = {
+           horizontal: "center",
+           vertical: "center",
+           wrapText: true,
+         };
+       } else {
+         // Body cell styling
+         ws[cellRef].s.font = {
+           name: config.font?.family || "Arial",
+           sz: config.font?.size || 11,
+           bold: false,
+           color: hexToRgb(config.font?.color || "000000"),
+         };
+         
+       // Optional cell background for alternate rows (zebra striping)
+       if (row % 2 === 0 && config.zebraColor) {
+         ws[cellRef].s.fill = {
+           patternType: "solid",
+           fgColor: hexToRgb(config.zebraColor),
+         };
+       }
 
-        // Header background color
-        if (config.headerBackground && config.headerBackground !== "FFFFFF") {
-          ws[cellRef].s.fill = {
-            patternType: "solid",
-            fgColor: hexToRgb(config.headerBackground),
-          };
-        }
-
-        // Header border (thicker bottom for visual hierarchy)
-        ws[cellRef].s.border = {
-          top: { style: "thin", color: { auto: 1 } },
-          bottom: { style: "medium", color: { auto: 1 } },
-          left: { style: "thin", color: { auto: 1 } },
-          right: { style: "thin", color: { auto: 1 } },
-        };
-
-        // Header alignment
-        ws[cellRef].s.alignment = {
-          horizontal: "center",
-          vertical: "center",
-          wrapText: true,
-        };
-      } else {
-        // Body cell styling
-        ws[cellRef].s.font = {
-          name: config.font?.family || "Arial",
-          sz: config.font?.size || 11,
-          bold: false,
-          color: hexToRgb(config.font?.color || "000000"),
-        };
-
-        // Optional cell background for alternate rows (zebra striping)
-        if (row % 2 === 0 && config.zebraColor) {
-          ws[cellRef].s.fill = {
-            patternType: "solid",
-            fgColor: hexToRgb(config.zebraColor),
-          };
-        }
-
-        // Body border (lighter than header)
-        ws[cellRef].s.border = {
-          top: { style: "thin", color: { auto: 1 } },
-          bottom: { style: "thin", color: { auto: 1 } },
-          left: { style: "thin", color: { auto: 1 } },
-          right: { style: "thin", color: { auto: 1 } },
-        };
-
-        // Body alignment
-        ws[cellRef].s.alignment = {
-          horizontal: "left",
-          vertical: "center",
-          wrapText: true,
-        };
-      }
+       // Value-based mapping (e.g., for Phase or Actor colors)
+       if (config.valueMappings && config.valueMappings[data[row][col]]) {
+         const mappedColor = config.valueMappings[data[row][col]];
+         ws[cellRef].s.fill = {
+           patternType: "solid",
+           fgColor: hexToRgb(mappedColor),
+         };
+       }
+         
+         // Body border (subtle thin lines for a cleaner look)
+         ws[cellRef].s.border = {
+           top: { style: "thin", color: { auto: 1 } },
+           bottom: { style: "thin", color: { auto: 1 } },
+           left: { style: "thin", color: { auto: 1 } },
+           right: { style: "thin", color: { auto: 1 } },
+         };
+         
+         // Body alignment
+         ws[cellRef].s.alignment = {
+           horizontal: "left",
+           vertical: "center",
+           wrapText: true,
+         };
+       }
     }
   }
 }
@@ -200,6 +209,8 @@ export function getZebraColor(preset) {
     business: "EBF1F7",
     casual: "FFF3E0",
     colorful: "F3E5F5",
+    risk_assessment: "F8F9FA",
+    migration_runbook: "F8F9FA",
   };
   return zebraColors[preset] || "FAFAFA";
 }

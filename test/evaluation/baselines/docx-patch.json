@@ -1,0 +1,16 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/docs/test/docx-patch-test.docx\",\"action\":\"appendToDocx\",\"paragraphsAppended\":2,\"tablesAppended\":1,\"formattingPreserved\":true,\"documentStructure\":{\"hasHeaders\":true,\"hasFooters\":true,\"hasImages\":false},\"message\":\"Successfully appended 2 paragraph(s) and 1 table(s) to /path/to/docs/test/docx-patch-test.docx. Original formatting preserved.\"}"
+    },
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/docs/test/docx-patch-test.docx\",\"action\":\"replaceDocxContent\",\"paragraphsReplaced\":2,\"tablesReplaced\":1,\"structurePreserved\":true,\"message\":\"Successfully replaced content in /path/to/docs/test/docx-patch-test.docx. Document structure preserved.\"}"
+    },
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/docs/test/docx-patch-test.docx\",\"structure\":{\"hasHeaders\":true,\"hasFooters\":true,\"hasImages\":false,\"hasTables\":true,\"paragraphCount\":5},\"message\":\"Document inspected successfully at /path/to/docs/test/docx-patch-test.docx\\n\\nDocument structure:\\n  - Headers: Yes\\n  - Footers: Yes\\n  - Images: No\\n  - Tables: Yes\\n  - Paragraphs: 5\"}"
+    }
+  ]
+}

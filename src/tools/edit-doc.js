@@ -14,6 +14,7 @@ import {
   applyStylingToDocx,
 } from "./docx-patch.js";
 import { registerDocumentInRegistry } from "./utils.js";
+import { recordWrite } from "../services/lineage-tracker.js";
 // Import shared utilities from doc-utils.js (eliminates code duplication)
 import {
   parseInlineMarkdown,
@@ -72,8 +73,10 @@ export async function editDoc(input) {
     if (!filePath) {
       throw new Error("filePath is required");
     }
-    if (!action || !["append", "replace", "style"].includes(action)) {
-      throw new Error("action must be 'append', 'replace', or 'style'");
+    if (!action || !["append", "replace", "style", "preview"].includes(action)) {
+      throw new Error(
+        `Invalid action. Valid actions: 'append' (add content after existing), 'replace' (overwrite all content), 'style' (apply formatting), 'preview' (show what would change).`
+      );
     }
 
     const resolvedPath = path.isAbsolute(filePath)
@@ -102,7 +105,7 @@ export async function editDoc(input) {
     // If no preset specified but category is available, automatically select style
     if (!stylePreset && input.category) {
       stylePreset = selectStyleBasedOnCategory(input.category);
-      console.log(
+      console.error(
         `[edit-doc] Automatically selected style preset "${stylePreset}" for category "${input.category}"`,
       );
     }
@@ -131,6 +134,9 @@ export async function editDoc(input) {
         });
 
         if (result.success) {
+          // Record lineage AFTER successful edit (non-fatal)
+          try { await recordWrite(resolvedPath); } catch { /* non-fatal */ }
+
           // Inspect the document to provide more info
           const inspection = await inspectDocx(resolvedPath);
 
@@ -183,6 +189,9 @@ export async function editDoc(input) {
         });
 
         if (result.success) {
+          // Record lineage AFTER successful edit (non-fatal)
+          try { await recordWrite(resolvedPath); } catch { /* non-fatal */ }
+
           // Always update registry regardless of result
           let registryEntry = null;
           try {
@@ -225,6 +234,9 @@ export async function editDoc(input) {
         });
 
         if (result.success) {
+          // Record lineage AFTER successful edit (non-fatal)
+          try { await recordWrite(resolvedPath); } catch { /* non-fatal */ }
+
           // Always update registry regardless of result
           let registryEntry = null;
           try {
@@ -260,6 +272,25 @@ export async function editDoc(input) {
         } else {
           return result;
         }
+      }
+
+      if (action === "preview") {
+        // Preview mode: show what would change without making any changes
+        return {
+          success: true,
+          filePath: resolvedPath,
+          action: "preview",
+          preview: await generateEditPreview(resolvedPath, input),
+          message:
+            `DOCX file PREVIEW at: ${resolvedPath}\n\n` +
+            `This shows what would change if you apply these edits:\n` +
+            `  - Action: ${input.action}\n` +
+            `  - Paragraphs: ${input.paragraphs?.length || 0}\n` +
+            `  - Tables: ${input.tables?.length || 0}\n` +
+            `  - Title: ${input.title || "(unchanged)"}\n` +
+            `  - Style preset: ${stylePreset}\n\n` +
+            `To apply these changes, run the same command without preview mode.`,
+        };
       }
     }
 
@@ -514,4 +545,86 @@ export async function editDoc(input) {
       message: `Failed to edit document: ${err.message}`,
     };
   }
+}
+
+// ============================================================================
+// PREVIEW GENERATION
+// ============================================================================
+
+/**
+ * Generates a preview of what would change if edits are applied
+ * @param {string} filePath - Path to the existing DOCX file
+ * @param {Object} input - Edit parameters
+ * @returns {Object} Preview data showing what would change
+ */
+async function generateEditPreview(filePath, input) {
+  const preview = {
+    filePath: filePath,
+    action: input.action,
+    changes: [],
+    impact: {}
+  };
+
+  // Read existing document structure using inspectDocx
+  const existing = await inspectDocx(filePath);
+
+  if (existing.success) {
+    preview.changes.push({
+      type: "existing-structure",
+      description: "Current document structure",
+      current: existing.structure || {}
+    });
+  }
+
+  // Preview append changes
+  if (input.action === "append") {
+    preview.changes.push({
+      type: "append",
+      description: "Content being added",
+      paragraphs: input.paragraphs?.length || 0,
+      tables: input.tables?.length || 0,
+      title: input.title || "(no title change)"
+    });
+    preview.impact = {
+      location: "After existing content",
+      preservesFormatting: true,
+      addsSeparator: input.addSeparator !== false
+    };
+  }
+
+  // Preview replace changes
+  if (input.action === "replace") {
+    preview.changes.push({
+      type: "replace",
+      description: "Content being added",
+      paragraphs: input.paragraphs?.length || 0,
+      tables: input.tables?.length || 0,
+      title: input.title || "(no title change)"
+    });
+    preview.impact = {
+      location: "Replacing all content",
+      preservesStructure: true,
+      preservesHeadersFooters: true
+    };
+  }
+
+  // Preview style changes
+  if (input.action === "style") {
+    preview.changes.push({
+      type: "style",
+      description: "Styling being applied",
+      stylePreset: input.stylePreset || "minimal"
+    });
+    preview.impact = {
+      location: "All paragraphs",
+      changes: ["Heading hierarchy", "Font sizes", "Colors", "Spacing", "Alignment"]
+    };
+  }
+
+  preview.warnings = [];
+  if (!input.paragraphs || input.paragraphs.length === 0) {
+    preview.warnings.push("No paragraphs provided - no content changes will occur");
+  }
+
+  return preview;
 }

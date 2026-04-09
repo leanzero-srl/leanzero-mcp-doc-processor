@@ -13,6 +13,7 @@ import {
   TableLayoutType,
 } from "docx";
 import { marked } from "marked";
+import { COLORS, createCellBorders, createCellMargins } from "./styling.js";
 
 /**
  * Extracts heading levels from markdown content

@@ -5,7 +5,26 @@ import {
   TextRun,
   AlignmentType,
   HeadingLevel,
+  PageBreak,
+  Header,
+  Footer,
 } from "docx";
+
+// ============================================================================
+// Document Tags System - MCP AI awareness
+// ============================================================================
+
+/**
+ * Import document tags system for MCP awareness and template matching.
+ * This enables the model to understand what types of beautiful documents to create.
+ */
+import {
+  getTemplateByTag,
+  findMatchingTemplate,
+  generateStyleFromTemplate,
+  TEMPLATES,
+  TAG_TO_TEMPLATE
+} from "../utils/document-tags.js";
 import fs from "fs/promises";
 import path from "path";
 import {
@@ -14,6 +33,30 @@ import {
   getPresetDescription,
   selectStyleBasedOnCategory,
   buildDocumentStyles,
+  COLORS,
+  PAGE_WIDTH,
+  CONTENT_WIDTH,
+  createCellBorders,
+  createCellMargins,
+  heading1,
+  heading2,
+  heading3,
+  para,
+  bold,
+  normal,
+  spacer,
+  divider,
+  bulletItem,
+  subBulletItem,
+  statusBadge,
+  infoRow,
+  infoTable,
+  gapTableHeader,
+  gapRow,
+  gapTable,
+  createHeader,
+  createFooter,
+  createPageProperties,
 } from "./styling.js";
 import {
   validateAndNormalizeInput,
@@ -25,8 +68,11 @@ import {
   getCategoryPath,
   classifyDocumentContent,
 } from "./utils.js";
-import { applyDNAToInput, loadDNA, recordUsage } from "../utils/dna-manager.js";
+import { applyDNAToInput, loadDNA, recordUsage, signatureSimilarity } from "../utils/dna-manager.js";
 import { checkForExistingDocument, cleanupExcessVersions, buildGuidanceMessage } from "../services/ai-guidance-system.js";
+import { recordWrite } from "../services/lineage-tracker.js";
+import { loadBlueprint, listBlueprints } from "../utils/blueprint-store.js";
+import { validateAgainstBlueprint } from "../services/blueprint-extractor.js";
 // Import shared utilities from doc-utils.js
 import {
   stripMarkdownLinePrefixes,
@@ -45,10 +91,38 @@ import {
 export { stripMarkdownLinePrefixes, parseInlineMarkdown, stripMarkdownPlain };
 
 /**
- * Creates a DOCX document from structured content with professional formatting
+ * Compute a compact structure signature from document paragraphs.
+ * The signature captures the heading hierarchy as a pipe-separated string.
+ * E.g., "h1:introduction|h2:background|h1:methods|h2:data collection"
+ */
+function computeStructureSignature(paragraphs) {
+  if (!paragraphs || !Array.isArray(paragraphs)) return null;
+
+  const headings = paragraphs
+    .filter(p => p && typeof p === "object" && p.headingLevel)
+    .map(p => {
+      const level = p.headingLevel.replace("heading", "h");
+      // Normalize the text: lowercase, trim, first 50 chars
+      const text = (p.text || "").trim().toLowerCase().substring(0, 50);
+      return `${level}:${text}`;
+    });
+
+  if (headings.length === 0) return null;
+  return headings.join("|");
+}
+
+/**
+ * Creates a DOCX document from structured content with professional formatting.
+ * 
+ * The MCP system uses document tags to understand what types of beautiful documents to create:
+ * - "claude-like" / "professional": Clean, modern professional documents with blue accents
+ * - "marketing": Vibrant, engaging documents for campaigns and launches  
+ * - "technical-docs" / "api": Clear structured technical documentation
+ * - "business-report" / "report": Professional reports with executive summaries
+ * - "legal": Formal legal documents with proper hierarchy
  *
  * @param {Object} input - Document creation parameters
- * @param {string} input.title - Document title
+ * @param {string} input.title - Document title (should reflect actual content)
  * @param {Array} input.paragraphs - Array of paragraph content (strings or objects)
  * @param {Array<Array>} input.tables - Array of table data
  * @param {string} input.outputPath - Output file path
@@ -58,7 +132,7 @@ export { stripMarkdownLinePrefixes, parseInlineMarkdown, stripMarkdownPlain };
  * @param {Object} [input.header] - Header configuration {text, alignment, color}
  * @param {Object} [input.footer] - Footer configuration {text, alignment, color, includeTotal}
  * @param {string} [input.description] - Document description
- * @param {Array<string>} [input.tags] - Tags for document search and organization
+ * @param {Array<string>} [input.tags] - Tags for document search and organization (e.g., ["claude-like", "blog-post"])
  * @param {string} [input.backgroundColor] - Background color
  * @param {Object} [input.margins] - Custom margins {top, bottom, left, right} in inches
  * @returns {Promise<Object>} Result object with filePath and message
@@ -76,10 +150,76 @@ export async function createDoc(input) {
     const hasDNA = dnaConfig !== null;
     applyDNAToInput(parsedInput);
 
+    // Resolve document tags - enable MCP to know what type of beautiful document to create
+    let resolvedTags = Array.isArray(parsedInput.tags) ? [...parsedInput.tags] : [];
+    
+    // If no explicit tags, try to detect from template or content analysis
+    if (resolvedTags.length === 0 && parsedInput.title) {
+      const title = parsedInput.title || "";
+      const description = parsedInput.description || "";
+      const firstParagraph = Array.isArray(parsedInput.paragraphs) 
+        ? (typeof parsedInput.paragraphs[0] === "string" ? parsedInput.paragraphs[0] : "")
+        : "";
+      
+      // Try to find a matching template based on content
+      const matchedTemplate = findMatchingTemplate(title, description + firstParagraph, []);
+      
+      if (matchedTemplate && TAG_TO_TEMPLATE) {
+        // Add the detected tag for MCP awareness
+        for (const [tag, templateKey] of Object.entries(TAG_TO_TEMPLATE)) {
+          if (templateKey === Object.keys(TEMPLATES).find(k => TEMPLATES[k].name === matchedTemplate.name)) {
+            resolvedTags.push(tag);
+            console.error(`[create-doc] Detected document tag: "${tag}" based on content analysis`);
+            break;
+          }
+        }
+      }
+    }
+    
+    // If tags are specified, use them to determine styling
+    if (resolvedTags.length > 0) {
+      for (const tag of resolvedTags) {
+        const template = getTemplateByTag(tag);
+        if (template && !parsedInput.stylePreset) {
+          console.error(`[create-doc] Using template "${tag}" -> "${template.name}"`);
+          
+          // If no explicit style preset, use the template's recommended preset
+          if (!userExplicitlySetStyle) {
+            parsedInput.stylePreset = template.stylePreset;
+            console.error(`[create-doc] Auto-selected style "${template.stylePreset}" for tag "${tag}"`);
+          }
+        }
+      }
+    }
+
     // Load document memories from DNA to include in response
     const memories = (dnaConfig && dnaConfig.memories) ? dnaConfig.memories : null;
 
-    const title = parsedInput.title || "Untitled Document";
+    // Validate title is semantically meaningful — reject generic placeholders
+    const GENERIC_TITLES = new Set([
+      "untitled", "untitled document", "new document", "document", "doc",
+      "file", "output", "temp", "tmp",
+      "new file", "unnamed", "no title",
+    ]);
+    const rawTitle = (parsedInput.title || "").trim();
+    if (!rawTitle) {
+      return {
+        success: false,
+        error: "GENERIC_TITLE",
+        message: `Title is empty. Please provide a specific, descriptive title that reflects the document's actual content.\n\n` +
+          `Good examples: "Q1 2026 Engineering Strategy", "Software License Agreement — Acme Corp", "REST API Design Guidelines"`,
+      };
+    }
+    if (GENERIC_TITLES.has(rawTitle.toLowerCase())) {
+      return {
+        success: false,
+        error: "GENERIC_TITLE",
+        message: `Title "${rawTitle}" is too generic. Please provide a specific, descriptive title that reflects the document's actual content.\n\n` +
+          `Good examples: "Q1 2026 Engineering Strategy", "Software License Agreement — Acme Corp", "REST API Design Guidelines"\n` +
+          `Bad examples: "Document", "Untitled", "File", "Output"`,
+      };
+    }
+    const title = rawTitle;
     let paragraphs = Array.isArray(parsedInput.paragraphs)
       ? parsedInput.paragraphs
       : [];
@@ -114,8 +254,11 @@ export async function createDoc(input) {
       const classification = classifyDocumentContent(input.title, "");
       if (classification.category !== "misc") {
         category = classification.category;
-        console.log(
-          `[create-doc] Auto-classified document as "${category}" (confidence: ${classification.confidence})`,
+        console.error(
+          `[create-doc] Auto-classified document as "${category}" (confidence: ${classification.confidence})\n` +
+          `Category scores: ${Object.entries(classification.scores || {})
+            .filter(([_, score]) => score > 0)
+            .map(([cat, score]) => `${cat}: ${score}`).join(", ")}`,
         );
       }
     }
@@ -155,6 +298,28 @@ export async function createDoc(input) {
           message: `TOO MANY VERSIONS of "${title}" detected. Old versions have been cleaned up.\n\n` +
             `Use edit-doc with filePath "${duplicateCheck.existing.filePath}" and action "replace" to write the correct content.\n` +
             `DO NOT create another version.` + guidance,
+        };
+      }
+    }
+
+    // Validate against blueprint if specified
+    if (parsedInput.blueprint) {
+      const blueprint = loadBlueprint(parsedInput.blueprint);
+      if (!blueprint) {
+        return {
+          success: false,
+          error: `Blueprint "${parsedInput.blueprint}" not found. Use list-blueprints to see available blueprints.`,
+        };
+      }
+
+      const validation = validateAgainstBlueprint(processedParagraphs, blueprint);
+      if (!validation.valid) {
+        return {
+          success: false,
+          blueprintValidation: validation,
+          message: `Document does not match blueprint "${parsedInput.blueprint}".\n\n` +
+            `Missing required sections:\n${validation.errors.map(e => `  - ${e.expectedPattern} (${e.heading})`).join("\n")}\n\n` +
+            `Please add the missing sections and try again.`,
         };
       }
     }
@@ -230,7 +395,7 @@ export async function createDoc(input) {
 
     // Log enforcement actions to teach AI models
     if (docsEnforced) {
-      console.log(
+      console.error(
         `[create-doc] Enforced docs/ folder structure. File placed in: ${path.relative(
           process.cwd(),
           outputPath,
@@ -238,7 +403,7 @@ export async function createDoc(input) {
       );
     }
     if (wasDuplicatePrevented) {
-      console.log(
+      console.error(
         `[create-doc] Prevented duplicate file. Created: ${path.basename(
           outputPath,
         )}`,
@@ -247,27 +412,43 @@ export async function createDoc(input) {
 
     // Style resolution priority:
     //   1. User explicitly passed stylePreset → use it
-    //   2. Category detected → auto-select matching style (even over DNA default)
-    //   3. DNA default preset → use as general fallback
-    //   4. "minimal" → last resort
+    //   2. Tag-based template detection → use template's recommended preset
+    //   3. Category detected → auto-select matching style (even over DNA default)
+    //   4. Claude-like professional (blue theme) → DEFAULT for most documents
+    //   5. DNA default preset → use as fallback
+    //   6. "minimal" → last resort
     let stylePreset;
     let styleReason;
 
     if (userExplicitlySetStyle) {
       stylePreset = input.stylePreset;
       styleReason = "user-specified";
+    } else if (resolvedTags.length > 0 && parsedInput.stylePreset) {
+      // User provided tags AND style - use the specified style
+      stylePreset = parsedInput.stylePreset;
+      styleReason = `tag-based with user override (${resolvedTags.join(", ")})`;
+    } else if (resolvedTags.length > 0) {
+      // Tag-based detection found a template - use its recommended preset
+      const firstTag = resolvedTags[0];
+      const template = getTemplateByTag(firstTag);
+      stylePreset = template.stylePreset;
+      styleReason = `tag-based auto-detection ("${firstTag}" → "${template.name}")`;
     } else if (category) {
+      // Category-based selection
       stylePreset = selectStyleBasedOnCategory(category);
       styleReason = `auto-selected for "${category}" category`;
-      console.log(
-        `[create-doc] Auto-selected style "${stylePreset}" for category "${category}"`,
-      );
     } else if (input.stylePreset) {
+      // DNA default preset
       stylePreset = input.stylePreset;
       styleReason = "DNA default";
     } else {
-      stylePreset = "minimal";
-      styleReason = "fallback (no category or DNA)";
+      // DEFAULT: Claude-like professional styling with blue theme
+      // This is the "beautiful Claude-style" that users want by default
+      stylePreset = "professional";
+      styleReason = "DEFAULT (Claude-like professional with blue theme)";
+      console.error(
+        `[create-doc] Using DEFAULT style "${stylePreset}" - beautiful Claude-like documents with blue accents`,
+      );
     }
 
     if (!getAvailablePresets().includes(stylePreset)) {
@@ -478,10 +659,17 @@ export async function createDoc(input) {
     }
 
     // Create document with proper section configuration and embedded styles
+    // Auto-generate description from first paragraph if not provided
+    const autoDescription = input.description || (() => {
+      const firstTextPara = paragraphs.find(p => typeof p === "string" ? p.trim() : (p.text && !p.headingLevel));
+      const text = typeof firstTextPara === "string" ? firstTextPara : firstTextPara?.text;
+      return text ? text.slice(0, 200).trim() : title;
+    })();
+
     const doc = new Document({
       creator: "MCP Doc Processor",
       title: title,
-      description: input.description || "",
+      description: autoDescription,
       styles: buildDocumentStyles(styleConfig),
       sections: [
         {
@@ -510,15 +698,59 @@ export async function createDoc(input) {
         filePath: outputPath,
         category: category || "misc",
         tags: tags,
-        description: input.description || "",
+        description: autoDescription,
       });
     } catch (err) {
       console.warn("Failed to register document:", err.message);
     }
 
-    // Record usage in DNA for auto-learning (non-fatal)
+    // Compute structure signature (pure function, no side effects)
+    const structSig = computeStructureSignature(processedParagraphs);
+
+    // Record usage in DNA for auto-learning with override tracking (non-fatal)
     if (hasDNA) {
-      recordUsage(category || "misc", stylePreset);
+      recordUsage(category || "misc", stylePreset, {
+        stylePreset: userExplicitlySetStyle,
+        header: !!input.header,
+        footer: !!input.footer,
+      }, structSig);
+    }
+
+    // Auto-match against auto-learned blueprints (non-fatal, soft hint)
+    let blueprintMatch = null;
+    if (structSig) {
+      try {
+        const allBlueprints = listBlueprints();
+        const autoBlueprints = allBlueprints.filter(bp => bp.autoLearned && bp.signature);
+        let bestMatch = null;
+        let bestSimilarity = 0;
+
+        for (const bp of autoBlueprints) {
+          const sim = signatureSimilarity(structSig, bp.signature);
+          if (sim >= 0.6 && sim > bestSimilarity) {
+            bestSimilarity = sim;
+            bestMatch = bp;
+          }
+        }
+
+        if (bestMatch) {
+          blueprintMatch = {
+            name: bestMatch.name,
+            similarity: Math.round(bestSimilarity * 100) / 100,
+            message: `This document matches auto-learned blueprint "${bestMatch.name}" (${Math.round(bestSimilarity * 100)}% similarity). Use blueprint: "${bestMatch.name}" in future create-doc calls to enforce this structure.`,
+          };
+        }
+      } catch {
+        // Blueprint matching is non-fatal
+      }
+    }
+
+    // Record lineage (track which read documents informed this creation)
+    let lineageRecord = null;
+    try {
+      lineageRecord = await recordWrite(outputPath);
+    } catch {
+      // Lineage tracking is non-fatal
     }
 
     // Build message with enforcement information
@@ -566,7 +798,13 @@ export async function createDoc(input) {
         categoryApplied: category || null,
       },
       memoriesApplied: memories ? Object.keys(memories).length : 0,
+      blueprintMatch: blueprintMatch || null,
+      lineage: lineageRecord ? {
+        sourceCount: lineageRecord.sources.length,
+        sources: lineageRecord.sources.map(s => s.filePath),
+      } : null,
       message: `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
+        (blueprintMatch ? `\nBLUEPRINT MATCH: ${blueprintMatch.message}\n` : "") +
         (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : ""),
     };
   } catch (err) {

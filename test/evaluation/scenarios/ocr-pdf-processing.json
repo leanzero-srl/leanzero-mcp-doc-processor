@@ -1,0 +1,618 @@
+{
+  "name": "ocr-pdf-processing",
+  "description": "Comprehensive OCR processing test for PDF documents including layout analysis, text extraction, and OCR improvement services",
+  "version": "1.0.0",
+  "author": "MCP Test Framework",
+  "created": "2024-01-15",
+  "tags": ["ocr", "pdf", "layout-analysis", "text-extraction", "table-detection", "image-extraction"],
+  "scenarioType": "integration-test",
+  "descriptionLong": "This test validates the OCR (Optical Character Recognition) functionality with PDF documents. It tests three main components: DocumentLayoutAnalyzer (analyzes document structure), OcrPostProcessor (refines OCR output with AI), and TableExtractor (detects and extracts tables). The test covers layout analysis, text extraction, OCR post-processing, table detection, and image extraction.",
+  "objectives": [
+    "Verify DocumentLayoutAnalyzer successfully analyzes PDF document structure",
+    "Test text extraction produces valid output with minimum content",
+    "Validate OCR post-processing improves text quality",
+    "Test table extraction identifies tables in PDF documents",
+    "Verify image extraction properly captures images from PDFs",
+    "Test integrated PDF parser with all OCR improvements",
+    "Validate layout analysis schema and output format",
+    "Test OCR confidence scores and improvement tracking"
+  ],
+  "testSetup": {
+    "requiredFiles": [
+      {
+        "path": "./test/testfiles/sample.pdf",
+        "description": "Sample PDF document for OCR testing",
+        "minSize": 10000,
+        "description": "PDF document with mixed content (text, images, tables)"
+      }
+    ],
+    "outputDir": "./test/output/ocr-tests",
+    "cleanupBeforeTest": true,
+    "cleanupAfterTest": false,
+    "allowedProcessingTime": 30000
+  },
+  "steps": [
+    {
+      "name": "Layout Analysis Test",
+      "description": "Test document layout analyzer successfully analyzes PDF structure",
+      "tool": "DocumentLayoutAnalyzer.analyzeDocument",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "validate": "result.layoutAnalysis.success === true && result.layoutAnalysis.pages.length > 0 && result.layoutAnalysis.totalPages > 0",
+      "expected": {
+        "success": true,
+        "layoutAnalysis.success": true,
+        "layoutAnalysis.pages.length": "> 0",
+        "layoutAnalysis.totalPages": "> 0"
+      }
+    },
+    {
+      "name": "Text Extraction Test",
+      "description": "Test text extraction produces valid output",
+      "tool": "PdfParser.parse",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "validate": "result.text && result.text.length > 100 && result.pages > 0",
+      "expected": {
+        "success": true,
+        "text.length": "> 100",
+        "pages": "> 0"
+      }
+    },
+    {
+      "name": "OCR Post-Processing Test",
+      "description": "Test OCR post-processing improves text quality",
+      "tool": "OcrPostProcessor.processOcrText",
+      "params": {
+        "text": "sample OCR text",
+        "layoutAnalysis": "layoutAnalysis result"
+      },
+      "validate": "result.ocrPostProcessing.success === true && result.ocrPostProcessing.confidence > 0.5",
+      "expected": {
+        "success": true,
+        "ocrPostProcessing.success": true,
+        "ocrPostProcessing.confidence": "> 0.5",
+        "ocrPostProcessing.processedText": "string"
+      }
+    },
+    {
+      "name": "Table Extraction Test",
+      "description": "Test table extraction identifies tables in document",
+      "tool": "TableExtractor.extractTablesFromPdf",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "validate": "result.tables && Array.isArray(result.tables)",
+      "expected": {
+        "success": true,
+        "tables": "array of tables",
+        "tableCount": ">= 0"
+      }
+    },
+    {
+      "name": "Image Extraction Test",
+      "description": "Test image extraction from PDF",
+      "tool": "PdfParser.parse",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf",
+        "extractImages": true
+      },
+      "validate": "result.images && Array.isArray(result.images)",
+      "expected": {
+        "success": true,
+        "images": "array of images"
+      }
+    },
+    {
+      "name": "Full Integration Test",
+      "description": "Test complete PDF parsing with all OCR improvements",
+      "tool": "PdfParser.parse",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf",
+        "enableLayoutAnalysis": true,
+        "enableOcrProcessing": true,
+        "enableTableExtraction": true,
+        "extractImages": true
+      },
+      "validate": "result.success === true && result.text.length > 100 && result.layoutAnalysis.success === true && result.ocrPostProcessing.success === true",
+      "expected": {
+        "success": true,
+        "text.length": "> 100",
+        "pages": "> 0",
+        "layoutAnalysis.success": true,
+        "layoutAnalysis.structureType": "string",
+        "ocrPostProcessing.success": true,
+        "tables": "array",
+        "images": "array"
+      }
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "text": "string with substantial content (minimum 100 characters)",
+    "pages": "number of pages in PDF",
+    "layoutAnalysis": {
+      "success": true,
+      "pages": "array of page analysis objects",
+      "totalPages": "number of pages",
+      "layoutSummary": "string summary of layout analysis",
+      "structureType": "one of: structured-document, image-heavy-document, text-dense-document, mixed-document, sparse-text, image-heavy, balanced, fragmented"
+    },
+    "ocrPostProcessing": {
+      "success": true,
+      "processedText": "string",
+      "improvements": "array of improvement objects with type, description, impact",
+      "confidence": "number between 0 and 1",
+      "processingSteps": "array of strings describing processing steps"
+    },
+    "tables": "array of extracted tables with type, content, confidence, source",
+    "tableCount": "number of tables found",
+    "images": "array of extracted images with data, name, page, dimensions"
+  },
+  "qualityMetrics": {
+    "textLength": {
+      "min": 100,
+      "max": 1000000,
+      "description": "Minimum text length in characters"
+    },
+    "hasLayoutAnalysis": {
+      "required": true,
+      "description": "Layout analysis must be present"
+    },
+    "hasOcrProcessing": {
+      "required": true,
+      "description": "OCR post-processing must be present"
+    },
+    "hasTableExtraction": {
+      "required": false,
+      "description": "Table extraction is optional"
+    },
+    "hasImageExtraction": {
+      "required": false,
+      "description": "Image extraction is optional"
+    },
+    "successStatus": {
+      "required": true,
+      "description": "Operation must succeed"
+    },
+    "layoutAnalysisPages": {
+      "min": 1,
+      "description": "Minimum number of pages analyzed"
+    },
+    "ocrConfidence": {
+      "min": 0.5,
+      "description": "Minimum OCR confidence score"
+    },
+    "processingTime": {
+      "max": 30000,
+      "description": "Maximum processing time in milliseconds"
+    }
+  },
+  "baseline": "ocr-pdf-processing",
+  "testScenarios": [
+    {
+      "name": "test-layout-analysis",
+      "description": "Test document layout analysis on PDF",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "layoutAnalysis": {
+          "success": true,
+          "pages": "array with at least 1 page",
+          "totalPages": "number > 0",
+          "structureType": "string"
+        }
+      },
+      "validation": [
+        "result.success === true",
+        "result.layoutAnalysis.success === true",
+        "result.layoutAnalysis.pages.length > 0",
+        "result.layoutAnalysis.totalPages > 0"
+      ]
+    },
+    {
+      "name": "test-text-extraction",
+      "description": "Test text extraction from PDF",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "text": "string with minimum 100 characters",
+        "pages": "number > 0"
+      },
+      "validation": [
+        "result.success === true",
+        "result.text && result.text.length > 100",
+        "result.pages > 0"
+      ]
+    },
+    {
+      "name": "test-ocr-post-processing",
+      "description": "Test OCR post-processing improves text quality",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "ocrPostProcessing": {
+          "success": true,
+          "processedText": "string",
+          "improvements": "array",
+          "confidence": "number > 0.5"
+        }
+      },
+      "validation": [
+        "result.success === true",
+        "result.ocrPostProcessing.success === true",
+        "result.ocrPostProcessing.confidence > 0.5"
+      ]
+    },
+    {
+      "name": "test-table-extraction",
+      "description": "Test table extraction from document",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "tables": "array of tables",
+        "tableCount": "number >= 0"
+      },
+      "validation": [
+        "result.success === true",
+        "result.tables && Array.isArray(result.tables)"
+      ]
+    },
+    {
+      "name": "test-image-extraction",
+      "description": "Test image extraction from PDF",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf",
+        "extractImages": true
+      },
+      "expected": {
+        "success": true,
+        "images": "array of images"
+      },
+      "validation": [
+        "result.success === true",
+        "result.images && Array.isArray(result.images)"
+      ]
+    },
+    {
+      "name": "test-full-integration",
+      "description": "Test complete PDF parsing with all OCR improvements",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf",
+        "enableLayoutAnalysis": true,
+        "enableOcrProcessing": true,
+        "enableTableExtraction": true,
+        "extractImages": true
+      },
+      "expected": {
+        "success": true,
+        "text": "string with minimum 100 characters",
+        "pages": "number > 0",
+        "layoutAnalysis": {
+          "success": true,
+          "structureType": "string"
+        },
+        "ocrPostProcessing": {
+          "success": true
+        },
+        "tables": "array",
+        "images": "array"
+      },
+      "validation": [
+        "result.success === true",
+        "result.text.length > 100",
+        "result.pages > 0",
+        "result.layoutAnalysis.success === true",
+        "result.ocrPostProcessing.success === true"
+      ]
+    },
+    {
+      "name": "test-layout-analysis-schema",
+      "description": "Test layout analysis output schema compliance",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "layoutAnalysis": {
+          "success": true,
+          "pages": "array",
+          "totalPages": "number",
+          "layoutSummary": "string",
+          "structureType": "string"
+        }
+      },
+      "validation": [
+        "result.layoutAnalysis.success === true",
+        "Array.isArray(result.layoutAnalysis.pages)",
+        "typeof result.layoutAnalysis.totalPages === 'number'",
+        "typeof result.layoutAnalysis.layoutSummary === 'string'",
+        "typeof result.layoutAnalysis.structureType === 'string'"
+      ]
+    },
+    {
+      "name": "test-ocr-improvements-tracking",
+      "description": "Test OCR improvements tracking and confidence scoring",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "improvements": "array with improvement details",
+        "confidence": "number between 0 and 1",
+        "processingSteps": "array of strings"
+      },
+      "validation": [
+        "result.ocrPostProcessing.success === true",
+        "Array.isArray(result.ocrPostProcessing.improvements)",
+        "typeof result.ocrPostProcessing.confidence === 'number'",
+        "result.ocrPostProcessing.confidence >= 0 && result.ocrPostProcessing.confidence <= 1",
+        "Array.isArray(result.ocrPostProcessing.processingSteps)"
+      ]
+    },
+    {
+      "name": "test-table-extraction-details",
+      "description": "Test table extraction with detailed output",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf"
+      },
+      "expected": {
+        "success": true,
+        "tables": "array with table details",
+        "tableCount": "number >= 0",
+        "tableDetails": {
+          "type": "string",
+          "confidence": "number",
+          "source": "string"
+        }
+      },
+      "validation": [
+        "result.success === true",
+        "Array.isArray(result.tables)",
+        "result.tables.length >= 0",
+        "if (result.tables.length > 0) { result.tables[0].type && result.tables[0].confidence }"
+      ]
+    },
+    {
+      "name": "test-image-extraction-details",
+      "description": "Test image extraction with detailed output",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf",
+        "extractImages": true
+      },
+      "expected": {
+        "success": true,
+        "images": "array with image details",
+        "imageCount": "number >= 0",
+        "imageDetails": {
+          "name": "string",
+          "page": "number",
+          "mimeType": "string"
+        }
+      },
+      "validation": [
+        "result.success === true",
+        "Array.isArray(result.images)",
+        "result.images.length >= 0",
+        "if (result.images.length > 0) { result.images[0].name && result.images[0].page }"
+      ]
+    },
+    {
+      "name": "test-performance-benchmark",
+      "description": "Test processing time meets performance requirements",
+      "setup": "Ensure PDF file exists in testfiles directory or provide path",
+      "params": {
+        "filePath": "./test/testfiles/sample.pdf",
+        "enableLayoutAnalysis": true,
+        "enableOcrProcessing": true,
+        "enableTableExtraction": true,
+        "extractImages": true
+      },
+      "expected": {
+        "success": true,
+        "processingTime": "< 30000ms"
+      },
+      "validation": [
+        "result.success === true",
+        "result.processingTime < 30000"
+      ]
+    },
+    {
+      "name": "test-error-handling",
+      "description": "Test error handling for invalid PDF files",
+      "setup": "Use a non-existent or invalid PDF file",
+      "params": {
+        "filePath": "./test/testfiles/non-existent.pdf"
+      },
+      "expected": {
+        "success": false,
+        "error": "string describing the error"
+      },
+      "validation": [
+        "result.success === false",
+        "result.error && typeof result.error === 'string'"
+      ]
+    }
+  ],
+  "setupInstructions": [
+    "1. Create test directory: mkdir -p test/testfiles",
+    "2. Place a sample PDF file in test/testfiles/sample.pdf",
+    "3. Ensure PDF has mixed content (text, images, tables) for comprehensive testing",
+    "4. Create output directory: mkdir -p test/output/ocr-tests",
+    "5. Verify PDF file exists and is readable",
+    "6. Run the test script: node test/test-ocr-improvements.js test/testfiles/sample.pdf",
+    "7. Verify layout analysis results",
+    "8. Verify text extraction results",
+    "9. Verify OCR post-processing results",
+    "10. Verify table extraction results",
+    "11. Verify image extraction results"
+  ],
+  "cleanupInstructions": [
+    "1. Remove any temporary files created during testing",
+    "2. Clear test/output/ocr-tests directory if needed",
+    "3. Reset environment variables if set",
+    "4. Verify no lock files remain from concurrent operations"
+  ],
+  "mcpToolMapping": {
+    "toolName": "edit-doc",
+    "functions": [
+      "appendToDocx",
+      "replaceDocxContent",
+      "inspectDocx",
+      "parsePdfWithOcr"
+    ],
+    "parameters": {
+      "filePath": {
+        "type": "string",
+        "required": true,
+        "description": "Path to the PDF file"
+      },
+      "action": {
+        "type": "string",
+        "required": false,
+        "description": "Action to perform: 'parsePdfWithOcr'",
+        "enum": ["parsePdfWithOcr"]
+      },
+      "enableLayoutAnalysis": {
+        "type": "boolean",
+        "required": false,
+        "description": "Enable document layout analysis"
+      },
+      "enableOcrProcessing": {
+        "type": "boolean",
+        "required": false,
+        "description": "Enable OCR post-processing"
+      },
+      "enableTableExtraction": {
+        "type": "boolean",
+        "required": false,
+        "description": "Enable table extraction"
+      },
+      "extractImages": {
+        "type": "boolean",
+        "required": false,
+        "description": "Extract images from PDF"
+      }
+    },
+    "returns": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether the operation succeeded"
+      },
+      "text": {
+        "type": "string",
+        "description": "Extracted text content"
+      },
+      "pages": {
+        "type": "number",
+        "description": "Number of pages in the document"
+      },
+      "layoutAnalysis": {
+        "type": "object",
+        "description": "Layout analysis results",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether layout analysis was successful"
+          },
+          "pages": {
+            "type": "array",
+            "description": "Array of page analysis objects"
+          },
+          "totalPages": {
+            "type": "number",
+            "description": "Total number of pages analyzed"
+          },
+          "layoutSummary": {
+            "type": "string",
+            "description": "Summary of layout analysis"
+          },
+          "structureType": {
+            "type": "string",
+            "description": "Type of document structure",
+            "enum": ["structured-document", "image-heavy-document", "text-dense-document", "mixed-document", "sparse-text", "image-heavy", "balanced", "fragmented"]
+          }
+        }
+      },
+      "ocrPostProcessing": {
+        "type": "object",
+        "description": "OCR post-processing results",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether post-processing was successful"
+          },
+          "processedText": {
+            "type": "string",
+            "description": "The improved text"
+          },
+          "improvements": {
+            "type": "array",
+            "description": "Array of improvement objects"
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confidence score between 0 and 1"
+          },
+          "processingSteps": {
+            "type": "array",
+            "description": "Array of processing step descriptions"
+          }
+        }
+      },
+      "tables": {
+        "type": "array",
+        "description": "Array of extracted tables"
+      },
+      "tableCount": {
+        "type": "number",
+        "description": "Number of tables found"
+      },
+      "images": {
+        "type": "array",
+        "description": "Array of extracted images"
+      },
+      "error": {
+        "type": "string",
+        "description": "Error message if operation failed"
+      }
+    }
+  },
+  "passCriteria": {
+    "required": {
+      "success": true,
+      "textLength": "> 100",
+      "pages": "> 0",
+      "layoutAnalysis": "success === true"
+    },
+    "optional": {
+      "ocrProcessing": "success === true",
+      "tableExtraction": "tables array present",
+      "imageExtraction": "images array present"
+    },
+    "performance": {
+      "maxProcessingTime": 30000,
+      "minConfidence": 0.5
+    }
+  }
+}

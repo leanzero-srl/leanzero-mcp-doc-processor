@@ -1,0 +1,766 @@
+{
+  "name": "test-innovations",
+  "description": "Comprehensive test scenario for innovation features including Adaptive DNA Evolution, Document Lineage Graph, Document Blueprints, Extract-to-Excel Pipeline, Drift Detection, Composite Document Assembly, and Blueprint Enhanced Metadata",
+  "version": "1.0.0",
+  "author": "MCP Test Framework",
+  "created": "2024-01-15",
+  "tags": ["innovation", "adaptive-dna", "lineage", "blueprint", "drift-detection", "composite-assembly", "extraction"],
+  "scenarioType": "innovation-test",
+  "descriptionLong": "This comprehensive test scenario validates all innovation features in the MCP document processor, including adaptive DNA evolution, document lineage tracking, blueprint extraction and validation, data extraction pipelines, drift detection with word sets, composite document assembly, and enhanced metadata handling.",
+  "objectives": [
+    "Test adaptive DNA evolution with style and category suggestions",
+    "Verify document lineage graph tracking through read->create chains",
+    "Test blueprint extraction, saving, loading, and validation",
+    "Validate extract-to-Excel pipeline for tables and sections",
+    "Test drift detection with fingerprint comparison",
+    "Verify composite document assembly with multiple sources",
+    "Test edge cases and failure paths",
+    "Validate enhanced blueprint metadata including charCount and contentRatio",
+    "Test DNA category evolution",
+    "Verify lineage in create-doc response",
+    "Test drift detection with word sets",
+    "End-to-end integration testing"
+  ],
+  "testSetup": {
+    "testDir": "test-output-innovations",
+    "cleanupBeforeTest": true,
+    "cleanupAfterTest": true,
+    "dnaPath": ".document-dna.json",
+    "backups": {
+      "enabled": true,
+      "dnaBackup": true
+    }
+  },
+  "steps": [
+    {
+      "name": "Test 1: Adaptive DNA Evolution Setup",
+      "check": "DNA backup created and test directory initialized",
+      "action": "setup",
+      "validate": "setupComplete === true",
+      "expected": {
+        "dnaBackupExists": true,
+        "testDirCreated": true,
+        "dnaFileInitialized": true
+      }
+    },
+    {
+      "name": "Test 1: Simulate document usage patterns",
+      "check": "Simulate 10 document creations with dominant patterns",
+      "action": "simulate_usage",
+      "validate": "usageSimulated === true",
+      "expected": {
+        "businessDocs": 8,
+        "technicalDocs": 1,
+        "meetingDocs": 1,
+        "totalDocs": 10
+      }
+    },
+    {
+      "name": "Test 1: Analyze trends",
+      "check": "Trends analysis reports ready state",
+      "action": "analyze",
+      "validate": "trendsReady === true",
+      "expected": {
+        "ready": true,
+        "totalDocs": 10,
+        "hasSuggestions": true,
+        "suggestionCount": ">= 1"
+      }
+    },
+    {
+      "name": "Test 1: Verify style evolution suggestion",
+      "check": "Suggests 'business' as default style",
+      "action": "analyze",
+      "validate": "styleSuggestionCorrect === true",
+      "expected": {
+        "suggestionType": "default-style",
+        "suggestedStyle": "business"
+      }
+    },
+    {
+      "name": "Test 1: Apply evolution",
+      "check": "Evolution applied successfully to DNA",
+      "action": "evolve",
+      "validate": "evolutionApplied === true",
+      "expected": {
+        "evolutionSuccess": true,
+        "newValue": "business",
+        "timestampRecorded": true
+      }
+    },
+    {
+      "name": "Test 2: Document Lineage Setup",
+      "check": "Lineage tracking cleared",
+      "action": "setup",
+      "validate": "lineageCleared === true",
+      "expected": {
+        "recentlyReadCleared": true
+      }
+    },
+    {
+      "name": "Test 2: Record document reads",
+      "check": "Record source documents for lineage tracking",
+      "action": "record_reads",
+      "validate": "readsRecorded === true",
+      "expected": {
+        "sourceA": "/test/source-a.docx",
+        "sourceB": "/test/source-b.pdf",
+        "sourceCount": 2
+      }
+    },
+    {
+      "name": "Test 2: Create document with lineage",
+      "check": "Lineage captured in create-doc response",
+      "action": "create",
+      "validate": "lineageCaptured === true",
+      "expected": {
+        "lineagePresent": true,
+        "sourceCount": 2,
+        "sourcesInclude": ["/test/source-a.docx", "/test/source-b.pdf"]
+      }
+    },
+    {
+      "name": "Test 3: Blueprint Extraction Setup",
+      "check": "Create test document for blueprint extraction",
+      "action": "create",
+      "validate": "testDocCreated === true",
+      "expected": {
+        "filePath": "string containing 'blueprint-source.docx'",
+        "hasTables": true
+      }
+    },
+    {
+      "name": "Test 3: Extract blueprint",
+      "check": "Extract blueprint from document",
+      "action": "extract_blueprint",
+      "validate": "blueprintExtracted === true",
+      "expected": {
+        "hasSections": true,
+        "sectionsArray": true,
+        "totalTables": ">= 1"
+      }
+    },
+    {
+      "name": "Test 3: Save blueprint",
+      "check": "Save blueprint to store",
+      "action": "save_blueprint",
+      "validate": "blueprintSaved === true",
+      "expected": {
+        "saveSuccess": true,
+        "blueprintName": "quarterly-report"
+      }
+    },
+    {
+      "name": "Test 3: Load blueprint",
+      "check": "Load saved blueprint",
+      "action": "load_blueprint",
+      "validate": "blueprintLoaded === true",
+      "expected": {
+        "loadSuccess": true,
+        "blueprintName": "quarterly-report"
+      }
+    },
+    {
+      "name": "Test 3: List blueprints",
+      "check": "List all saved blueprints",
+      "action": "list_blueprints",
+      "validate": "blueprintListed === true",
+      "expected": {
+        "listHasItems": true,
+        "blueprintInList": "quarterly-report"
+      }
+    },
+    {
+      "name": "Test 3: Validate against blueprint",
+      "check": "Validate document against blueprint",
+      "action": "validate_blueprint",
+      "validate": "validationSuccessful === true",
+      "expected": {
+        "validationRuns": true,
+        "matchedSections": ">= 0"
+      }
+    },
+    {
+      "name": "Test 3: Delete blueprint",
+      "check": "Delete blueprint after testing",
+      "action": "delete_blueprint",
+      "validate": "blueprintDeleted === true",
+      "expected": {
+        "deleteSuccess": true,
+        "blueprintNotLoadable": true
+      }
+    },
+    {
+      "name": "Test 4: Extract-to-Excel Pipeline Setup",
+      "check": "Create data source document",
+      "action": "create",
+      "validate": "dataSourceCreated === true",
+      "expected": {
+        "filePath": "string containing 'data-source.docx'",
+        "hasTables": true
+      }
+    },
+    {
+      "name": "Test 4: Extract tables",
+      "check": "Extract tables from DOCX",
+      "action": "extract_tables",
+      "validate": "tablesExtracted === true",
+      "expected": {
+        "sheetsCount": ">= 1",
+        "tableRows": ">= 2"
+      }
+    },
+    {
+      "name": "Test 4: Extract sections",
+      "check": "Extract sections from DOCX",
+      "action": "extract_sections",
+      "validate": "sectionsExtracted === true",
+      "expected": {
+        "sheetsCount": ">= 1",
+        "headerCorrect": "Section Heading"
+      }
+    },
+    {
+      "name": "Test 4: Pattern extraction",
+      "check": "Extract by pattern",
+      "action": "extract_pattern",
+      "validate": "patternExtracted === true",
+      "expected": {
+        "sheetsArray": true
+      }
+    },
+    {
+      "name": "Test 5: Drift Detection Setup",
+      "check": "Compute fingerprint of test document",
+      "action": "compute_fingerprint",
+      "validate": "fingerprintComputed === true",
+      "expected": {
+        "wordCount": "> 0",
+        "contentHashLength": 64,
+        "hasISOtimestamp": true,
+        "paragraphCount": "> 0",
+        "wordSetHash": "64 chars"
+      }
+    },
+    {
+      "name": "Test 5: No drift detection",
+      "check": "Compare same fingerprint (no drift)",
+      "action": "compare_fingerprints",
+      "validate": "noDrift === true",
+      "expected": {
+        "hasDrift": false,
+        "severity": "none"
+      }
+    },
+    {
+      "name": "Test 5: Drift detection",
+      "check": "Compare modified fingerprint (drift detected)",
+      "action": "compare_fingerprints",
+      "validate": "driftDetected === true",
+      "expected": {
+        "hasDrift": true,
+        "changesArray": true,
+        "wordCountChange": true
+      }
+    },
+    {
+      "name": "Test 5: Category shift detection",
+      "check": "Detect category shift",
+      "action": "compare_fingerprints",
+      "validate": "categoryShiftDetected === true",
+      "expected": {
+        "hasDrift": true,
+        "categoryShiftChange": true,
+        "originalCategory": "business",
+        "newCategory": "legal"
+      }
+    },
+    {
+      "name": "Test 6: Composite Document Assembly Setup",
+      "check": "Create source documents A and B",
+      "action": "create",
+      "validate": "sourcesCreated === true",
+      "expected": {
+        "sourceAExists": true,
+        "sourceBExists": true
+      }
+    },
+    {
+      "name": "Test 6: Assemble documents",
+      "check": "Concatenate source documents",
+      "action": "assemble",
+      "validate": "assemblySuccessful === true",
+      "expected": {
+        "success": true,
+        "sourceCount": 2,
+        "mode": "concatenate",
+        "fileExists": true
+      }
+    },
+    {
+      "name": "Test 6: Empty sources test",
+      "check": "Test empty sources handling",
+      "action": "assemble",
+      "validate": "emptySourcesHandled === true",
+      "expected": {
+        "success": false,
+        "error": true
+      }
+    },
+    {
+      "name": "Test 7: Edge Cases - Invalid regex",
+      "check": "Test invalid regex handling",
+      "action": "extract",
+      "validate": "invalidRegexHandled === true",
+      "expected": {
+        "errorThrown": true,
+        "errorContains": "Invalid regex pattern"
+      }
+    },
+    {
+      "name": "Test 7: Edge Cases - No matches",
+      "check": "Test pattern extraction with no matches",
+      "action": "extract",
+      "validate": "noMatchesHandled === true",
+      "expected": {
+        "sheetsEmpty": true
+      }
+    },
+    {
+      "name": "Test 7: Edge Cases - Unknown mode",
+      "check": "Test unknown extraction mode handling",
+      "action": "extract",
+      "validate": "unknownModeHandled === true",
+      "expected": {
+        "errorThrown": true
+      }
+    },
+    {
+      "name": "Test 7: Edge Cases - Corrupt DOCX",
+      "check": "Test corrupt file handling",
+      "action": "extract",
+      "validate": "corruptFileHandled === true",
+      "expected": {
+        "errorThrown": true
+      }
+    },
+    {
+      "name": "Test 7: Edge Cases - Non-existent source",
+      "check": "Test non-existent source file handling",
+      "action": "assemble",
+      "validate": "nonExistentSourceHandled === true",
+      "expected": {
+        "success": false
+      }
+    },
+    {
+      "name": "Test 7: Edge Cases - Heading additions",
+      "check": "Detect heading additions",
+      "action": "compare_fingerprints",
+      "validate": "headingAdditionsDetected === true",
+      "expected": {
+        "hasDrift": true,
+        "sectionsAdded": true,
+        "sectionsCount": 2
+      }
+    },
+    {
+      "name": "Test 7: Edge Cases - Heading removals",
+      "check": "Detect heading removals",
+      "action": "compare_fingerprints",
+      "validate": "headingRemovalsDetected === true",
+      "expected": {
+        "hasDrift": true,
+        "sectionsRemoved": true
+      }
+    },
+    {
+      "name": "Test 7: Edge Cases - Blueprint validation with missing sections",
+      "check": "Test blueprint validation with empty input",
+      "action": "validate_blueprint",
+      "validate": "missingSectionsDetected === true",
+      "expected": {
+        "matchedSections": 0,
+        "errorsPresent": true,
+        "valid": false
+      }
+    },
+    {
+      "name": "Test 8: Enhanced Blueprint Metadata",
+      "check": "Create document with varied content for metadata testing",
+      "action": "create",
+      "validate": "metadataTestDocCreated === true",
+      "expected": {
+        "filePath": "string containing 'metadata-test.docx'",
+        "hasHeadings": true
+      }
+    },
+    {
+      "name": "Test 8: Extract blueprint with enhanced metadata",
+      "check": "Extract blueprint with charCount, contentRatio, hasList",
+      "action": "extract_blueprint",
+      "validate": "enhancedBlueprintExtracted === true",
+      "expected": {
+        "hasCharCount": true,
+        "hasContentRatio": true,
+        "hasHasList": true,
+        "contentRatioSum": "~1.0"
+      }
+    },
+    {
+      "name": "Test 8: Validate all sections have charCount",
+      "check": "All sections have charCount field",
+      "action": "validate",
+      "validate": "allSectionsHaveCharCount === true",
+      "expected": {
+        "charCountFields": "equals section count"
+      }
+    },
+    {
+      "name": "Test 8: Validate all sections have contentRatio",
+      "check": "All sections have contentRatio field",
+      "action": "validate",
+      "validate": "allSectionsHaveContentRatio === true",
+      "expected": {
+        "contentRatioFields": "equals section count"
+      }
+    },
+    {
+      "name": "Test 8: Validate content ratios sum to 1.0",
+      "check": "Content ratios sum to approximately 1.0",
+      "action": "validate",
+      "validate": "contentRatioSumCorrect === true",
+      "expected": {
+        "ratioSum": "1.0 +/- 0.05"
+      }
+    },
+    {
+      "name": "Test 8: Validate all sections have hasList",
+      "check": "All sections have hasList field",
+      "action": "validate",
+      "validate": "allSectionsHaveHasList === true",
+      "expected": {
+        "hasListFields": "equals section count"
+      }
+    },
+    {
+      "name": "Test 8: Validate totalCharacters field",
+      "check": "Blueprint has positive totalCharacters",
+      "action": "validate",
+      "validate": "totalCharactersValid === true",
+      "expected": {
+        "totalCharacters": "> 0"
+      }
+    },
+    {
+      "name": "Test 9: DNA Category Evolution Setup",
+      "check": "Reset DNA and usage for category evolution test",
+      "action": "setup",
+      "validate": "dnaReset === true",
+      "expected": {
+        "stylePresetReset": true,
+        "categoryReset": true,
+        "usageCleared": true
+      }
+    },
+    {
+      "name": "Test 9: Simulate technical document usage",
+      "check": "Simulate 10 document creations with technical dominance",
+      "action": "simulate_usage",
+      "validate": "usageSimulated === true",
+      "expected": {
+        "technicalDocs": 7,
+        "businessDocs": 1,
+        "meetingDocs": 1,
+        "otherDocs": 1,
+        "totalDocs": 10
+      }
+    },
+    {
+      "name": "Test 9: Analyze category trends",
+      "check": "Category trends ready after 10 docs",
+      "action": "analyze",
+      "validate": "categoryTrendsReady === true",
+      "expected": {
+        "ready": true
+      }
+    },
+    {
+      "name": "Test 9: Verify category evolution suggestion",
+      "check": "Suggests 'technical' as default category",
+      "action": "analyze",
+      "validate": "categorySuggestionCorrect === true",
+      "expected": {
+        "suggestionType": "default-category",
+        "suggestedCategory": "technical"
+      }
+    },
+    {
+      "name": "Test 9: Apply category evolution",
+      "check": "Category evolution applied successfully",
+      "action": "evolve",
+      "validate": "categoryEvolutionApplied === true",
+      "expected": {
+        "evolutionSuccess": true,
+        "newValue": "technical"
+      }
+    },
+    {
+      "name": "Test 10: Lineage in create-doc Response Setup",
+      "check": "Clear lineage tracking",
+      "action": "setup",
+      "validate": "lineageCleared === true",
+      "expected": {
+        "recentlyReadCleared": true
+      }
+    },
+    {
+      "name": "Test 10: Record lineage sources",
+      "check": "Record source documents for lineage",
+      "action": "record_reads",
+      "validate": "sourcesRecorded === true",
+      "expected": {
+        "source1": "/test/lineage-source-1.docx",
+        "source2": "/test/lineage-source-2.pdf",
+        "sourceCount": 2
+      }
+    },
+    {
+      "name": "Test 10: Create document with lineage",
+      "check": "Lineage captured in create-doc response",
+      "action": "create",
+      "validate": "lineageCaptured === true",
+      "expected": {
+        "lineagePresent": true,
+        "sourceCount": 2,
+        "sourcesInclude": ["/test/lineage-source-1.docx", "/test/lineage-source-2.pdf"]
+      }
+    },
+    {
+      "name": "Test 10: Create document without lineage",
+      "check": "No lineage when nothing was read",
+      "action": "create",
+      "validate": "noLineage === true",
+      "expected": {
+        "lineageNull": true
+      }
+    },
+    {
+      "name": "Test 11: Drift Detection with Word Sets Setup",
+      "check": "Setup document for word set drift detection",
+      "action": "setup",
+      "validate": "setupComplete === true",
+      "expected": {
+        "watchDocument": true
+      }
+    },
+    {
+      "name": "Test 11: Watch document",
+      "check": "Watch document and establish baseline",
+      "action": "watch",
+      "validate": "documentWatched === true",
+      "expected": {
+        "success": true,
+        "fingerprintHasWordCount": true
+      }
+    },
+    {
+      "name": "Test 11: Check drift on unchanged document",
+      "check": "Check drift - no drift on unchanged document",
+      "action": "check_drift",
+      "validate": "noDrift === true",
+      "expected": {
+        "success": true,
+        "totalWithDrift": 0
+      }
+    },
+    {
+      "name": "Test 11: Verify compact hash storage",
+      "check": "Verify compact hash storage in registry",
+      "action": "verify",
+      "validate": "compactStorage === true",
+      "expected": {
+        "wordSetHashStored": true,
+        "uniqueWordCountStored": true,
+        "baselineTextNotStored": true,
+        "baselineWordsNotStored": true
+      }
+    },
+    {
+      "name": "Test 12: End-to-End Integration Setup",
+      "check": "Setup E2E test environment",
+      "action": "setup",
+      "validate": "e2eSetupComplete === true",
+      "expected": {
+        "testDirCreated": true
+      }
+    },
+    {
+      "name": "Test 12: Create E2E source document",
+      "check": "Create structured source document",
+      "action": "create",
+      "validate": "e2eSourceCreated === true",
+      "expected": {
+        "success": true,
+        "hasHeadings": true,
+        "hasTables": true
+      }
+    },
+    {
+      "name": "Test 12: Extract E2E blueprint",
+      "check": "Extract blueprint from E2E source",
+      "action": "extract_blueprint",
+      "validate": "e2eBlueprintExtracted === true",
+      "expected": {
+        "hasSections": true,
+        "hasTables": true
+      }
+    },
+    {
+      "name": "Test 12: Save E2E blueprint",
+      "check": "Save E2E blueprint",
+      "action": "save_blueprint",
+      "validate": "e2eBlueprintSaved === true",
+      "expected": {
+        "saveSuccess": true,
+        "blueprintName": "e2e-report"
+      }
+    },
+    {
+      "name": "Test 12: Load E2E blueprint",
+      "check": "Load E2E blueprint",
+      "action": "load_blueprint",
+      "validate": "e2eBlueprintLoaded === true",
+      "expected": {
+        "loadSuccess": true
+      }
+    },
+    {
+      "name": "Test 12: Extract E2E tables",
+      "check": "Extract tables from E2E document",
+      "action": "extract_tables",
+      "validate": "e2eTablesExtracted === true",
+      "expected": {
+        "sheetsCount": ">= 1",
+        "tableRows": ">= 2"
+      }
+    },
+    {
+      "name": "Test 12: Extract E2E sections",
+      "check": "Extract sections from E2E document",
+      "action": "extract_sections",
+      "validate": "e2eSectionsExtracted === true",
+      "expected": {
+        "sheetsCount": ">= 1"
+      }
+    },
+    {
+      "name": "Test 12: Create E2E source 2 document",
+      "check": "Create second E2E source document",
+      "action": "create",
+      "validate": "e2eSource2Created === true",
+      "expected": {
+        "success": true
+      }
+    },
+    {
+      "name": "Test 12: Assemble E2E documents",
+      "check": "Assemble E2E documents",
+      "action": "assemble",
+      "validate": "e2eAssemblySuccessful === true",
+      "expected": {
+        "success": true,
+        "sourceCount": 2
+      }
+    },
+    {
+      "name": "Test 12: Compute E2E fingerprint",
+      "check": "Compute fingerprint of assembled E2E document",
+      "action": "compute_fingerprint",
+      "validate": "e2eFingerprintComputed === true",
+      "expected": {
+        "wordCount": "> 0"
+      }
+    },
+    {
+      "name": "Test 12: Cleanup E2E test",
+      "check": "Delete E2E blueprint after testing",
+      "action": "cleanup",
+      "validate": "e2eCleanupComplete === true",
+      "expected": {
+        "blueprintDeleted": true
+      }
+    }
+  ],
+  "expectedOutput": {
+    "success": true,
+    "allTestsPassed": true,
+    "innovationFeatures": {
+      "adaptiveDNA": {
+        "styleEvolution": true,
+        "categoryEvolution": true,
+        "usageTracking": true,
+        "suggestionsGenerated": true
+      },
+      "lineageGraph": {
+        "readTracking": true,
+        "writeTracking": true,
+        "sourceChain": true,
+        "derivativeTracking": true
+      },
+      "blueprints": {
+        "extraction": true,
+        "saving": true,
+        "loading": true,
+        "validation": true,
+        "deletion": true
+      },
+      "extractionPipeline": {
+        "tableExtraction": true,
+        "sectionExtraction": true,
+        "patternExtraction": true
+      },
+      "driftDetection": {
+        "fingerprintComputation": true,
+        "noDriftDetection": true,
+        "driftDetection": true,
+        "categoryShiftDetection": true,
+        "headingChangeDetection": true
+      },
+      "compositeAssembly": {
+        "concatenateAssembly": true,
+        "emptySourceHandling": true,
+        "nonExistentSourceHandling": true
+      },
+      "enhancedMetadata": {
+        "charCount": true,
+        "contentRatio": true,
+        "hasList": true,
+        "totalCharacters": true
+      }
+    },
+    "edgeCases": {
+      "invalidRegex": true,
+      "noMatches": true,
+      "unknownMode": true,
+      "corruptFile": true,
+      "nonExistentFile": true,
+      "headingAdditions": true,
+      "headingRemovals": true,
+      "missingBlueprintSections": true
+    }
+  },
+  "qualityMetrics": {
+    "adaptiveDNATesting": true,
+    "lineageGraphTesting": true,
+    "blueprintTesting": true,
+    "extractionPipelineTesting": true,
+    "driftDetectionTesting": true,
+    "compositeAssemblyTesting": true,
+    "enhancedMetadataTesting": true,
+    "edgeCaseTesting": true,
+    "e2eIntegrationTesting": true,
+    "allTestsPassed": true
+  },
+  "baseline": "test-innovations"
+}

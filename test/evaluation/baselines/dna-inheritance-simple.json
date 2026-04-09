@@ -1,0 +1,57 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"testResults\":{\"loadUserDna\":{\"success\":true,\"version\":1,\"company\":{\"name\":\"User Corp\",\"department\":\"Engineering\"}},\"loadProjectDna\":{\"success\":true,\"version\":1,\"company\":{\"name\":\"Project Corp\",\"department\":\"Docs\"}},\"mergeDna\":{\"success\":true,\"merged\":{\"version\":1,\"company\":{\"name\":\"User Corp\",\"department\":\"Engineering\"},\"defaults\":{\"stylePreset\":\"colorful\",\"category\":\"technical\"},\"header\":{\"enabled\":true,\"text\":\"User Header\",\"alignment\":\"right\"},\"footer\":{\"enabled\":true,\"text\":\"Page {current} of {total}\",\"alignment\":\"center\"}}},\"partialOverride\":{\"success\":true,\"merged\":{\"version\":1,\"company\":{\"name\":\"User Corp\",\"department\":\"Docs\"},\"defaults\":{\"stylePreset\":\"colorful\"},\"header\":{\"enabled\":true,\"text\":\"User Header\",\"alignment\":\"right\"}}}},\"qualityMetrics\":{\"userDnaLoadable\":true,\"projectDnaLoadable\":true,\"inheritancePriorityCorrect\":true,\"partialOverridePreserved\":true,\"mergeBehaviorCorrect\":true,\"cleanupSuccessful\":true},\"message\":\"DNA inheritance test completed successfully\"}"
+    }
+  ],
+  "testResults": {
+    "test-load-user-dna": {
+      "success": true,
+      "version": 1,
+      "company": { "name": "User Corp", "department": "Engineering" }
+    },
+    "test-load-project-dna": {
+      "success": true,
+      "version": 1,
+      "company": { "name": "Project Corp", "department": "Docs" }
+    },
+    "test-merge-dna": {
+      "success": true,
+      "merged": {
+        "version": 1,
+        "company": { "name": "User Corp", "department": "Engineering" },
+        "defaults": { "stylePreset": "colorful", "category": "technical" },
+        "header": { "enabled": true, "text": "User Header", "alignment": "right" },
+        "footer": { "enabled": true, "text": "Page {current} of {total}", "alignment": "center" }
+      }
+    },
+    "test-partial-override": {
+      "success": true,
+      "merged": {
+        "version": 1,
+        "company": { "name": "User Corp", "department": "Docs" },
+        "defaults": { "stylePreset": "colorful" },
+        "header": { "enabled": true, "text": "User Header", "alignment": "right" }
+      }
+    }
+  },
+  "inheritancePriority": {
+    "level1": "System defaults (fallback)",
+    "level2": "Project DNA (.document-dna.json)",
+    "level3": "User DNA (.document-user.json)",
+    "level4": "Explicit parameters (overrides all)"
+  },
+  "mergeRules": {
+    "header": "user > project > system",
+    "footer": "user > project > system",
+    "defaults": "user > project > system",
+    "company": "user > project > system"
+  },
+  "expectedBehavior": {
+    "userDnaOverride": true,
+    "projectDnaInheritance": true,
+    "partialOverridePreserved": true,
+    "cleanupSuccessful": true
+  }
+}

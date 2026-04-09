@@ -1,0 +1,8 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\":true,\"filePath\":\"/path/to/docs/business/report.xlsx\",\"category\":\"business\",\"tags\":[\"report\",\"business\"],\"wasCategorized\":true,\"registryEntry\":{\"id\":\"12345\",\"category\":\"business\"},\"stylePreset\":\"professional\",\"styleConfig\":{\"preset\":\"professional\",\"description\":\"Professional style for business documents\",\"font\":{\"family\":\"Arial\",\"size\":11,\"color\":\"000000\"},\"header\":{\"bold\":true,\"size\":11,\"color\":\"000000\",\"background\":\"e0e0e0\"},\"zebraColor\":\"f0f0f0\"},\"enforcement\":{\"docsFolderEnforced\":true,\"duplicatePrevented\":false,\"categorized\":true,\"categoryApplied\":\"business\"},\"message\":\"XLSX FILE WRITTEN TO DISK at: /path/to/docs/business/report.xlsx\\n\\nIMPORTANT: This tool has created an actual .xlsx file on your filesystem. Do NOT create any additional markdown or text files. The workbook is available at the absolute path shown above.\\n\\nNOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\\nNOTE: Document categorized as \\\"business\\\" and placed in docs/business/.\"}"
+    }
+  ]
+}

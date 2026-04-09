@@ -40,8 +40,14 @@ const NAMESPACES = {
 };
 
 /**
- * Creates a simple XML parser that works without DOM
- * This is a lightweight alternative to full DOM parsing
+ * Creates a simple XML parser that works without DOM.
+ * This is a lightweight alternative to full DOM parsing.
+ *
+ * NOTE: The basic tag-finding logic (findTag / findAllTags) is shared with
+ * src/utils/xml-utils.js, which exports a standalone findXMLTags() function
+ * used by blueprint-extractor.js and data-extractor.js. This class is kept
+ * separate because it adds stateful XML manipulation (insertAfter, insertBefore,
+ * toString) on top of the tag-finding capability.
  */
 class SimpleXMLParser {
   constructor(xmlString) {
@@ -704,7 +710,7 @@ export async function inspectDocx(filePath) {
       result.structure.hasTables = tables.length > 0;
 
       // Log for debugging
-      console.log(
+      console.error(
         `[inspectDocx] Found ${paragraphs.length} paragraphs and ${tables.length} tables`,
       );
     }
