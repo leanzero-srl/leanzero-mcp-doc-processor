@@ -1,52 +1,19 @@
 # MCP Document Processor
 
-An MCP (Model Context Protocol) server for reading, creating, and managing PDF, DOCX, and Excel documents. Built for AI agents that need to process documents with professional styling, automatic categorization, and intelligent document management.
+An MCP (Model Context Protocol) server for reading, creating, and managing PDF, DOCX, and Excel documents with professional styling, automatic categorization, and intelligent document management. Built by LeanZero as part of the [LeanZero](https://leanzero.atlascrafted.com) ecosystem.
 
-Part of the [LeanZero](https://leanzero.atlascrafted.com) ecosystem.
+---
 
-## Features
-
-- **Read any document** -- PDF, DOCX, and Excel with OCR support for image-based PDFs
-- **Create professional documents** -- DOCX and Excel with 7 style presets, headers, footers, and custom formatting
-- **Document DNA** -- project-level identity system that automatically applies styling, headers, and footers
-- **Auto-categorization** -- classifies documents into 6 categories (contracts, technical, business, legal, meeting, research) and organizes them into subfolders
-- **Blueprint system** -- structural templates extracted from existing documents or auto-learned from recurring patterns
-- **Drift detection** -- monitor documents for structural changes over time with fingerprint-based comparison
-- **Lineage tracking** -- automatic provenance chains that record which source documents informed each created document
-- **Duplicate prevention** -- atomic file locking and registry-based title matching to prevent overwrites
-- **Document registry** -- searchable index of all created documents with category, tag, and title filtering
-- **Enhanced styling** -- advanced typography, color constants, and professional formatting helpers
-
-## Tools
-
-The server exposes 11 tools via the MCP protocol. Each tool uses an `action` parameter for sub-operations where applicable.
-
-| Tool | Actions / Modes | Description |
-|------|----------------|-------------|
-| `read-doc` | `summary`, `indepth`, `focused` | Read and analyze PDF, DOCX, or Excel files. Summary gives an overview; indepth extracts full text and metadata; focused answers specific queries. |
-| `create-doc` | -- | Create a Word DOCX with paragraphs, tables, headers, footers, and styling. Supports dry run preview. |
-| `create-excel` | -- | Create an Excel XLSX workbook with multiple sheets and styling. |
-| `edit-doc` | `append`, `replace` | Edit existing DOCX files. Append preserves formatting via XML patching; replace overwrites content. |
-| `edit-excel` | `append-rows`, `append-sheet`, `replace-sheet` | Edit existing Excel workbooks. |
-| `list-documents` | -- | Search and filter the document registry by category, tags, or title. |
-| `dna` | `init`, `get`, `evolve`, `save-memory`, `delete-memory` | Manage Document DNA -- the project's automatic styling and identity system. |
-| `blueprint` | `learn`, `list`, `delete` | Manage structural blueprints. Auto-learned during `dna evolve` or manually extracted from existing documents. |
-| `drift-monitor` | `watch`, `check` | Register documents for monitoring and detect structural changes over time. |
-| `get-lineage` | -- | Trace the provenance chain for any document -- which sources informed it and what was derived from it. |
-
-> **Note:** All old tool names from previous versions (`get-doc-summary`, `get-doc-indepth`, `get-doc-focused`, `init-dna`, `get-dna`, `evolve-dna`, `save-memory`, `delete-memory`, `learn-blueprint`, `list-blueprints`, `watch-document`, `check-drift`, `search-registry`, `check-document`, `extract-to-excel`, `assemble-document`) are accepted as backward-compatible aliases.
-
-## Quick Start
+## 🚀 Quick Start
 
 ### Installation
-
 ```bash
 npm install
 ```
 
 ### MCP Configuration
 
-Add to your MCP client configuration (e.g., `mcp.json`, `cline_mcp_settings.json`, or equivalent):
+Add to your MCP client configuration (e.g., `mcp.json`, `cline_mcp_settings.json`):
 
 ```json
 {
@@ -60,268 +27,203 @@ Add to your MCP client configuration (e.g., `mcp.json`, `cline_mcp_settings.json
 }
 ```
 
-#### With LM Studio (local OCR)
-
-```json
-{
-  "mcpServers": {
-    "doc-processor": {
-      "command": "node",
-      "args": ["/absolute/path/to/mcp-doc-processor/src/index.js"],
-      "env": {
-        "VISION_PROVIDER": "lm-studio",
-        "LM_STUDIO_BASE_URL": "http://localhost:1234/api/v0"
-      }
-    }
-  }
-}
-```
-
-#### With Z.AI (cloud OCR)
-
-```json
-{
-  "mcpServers": {
-    "doc-processor": {
-      "command": "node",
-      "args": ["/absolute/path/to/mcp-doc-processor/src/index.js"],
-      "env": {
-        "VISION_PROVIDER": "zai",
-        "Z_AI_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
-```
-
-### Running
-
+### Verify Installation
 ```bash
 npm start
+# Server should output: MCP Document Processor server running on stdio
+# Vision Provider: lm-studio (or your configured provider)
 ```
 
-The server communicates over stdio using the MCP JSON-RPC protocol. It is designed to be launched by an MCP client, not run interactively.
+---
 
-## Style Presets
+## 🛠️ Tools Reference
 
-Seven built-in presets control document typography, spacing, and table formatting.
+| Tool | Description | Key Parameters |
+|------|-------------|----------------|
+| `read-doc` | Read and analyze PDF, DOCX, or Excel files with three modes | filePath, mode, userQuery, context |
+| `detect-format` | Recommend format/tone for new documents | userQuery, title, content |
+| `create-doc` | Create a styled Word DOCX document | filePath (for edit), action, title, paragraphs, tables, stylePreset, category, tags, docType |
+| `create-markdown` | Create implementation-focused markdown files | title, paragraphs, outputPath, category, tags, description, dryRun, docType |
+| `create-excel` | Create a styled Excel XLSX workbook | sheets (array of {name, data}), stylePreset, custom styling overrides, outputPath, enforceDocsFolder, preventDuplicates, dryRun, category, tags, description, docType |
+| `edit-doc` | Edit existing DOCX files with append/replace actions | filePath, action, title, paragraphs, tables, stylePreset, category, tags, docType |
+| `edit-excel` | Edit existing Excel workbooks | filePath, action, sheetName, rows, sheetData, stylePreset, category, tags, docType |
+| `list-documents` | Search and filter the document registry | category, tags, title |
+| `dna` | Manage Document DNA (styling defaults & memories) | action, companyName, stylePreset, headerText, footerText, apply, threshold, memory, key |
+| `blueprint` | Manage structural templates from existing documents | action, filePath, name, description |
+| `drift-monitor` | Track document changes over time with fingerprinting | action, filePath, name |
+| `get-lineage` | Trace provenance of any created document | filePath, depth |
+| `list-templates` | Browse available blueprints and templates | category (optional) |
 
-| Preset | Font | Body Size | Key Traits |
-|--------|------|-----------|------------|
-| `minimal` | Arial | 11pt | Clean, Swiss-style, subtle borders, light zebra striping |
-| `professional` | Garamond | 11pt | Serif, justified, small caps title, double-spaced headings |
-| `technical` | Arial / Segoe UI | 11pt | Left-aligned, strong hierarchy, high-contrast tables |
-| `legal` | Times New Roman | 12pt | Double-spaced, underlined headings, no decorative elements |
-| `business` | Calibri / Calibri Light | 11pt | Blue accent palette, centered title with bottom border |
-| `casual` | Verdana / Trebuchet MS | 12pt | Warm orange accents, friendly newsletter style |
-| `colorful` | Segoe UI | 11pt | Purple-teal gradient accents, vibrant table headers |
+---
 
-Categories auto-select an appropriate preset when none is specified:
+## 🧬 Document DNA System
 
-| Category | Auto-Selected Preset |
-|----------|---------------------|
-| contracts | legal |
-| legal | legal |
-| technical | technical |
-| business | business |
-| meeting | professional |
-| research | professional |
-
-## Enhanced Styling System
-
-The enhanced styling system provides advanced typography and formatting capabilities through the `src/tools/styling.js` module:
-
-### Color Constants
-
-The system includes 20+ named color constants for consistent styling:
-
-| Color Name | Hex Code | Usage |
-|------------|----------|-------|
-| `WHITE` | `FFFFFF` | Backgrounds, primary text |
-| `BLACK` | `1A1A1A` | Primary text, dark elements |
-| `BLUE` | `2563EB` | Primary accent, links |
-| `GREEN` | `22C55E` | Success states, positive indicators |
-| `RED` | `EF4444` | Error states, warnings |
-| `YELLOW` | `EAB308` | Highlights, attention |
-| `ORANGE` | `F97316` | Warm accents |
-| `PURPLE` | `A855F7` | Creative accents |
-| `TEAL` | `14B8A6` | Secondary accents |
-| `INDIGO` | `6366F1` | Professional accents |
-| `GRAY_50` | `F9FAFB` | Light backgrounds |
-| `GRAY_100` | `F3F4F6` | Subtle backgrounds |
-| `GRAY_200` | `E5E7EB` | Borders, dividers |
-| `GRAY_300` | `D1D5DB` | Light borders |
-| `GRAY_400` | `9CA3AF` | Secondary text |
-| `GRAY_500` | `6B7280` | Tertiary text |
-| `GRAY_600` | `4B5563` | Secondary content |
-| `GRAY_700` | `374151` | Primary content |
-| `GRAY_800` | `1F2937` | Dark content |
-| `GRAY_900` | `111827` | Darkest elements |
-
-### Page Layout Helpers
-
-| Helper | Purpose |
-|--------|---------|
-| `PAGE_WIDTH` | Standard page width in inches (8.5") |
-| `CONTENT_WIDTH` | Content area width (6.5") |
-| `MARGIN_TOP` | Top margin (1") |
-| `MARGIN_BOTTOM` | Bottom margin (1") |
-| `MARGIN_LEFT` | Left margin (1") |
-| `MARGIN_RIGHT` | Right margin (1") |
-
-### Heading Helpers
-
-| Helper | Purpose |
-|--------|---------|
-| `heading1(text)` | Main document title (Heading 1 style) |
-| `heading2(text)` | Section headings (Heading 2 style) |
-| `heading3(text)` | Subsection headings (Heading 3 style) |
-
-### Text Formatting Helpers
-
-| Helper | Purpose |
-|--------|---------|
-| `para(text)` | Standard paragraph |
-| `bold(text)` | Bold text |
-| `normal(text)` | Normal text with optional styling |
-| `spacer(height)` | Vertical spacing |
-| `divider()` | Horizontal rule |
-
-### List Helpers
-
-| Helper | Purpose |
-|--------|---------|
-| `bulletItem(text)` | Bullet list item |
-| `subBulletItem(text)` | Nested bullet list item |
-
-### Table Helpers
-
-| Helper | Purpose |
-|--------|---------|
-| `infoTable(data)` | Information table with professional styling |
-| `gapTable(data)` | Table with spacing between rows |
-| `statusBadge(text, status)` | Status indicator badge |
-
-### Page Setup Helpers
-
-| Helper | Purpose |
-|--------|---------|
-| `createHeader(text, alignment)` | Document header |
-| `createFooter(text, alignment)` | Document footer |
-| `createPageProperties()` | Page layout properties |
-
-## Document DNA
-
-Document DNA (`.document-dna.json`) is a project-level configuration file that automatically applies consistent styling across all documents created by this server.
+Document DNA (`.document-dna.json`) automatically applies consistent styling across all documents created by this server.
 
 ### How It Works
 
-1. **Initialize** -- Run `dna` with action `init` to create the DNA file with your company name, preferred style, header, and footer defaults.
-2. **Automatic application** -- Every `create-doc` call checks for DNA and applies its defaults for any fields not explicitly provided (header, footer, style preset).
-3. **Usage tracking** -- Each document creation records the category, style, and any overrides to build a usage profile.
-4. **Evolve** -- Run `dna` with action `evolve` to analyze usage patterns. The system suggests mutations when it detects strong trends (e.g., "80% of your documents use the business preset"). Use `apply: true` to auto-apply the top suggestion.
-5. **Auto-learned blueprints** -- During evolution, recurring document structures are detected and saved as blueprints automatically. Future documents with matching patterns get a `blueprintMatch` suggestion in the response.
+```mermaid
+graph TD
+    A[Create/Edit Document] --> B{DNA exists?}
+    B -- Yes --> C[Apply DNA defaults for missing fields]
+    B -- No --> D[Use system defaults]
+    C --> E[Record usage statistics]
+    D --> E
+    E --> F[dna evolve periodically]
+    F --> G[Auto-learn new blueprints]
+    G --> H[.document-blueprints.json updated]
+```
 
-### Memory System
+### DNA Actions
 
-Use `dna` with action `save-memory` to store document preferences (e.g., "Always use 1-inch margins for contracts"). Memories persist in the DNA file and are available to AI agents for context.
+| Action | Description | Example |
+|--------|-------------|---------|
+| `init` | Create initial DNA with defaults | `dna action:init companyName:"My Company"` |
+| `get` | Return current config and memories | `dna action:get` |
+| `evolve` | Analyze usage patterns & suggest improvements | `dna action:evolve apply:true` |
+| `save-memory` | Store a document preference | `dna action:save-memory memory:"Always use 1.5 line spacing"` |
+| `delete-memory` | Remove a saved preference | `dna action:delete-memory key:"spacing_pref"` |
 
-### Inheritance
+### DNA Inheritance Hierarchy
 
-DNA supports three-level inheritance: System defaults (hardcoded) < Project DNA (`.document-dna.json`) < User DNA (`.document-user.json`). Missing fields fall through to the next level.
+```text
+System Defaults (hardcoded)  <-- lowest priority
+Project DNA (.document-dna.json)
+User DNA (.document-user.json) <-- highest priority, overrides all above
+```
 
-## Environment Variables
+---
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VISION_PROVIDER` | `lm-studio` | OCR provider: `lm-studio` or `zai` |
-| `LM_STUDIO_BASE_URL` | `http://localhost:1234/api/v0` | LM Studio API endpoint for local OCR |
-| `Z_AI_API_KEY` | -- | API key for Z.AI cloud vision service |
-| `SKIP_TABLE_EXTRACTION` | `true` | Skip table extraction from images during PDF processing |
+## 🏗️ Blueprint System
 
-## Testing
+Blueprints are structural templates extracted from existing documents that ensure consistent document structure.
+
+### Creating a Blueprint
+
+**From an existing document:**
+```bash
+blueprint action:learn filePath:"docs/contracts/service-agreement.docx" name:"contract_template" description:"Standard service agreement template with signature section"
+```
+
+**Auto-learned during DNA evolution:**
+When `dna evolve` detects recurring patterns, it automatically creates blueprints and notifies you in the response.
+
+### Using a Blueprint When Creating Documents
+
+```json
+{
+  "tool": "create-doc",
+  "arguments": {
+    "title": "New Client Agreement",
+    "blueprintName": "contract_template",
+    "category": "contracts",
+    "stylePreset": "legal"
+  }
+}
+```
+
+---
+
+## 🔍 Drift Detection System
+
+Monitor documents for structural changes over time with fingerprint-based comparison.
+
+### How It Works
+
+1. **Baseline creation**: `drift-monitor action:watch` generates a document fingerprint (structural hash) and stores it in `.document-drift.json`.
+2. **Monitoring**: Periodically run `drift-monitor action:check` to compare current state against baseline.
+3. **Drift report**: Detects heading changes, word count shifts, content similarity drops, and category drifts.
+
+### Practical Example
 
 ```bash
-npm test                    # Main integration suite
-npm run test:ocr            # OCR improvements
+# Watch a critical contract for structural drift
+drift-monitor action:watch filePath:"docs/contracts/master_agreement.docx" name:"critical_contract"
+
+# Check for drift weekly
+drift-monitor action:check filePath:"docs/contracts/master_agreement.docx"
+```
+
+---
+
+## 🔗 Lineage Tracking System
+
+Automatically track which source documents informed each created document, building a provenance chain.
+
+### How to Query Lineage
+
+```json
+{
+  "tool": "get-lineage",
+  "arguments": {
+    "filePath": "docs/contracts/client_agreement_v2.docx",
+    "depth": 3
+  }
+}
+```
+
+**Returns:** A chain showing: `source documents` → `intermediate derivations` → `final document`.
+
+---
+
+## 🎨 Style Presets Reference
+
+| Preset | Font | Best For | Key Traits |
+|--------|------|----------|------------|
+| `minimal` | Arial, 11pt | Clean Swiss style | Light zebra striping, subtle borders |
+| `professional` | Garamond, 11pt | Executive reports | Serif, justified, double-spaced headings |
+| `technical` | Segoe UI, 11pt | Developer docs | High contrast tables, strong hierarchy |
+| `legal` | Times New Roman, 12pt | Contracts & legal docs | Double-spaced, underlined headings |
+| `business` | Calibri, 11pt | Corporate communications | Blue accent palette, centered title with border |
+| `casual` | Verdana, 12pt | Newsletters & informal comms | Warm orange accents, friendly style |
+| `colorful` | Segoe UI, 11pt | Presentations & creative docs | Purple-teal gradient, vibrant headers |
+
+---
+
+## 📂 Generated Files Reference
+
+| File | Purpose | Managed By |
+|------|---------|------------|
+| `.document-dna.json` | Document DNA configuration | `dna` tool (auto) |
+| `.document-blueprints.json` | Blueprint repository | `blueprint` + auto-learning |
+| `docs/registry.json` | Document registry with metadata | All creation tools |
+| `.document-user.json` | User-level DNA overrides | Optional, user-created |
+| `logs/*.log` | Server logs for debugging | Automatic |
+
+---
+
+## 🧪 Testing Suite
+
+```bash
+npm test                    # Full integration suite (52+ tests)
+npm run test:ocr            # OCR improvements verification
 npm run test:styling        # Style presets and document creation
-npm run test:create         # create-doc and create-excel integration
+npm run test:create         # create-doc + create-excel integration
 npm run test:patch          # DOCX XML patching
 npm run test:category       # Categorization and registry
-npm run test:dna            # DNA system
+npm run test:dna            # DNA system functionality
 npm run test:innovations    # Innovation features (52 tests)
 npm run test:drift          # Drift detection internals
 npm run test:auto-blueprint # Auto-blueprint learning
 ```
 
-## Generated Files
+---
 
-The server generates several configuration and data files:
+## ⚙️ Environment Variables
 
-### `.document-dna.json`
+| Variable | Default | Description |
+|-----------|---------|-------------|
+| `VISION_PROVIDER` | `lm-studio` | OCR provider: `lm-studio` or `zai` |
+| `LM_STUDIO_BASE_URL` | `http://localhost:1234/api/v0` | LM Studio API endpoint for local OCR |
+| `Z_AI_API_KEY` | -- | Z.AI cloud vision service key |
+| `SKIP_TABLE_EXTRACTION` | `true` | Skip table extraction from images during PDF processing |
 
-Document DNA configuration file that stores:
-- Project-level styling defaults (style preset, category, header/footer)
-- Usage statistics (categories, styles, document counts)
-- Memory system (saved document preferences)
-- Auto-learned document structures
+---
 
-This file is automatically managed by the `dna` tool and should not be manually edited.
-
-### `.document-blueprints.json`
-
-Blueprint repository that stores:
-- Extracted document structures
-- Section patterns and requirements
-- Style preset associations
-- Creation timestamps
-
-Blueprints are created via `blueprint action:'learn'` or auto-learned during `dna evolve`.
-
-### `docs/registry.json`
-
-Document registry containing:
-- All created documents with metadata
-- Category, tags, and descriptions
-- Lineage tracking information
-- Timestamps for creation and updates
-
-### `.document-user.json` (optional)
-
-User-level DNA that inherits from project DNA. Allows personal overrides without affecting team settings.
-
-## Architecture
-
-```
-mcp-doc-processor/
-  src/
-    index.js                 # MCP server entry, tool definitions, dispatch
-    tools/                   # Tool handlers (one file per tool)
-    services/                # Business logic (lineage, drift, blueprints, OCR)
-    parsers/                 # File-type parsers (PDF, DOCX, Excel)
-    utils/                   # Shared utilities (logger, registry, DNA, categorizer)
-  docs/                      # Generated documents (organized by category)
-  test/                      # Test suites
-  logs/                      # Server logs
-  .document-dna.json         # Document DNA configuration
-  .document-blueprints.json  # Blueprint repository
-  docs/registry.json         # Document registry
-  .document-user.json        # Optional user-level DNA
-```
-
-### Dependencies
-
-| Package | Purpose |
-|---------|---------|
-| `@modelcontextprotocol/sdk` | MCP server SDK |
-| `docx` | DOCX generation |
-| `jszip` | ZIP/DOCX XML manipulation |
-| `mammoth` | DOCX text extraction |
-| `marked` | Markdown tokenization for inline formatting |
-| `pdf-parse` | PDF text extraction |
-| `xlsx` | Excel reading |
-| `xlsx-js-style` | Excel writing with styling |
-
-## License
+## 📄 License
 
 See [LICENSE](LICENSE) for details.
+
+---
+
+**Built by LeanZero.** For feedback, report issues via `/reportbug`.
