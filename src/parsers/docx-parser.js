@@ -1,6 +1,7 @@
 import fs from "fs";
 import mammoth from "mammoth";
 import JSZip from "jszip";
+import { log } from "../utils/logger.js";
 
 /**
  * DOCX Parser Module
@@ -81,7 +82,7 @@ export class DocxParser {
         }
       } catch (metadataError) {
         // Metadata extraction is not critical, continue without it
-        console.warn("Could not extract metadata:", metadataError.message);
+        log("warn", "Could not extract metadata:", metadataError.message);
       }
 
       return metadata;
@@ -134,7 +135,7 @@ export class DocxParser {
             size: buffer.length,
           });
         } catch (fileError) {
-          console.warn(
+          log("warn",
             `Failed to extract image ${file.name}:`,
             fileError.message,
           );
@@ -142,7 +143,7 @@ export class DocxParser {
         }
       }
     } catch (error) {
-      console.warn("Failed to extract images from DOCX:", error.message);
+      log("warn", "Failed to extract images from DOCX:", error.message);
     }
 
     return images;
@@ -174,7 +175,7 @@ export class DocxParser {
         }
       }
     } catch (error) {
-      console.warn("Could not parse relationships:", error.message);
+      log("warn", "Could not parse relationships:", error.message);
     }
 
     return relationships;

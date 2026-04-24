@@ -11,6 +11,7 @@
 
 import fs from "fs";
 import path from "path";
+import { log } from "./logger.js";
 
 const BLUEPRINT_FILENAME = ".document-blueprints.json";
 
@@ -41,7 +42,7 @@ function loadBlueprints(projectRoot) {
     return data;
   } catch (err) {
     if (err.code === "ENOENT") return {};
-    console.error(`[blueprint-store] Failed to load ${BLUEPRINT_FILENAME}:`, err.message);
+    log("error", `[blueprint-store] Failed to load ${BLUEPRINT_FILENAME}:`, err.message);
     return {};
   }
 }
