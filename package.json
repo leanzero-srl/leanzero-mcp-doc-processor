@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "test": "node test/integration.js",
+    "test": "node test/test-markdown-format-router.js",
     "test:ocr": "node test/test-ocr-improvements.js",
     "test:styling": "node --test test/test-styling.js",
     "test:create": "node --test test/create-tools.js",

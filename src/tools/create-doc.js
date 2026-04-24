@@ -69,6 +69,7 @@ import {
   classifyDocumentContent,
 } from "./utils.js";
 import { applyDNAToInput, loadDNA, recordUsage, signatureSimilarity } from "../utils/dna-manager.js";
+import { log } from "../utils/logger.js";
 import { checkForExistingDocument, cleanupExcessVersions, buildGuidanceMessage } from "../services/ai-guidance-system.js";
 import { recordWrite } from "../services/lineage-tracker.js";
 import { loadBlueprint, listBlueprints } from "../utils/blueprint-store.js";
@@ -169,7 +170,7 @@ export async function createDoc(input) {
         for (const [tag, templateKey] of Object.entries(TAG_TO_TEMPLATE)) {
           if (templateKey === Object.keys(TEMPLATES).find(k => TEMPLATES[k].name === matchedTemplate.name)) {
             resolvedTags.push(tag);
-            console.error(`[create-doc] Detected document tag: "${tag}" based on content analysis`);
+            log("error", `[create-doc] Detected document tag: "${tag}" based on content analysis`);
             break;
           }
         }
@@ -181,12 +182,12 @@ export async function createDoc(input) {
       for (const tag of resolvedTags) {
         const template = getTemplateByTag(tag);
         if (template && !parsedInput.stylePreset) {
-          console.error(`[create-doc] Using template "${tag}" -> "${template.name}"`);
+          log("error", `[create-doc] Using template "${tag}" -> "${template.name}"`);
           
           // If no explicit style preset, use the template's recommended preset
           if (!userExplicitlySetStyle) {
             parsedInput.stylePreset = template.stylePreset;
-            console.error(`[create-doc] Auto-selected style "${template.stylePreset}" for tag "${tag}"`);
+            log("error", `[create-doc] Auto-selected style "${template.stylePreset}" for tag "${tag}"`);
           }
         }
       }
@@ -254,7 +255,7 @@ export async function createDoc(input) {
       const classification = classifyDocumentContent(input.title, "");
       if (classification.category !== "misc") {
         category = classification.category;
-        console.error(
+        log("error",
           `[create-doc] Auto-classified document as "${category}" (confidence: ${classification.confidence})\n` +
           `Category scores: ${Object.entries(classification.scores || {})
             .filter(([_, score]) => score > 0)
@@ -395,7 +396,7 @@ export async function createDoc(input) {
 
     // Log enforcement actions to teach AI models
     if (docsEnforced) {
-      console.error(
+      log("error",
         `[create-doc] Enforced docs/ folder structure. File placed in: ${path.relative(
           process.cwd(),
           outputPath,
@@ -403,7 +404,7 @@ export async function createDoc(input) {
       );
     }
     if (wasDuplicatePrevented) {
-      console.error(
+      log("error",
         `[create-doc] Prevented duplicate file. Created: ${path.basename(
           outputPath,
         )}`,
@@ -446,7 +447,7 @@ export async function createDoc(input) {
       // This is the "beautiful Claude-style" that users want by default
       stylePreset = "professional";
       styleReason = "DEFAULT (Claude-like professional with blue theme)";
-      console.error(
+      log("error",
         `[create-doc] Using DEFAULT style "${stylePreset}" - beautiful Claude-like documents with blue accents`,
       );
     }

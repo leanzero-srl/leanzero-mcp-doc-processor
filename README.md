@@ -34,7 +34,7 @@ The server exposes 11 tools via the MCP protocol. Each tool uses an `action` par
 | `drift-monitor` | `watch`, `check` | Register documents for monitoring and detect structural changes over time. |
 | `get-lineage` | -- | Trace the provenance chain for any document -- which sources informed it and what was derived from it. |
 
-> **Note:** All old tool names from previous versions (`get-doc-summary`, `get-doc-indepth`, `get-doc-focused`, `init-dna`, `get-dna`, `evolve-dna`, `save-memory`, `delete-memory`, `learn-blueprint`, `list-blueprints`, `watch-document`, `check-drift`, `search-registry`, `check-document`, `extract-to-excel`, `assemble-document`) are accepted as backward-compatible aliases.
+> **Note:** All old tool names from previous versions (`get-doc-summary`, `get-doc-indepth`, `get-doc-focused`, `init-dna`, `get-dna`, `evolve-dna`, `save-memory`, `delete-memory`, `learn-blueprint`, `list-blueprints`, `watch-document`, `check-drift`, `search-registry`) are accepted as backward-compatible aliases.
 
 ## Quick Start
 
@@ -60,7 +60,7 @@ Add to your MCP client configuration (e.g., `mcp.json`, `cline_mcp_settings.json
 }
 ```
 
-#### With LM Studio (local OCR)
+#### With Vision OCR (cloud)
 
 ```json
 {
@@ -69,24 +69,6 @@ Add to your MCP client configuration (e.g., `mcp.json`, `cline_mcp_settings.json
       "command": "node",
       "args": ["/absolute/path/to/mcp-doc-processor/src/index.js"],
       "env": {
-        "VISION_PROVIDER": "lm-studio",
-        "LM_STUDIO_BASE_URL": "http://localhost:1234/api/v0"
-      }
-    }
-  }
-}
-```
-
-#### With Z.AI (cloud OCR)
-
-```json
-{
-  "mcpServers": {
-    "doc-processor": {
-      "command": "node",
-      "args": ["/absolute/path/to/mcp-doc-processor/src/index.js"],
-      "env": {
-        "VISION_PROVIDER": "zai",
         "Z_AI_API_KEY": "your-api-key"
       }
     }
@@ -234,9 +216,10 @@ DNA supports three-level inheritance: System defaults (hardcoded) < Project DNA 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VISION_PROVIDER` | `lm-studio` | OCR provider: `lm-studio` or `zai` |
-| `LM_STUDIO_BASE_URL` | `http://localhost:1234/api/v0` | LM Studio API endpoint for local OCR |
-| `Z_AI_API_KEY` | -- | API key for Z.AI cloud vision service |
+| `Z_AI_API_KEY` | -- | API key for vision OCR service (also checks `ZAI_API_KEY`, `ANTHROPIC_AUTH_TOKEN`) |
+| `Z_AI_BASE_URL` | Auto-detect | Override base URL for vision API |
+| `Z_AI_VISION_MODEL` | `glm-4.6v` | Vision model name |
+| `Z_AI_TIMEOUT` | `300000` | Request timeout in milliseconds |
 | `SKIP_TABLE_EXTRACTION` | `true` | Skip table extraction from images during PDF processing |
 
 ## Testing

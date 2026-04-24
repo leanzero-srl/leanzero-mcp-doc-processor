@@ -1,4 +1,5 @@
-import { visionService } from "./vision-factory.js";
+import { visionService } from "./vision-service.js";
+import { log } from "../utils/logger.js";
 
 /**
  * OCR Post-Processor
@@ -12,11 +13,11 @@ export class OcrPostProcessor {
   /**
    * Post-process OCR output to improve accuracy and structure
    * @param {string} ocrText - Raw OCR text output
-   * @param {Object} layoutAnalysis - Layout analysis results from DocumentLayoutAnalyzer
+   * @param {Object} layoutAnalysis - Layout analysis results from PDF parser
    * @returns {Promise<Object>} Processed text with improvements and metadata
    */
   async processOcrText(ocrText, layoutAnalysis = null, useAI = true) {
-    console.error(
+    log("error",
       `[OcrPostProcessor] Processing OCR output ${useAI ? "with AI" : "with basic cleaning"}...`,
     );
 
@@ -32,7 +33,7 @@ export class OcrPostProcessor {
 
     // For text-based documents, skip AI processing and just do basic cleaning
     if (!useAI) {
-      console.error(
+      log("error",
         `[OcrPostProcessor] Skipping AI processing, using basic text cleaning only`,
       );
       const cleanedText = this.basicTextCleaning(ocrText);
@@ -57,7 +58,7 @@ export class OcrPostProcessor {
     );
 
     try {
-      // Use vision service (LM Studio or Z.AI) to process text
+      // Use vision service to process text with AI
       const result = await visionService.extractText(ocrText, prompt);
 
       // Analyze the improvements made
@@ -75,7 +76,7 @@ export class OcrPostProcessor {
         ],
       };
     } catch (error) {
-      console.error(
+      log("error",
         `[OcrPostProcessor] AI processing failed: ${error.message}`,
       );
 

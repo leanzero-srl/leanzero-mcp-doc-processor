@@ -1,240 +1,100 @@
-import fs from "fs";
+import fs from "fs/promises";
 import { PDFParse } from "pdf-parse";
-import { visionService } from "../services/vision-factory.js";
-import { DocumentLayoutAnalyzer } from "../services/layout-analyzer.js";
+import { visionService } from "../services/vision-service.js";
 import { OcrPostProcessor } from "../services/ocr-postprocessor.js";
 import { TableExtractor } from "../services/table-extractor.js";
-import { promptEngineer } from "../services/prompt-engineer.js";
+import { log } from "../utils/logger.js";
 
 /**
  * PDF Parser Module
  * Handles extraction of text and images from PDF documents.
- * Automatically uses a Vision Service (LM Studio or Z.AI) for OCR when text extraction yields minimal results.
+ * Single-pass parsing: reads file once, extracts text + images + layout together.
+ * Uses Vision Service for OCR when text extraction yields minimal results.
  */
 export class PdfParser {
   constructor() {
     this.name = "PdfParser";
-    // Threshold for considering a PDF as "image-based" (minimal text)
-    this.minTextThreshold = 50; // characters;
-
-    // Initialize layout analyzer
-    this.layoutAnalyzer = new DocumentLayoutAnalyzer();
-
-    // Initialize OCR post-processor
+    this.minTextThreshold = 50;
     this.ocrPostProcessor = new OcrPostProcessor();
-
-    // Initialize table extractor
     this.tableExtractor = new TableExtractor();
-
-    // Option to skip table extraction (to prevent hangs)
     this.skipTableExtraction = process.env.SKIP_TABLE_EXTRACTION !== "false";
   }
 
-  /**
-   * Check if a PDF is image-based (has images but minimal text)
-   */
   isImageBasedPdf(text, images) {
-    const cleanText = (text || "")
-      .replace(/\s+/g, "")
-      .replace(/--\d+of\d+--/gi, "");
-    const hasImages = Array.isArray(images) && images.length > 0;
-    const hasMinimalText = cleanText.length < this.minTextThreshold;
-
-    // DIAGNOSTIC: Log the decision criteria
-    console.error(
-      `[PdfParser] isImageBasedPdf criteria: hasImages=${hasImages}, hasMinimalText=${hasMinimalText} (cleanText.length=${cleanText.length} < ${this.minTextThreshold})`,
-    );
-
-    return hasImages && hasMinimalText;
+    const cleanText = (text || "").replace(/\s+/g, "").replace(/--\d+of\d+--/gi, "");
+    return (Array.isArray(images) && images.length > 0 && cleanText.length < this.minTextThreshold);
   }
 
   /**
-   * Parse PDF file and extract text content and images
+   * Parse PDF - single pass: read once, extract everything together.
    */
   async parse(filePath) {
-    console.error(`[PdfParser] ======== PARSE STARTED ========`);
-    console.error(`[PdfParser] File: ${filePath}`);
+    log("info", "Parsing PDF:", { filePath });
 
     let parser;
     try {
-      // Read the PDF file as buffer
-      const dataBuffer = fs.readFileSync(filePath);
-
-      // Initialize PDF parser
+      // Async file read - non-blocking
+      const dataBuffer = await fs.readFile(filePath);
       parser = new PDFParse({ data: dataBuffer });
 
-      // Extract text content
-      const textResult = await parser.getText();
+      // Extract text and images in parallel
+      const [textResult, imagesResult] = await Promise.all([
+        parser.getText(),
+        parser.getImage({ imageThreshold: 0, imageDataUrl: true, imageBuffer: true }),
+      ]);
 
-      // Extract images from PDF
-      const imagesResult = await parser.getImage({
-        imageThreshold: 0, // Extract all images regardless of size
-        imageDataUrl: true, // Include base64 data URLs
-        imageBuffer: true, // Include binary buffers
-      });
-
-      // Process and format images
       const processedImages = this.processImages(imagesResult);
 
-      // ANALYZE DOCUMENT LAYOUT BEFORE OCR
-      console.error(`[PdfParser] ===== ENTERING LAYOUT ANALYSIS BLOCK =====`);
-      const layoutAnalysis =
-        await this.layoutAnalyzer.analyzeDocument(filePath);
+      // Inline layout analysis from already-extracted data (no second file read)
+      const layoutAnalysis = this._analyzeLayout(textResult, processedImages);
 
-      if (layoutAnalysis.success) {
-        console.error(`[PdfParser] Layout analysis completed successfully`);
-        console.error(`[PdfParser] ${layoutAnalysis.layoutSummary}`);
-        console.error(
-          `[PdfParser] Document structure type: ${layoutAnalysis.structureType}`,
-        );
-      } else {
-        console.error(
-          `[PdfParser] Layout analysis failed, proceeding without layout context`,
-        );
-      }
-
-      // DIAGNOSTIC: Log text and image information
-      const cleanText = (textResult.text || "")
-        .replace(/\s+/g, "")
-        .replace(/--\d+of\d+--/gi, "");
-      console.error(
-        `[PdfParser] Text extraction: ${cleanText.length} chars (min threshold: ${this.minTextThreshold})`,
-      );
-      console.error(
-        `[PdfParser] Image extraction: ${processedImages.length} embedded images found`,
-      );
-
-      // Check if this is an image-based PDF that needs OCR
+      const cleanText = (textResult.text || "").replace(/\s+/g, "").replace(/--\d+of\d+--/gi, "");
       const isImageBased =
         this.isImageBasedPdf(textResult.text, processedImages) ||
-        (layoutAnalysis.success &&
-          layoutAnalysis.structureType === "image-heavy-document");
+        layoutAnalysis.structureType === "image-heavy-document";
 
-      console.error(`[PdfParser] ===== IS IMAGE BASED CHECK =====`);
-      console.error(`[PdfParser] isImageBasedPdf returned: ${isImageBased}`);
-      console.error(
-        `[PdfParser] Text length: ${(textResult.text || "").length}`,
-      );
-      console.error(`[PdfParser] Images found: ${processedImages.length}`);
-
-      // DIAGNOSTIC: Log OCR decision
-      console.error(
-        `[PdfParser] OCR Decision: isImageBased=${isImageBased}, will${isImageBased ? "" : " NOT"} attempt OCR`,
-      );
+      log("debug", "PDF parse info:", {
+        textLength: cleanText.length,
+        imageCount: processedImages.length,
+        isImageBased,
+        pages: textResult.numPages || 0,
+      });
 
       let finalText = textResult.text || "";
       let ocrResult = null;
-      let extractedTables = [];
 
       if (isImageBased) {
-        console.error(`[PdfParser] ===== ENTERING OCR BLOCK =====`);
-        console.error(
-          "[PdfParser] Image-based PDF detected, checking for VLM models...",
-        );
+        ocrResult = await this._performOcr(parser, processedImages, layoutAnalysis);
 
-        // Try to initialize Vision service and find a model
-        try {
-          console.error(
-            `[PdfParser] Calling visionService.initialize() [${visionService.name}]...`,
-          );
-          await visionService.initialize();
-          console.error("[PdfParser] Vision model available, running OCR...");
+        if (ocrResult?.success) {
+          finalText = ocrResult.text;
 
-          // Generate OCR prompt based on layout analysis
-          const ocrPrompt = this.generateOcrPrompt(layoutAnalysis);
-
-          // Pass parser to performOcr so it can get page screenshots
-          ocrResult = await this.performOcr(parser, processedImages, ocrPrompt);
-
-          if (ocrResult.success) {
-            finalText = ocrResult.text;
-            console.error("[PdfParser] OCR completed successfully");
-
-            // Post-process the OCR text
-            console.error(
-              `[PdfParser] ===== ENTERING OCR POST-PROCESSING BLOCK =====`,
-            );
-            const postProcessingResult =
-              await this.ocrPostProcessor.processOcrText(
-                finalText,
-                layoutAnalysis,
-              );
-            if (postProcessingResult.success) {
-              finalText = postProcessingResult.processedText;
-              console.error(
-                `[PdfParser] OCR post-processing completed successfully with ${postProcessingResult.improvements.length} improvements`,
-              );
-
-              // Store post-processing metadata
-              ocrResult.postProcessing = postProcessingResult;
-            }
-          } else {
-            console.error("[PdfParser] OCR failed:", ocrResult.error);
+          const postProcessed = await this.ocrPostProcessor.processOcrText(finalText, layoutAnalysis);
+          if (postProcessed.success) {
+            finalText = postProcessed.processedText;
+            ocrResult.postProcessing = postProcessed;
           }
-        } catch (error) {
-          console.error(`[PdfParser] ===== OCR BLOCK ERROR =====`);
-          console.error(
-            "[PdfParser] Vision service initialization failed:",
-            error.message,
-          );
-          console.error(`[PdfParser] Error stack: ${error.stack}`);
         }
       } else {
-        console.error(`[PdfParser] ===== SKIPPING OCR BLOCK =====`);
-        console.error(`[PdfParser] Reason: isImageBased=${isImageBased}`);
-
-        // For text-based PDFs, only apply basic text cleaning (no AI/Vision needed)
-        console.error(`[PdfParser] ===== ENTERING TEXT CLEANING BLOCK =====`);
-        const postProcessingResult = await this.ocrPostProcessor.processOcrText(
-          finalText,
-          layoutAnalysis,
-          false, // Skip AI processing for text-based PDFs
-        );
-        if (postProcessingResult.success) {
-          finalText = postProcessingResult.processedText;
-          console.error(
-            `[PdfParser] Text cleaning completed successfully with ${postProcessingResult.improvements.length} improvements`,
-          );
-
-          // Store post-processing metadata
-          ocrResult = {
-            success: false,
-            postProcessing: postProcessingResult,
-            source: "text-cleaning",
-          };
+        // Basic text cleaning for text-based PDFs (no AI)
+        const postProcessed = await this.ocrPostProcessor.processOcrText(finalText, layoutAnalysis, false);
+        if (postProcessed.success) {
+          finalText = postProcessed.processedText;
+          ocrResult = { success: false, postProcessing: postProcessed, source: "text-cleaning" };
         }
       }
 
-      // Extract tables from the document (runs for both OCR and non-OCR paths)
-      console.error(`[PdfParser] ===== ENTERING TABLE EXTRACTION BLOCK =====`);
-
-      if (this.skipTableExtraction) {
-        console.warn(
-          `[PdfParser] Table extraction SKIPPED (SKIP_TABLE_EXTRACTION=true)`,
-        );
-        extractedTables = [];
-      } else {
+      // Extract tables
+      let extractedTables = [];
+      if (!this.skipTableExtraction) {
         try {
-          extractedTables =
-            await this.tableExtractor.extractTablesFromPdf(filePath);
-          console.error(
-            `[PdfParser] Table extraction completed: ${extractedTables.length} tables found`,
-          );
-        } catch (error) {
-          console.error(
-            `[PdfParser] Table extraction FAILED (continuing without tables): ${error.message}`,
-          );
-          extractedTables = [];
+          extractedTables = await this.tableExtractor.extractTablesFromPdf(filePath);
+        } catch (err) {
+          log("warn", "Table extraction failed:", { error: err.message });
         }
       }
 
-      // Clean up parser after processing is done
-      console.error(`[PdfParser] ===== CLEANING UP PARSER =====`);
       await parser.destroy();
-
-      console.error(`[PdfParser] ======== PARSE COMPLETE ========`);
-      console.error(`[PdfParser] Final text length: ${finalText?.length || 0}`);
-      console.error(`[PdfParser] OCR applied: ${!!ocrResult}`);
 
       return {
         success: true,
@@ -245,107 +105,156 @@ export class PdfParser {
         isImageBased,
         ocrApplied: ocrResult?.success || false,
         ocrSource: ocrResult?.success ? ocrResult.source : null,
-        layoutAnalysis: layoutAnalysis.success ? layoutAnalysis : null, // Include layout analysis in result
-        ocrPostProcessing: ocrResult?.postProcessing || null, // Include post-processing metadata
-        tables: extractedTables || [], // Include extracted tables
-        tableCount: (extractedTables || []).length, // Table count for quick reference
+        layoutAnalysis: layoutAnalysis.success ? layoutAnalysis : null,
+        ocrPostProcessing: ocrResult?.postProcessing || null,
+        tables: extractedTables,
+        tableCount: extractedTables.length,
       };
     } catch (error) {
-      // Clean up parser if it exists
       if (parser) {
-        try {
-          await parser.destroy();
-        } catch (cleanupError) {
-          // Ignore cleanup errors
-        }
+        try { await parser.destroy(); } catch (_) {}
       }
       return {
         success: false,
-        error: `Failed to parse PDF: ${error.message || "Unknown error"}`,
+        error: `Failed to parse PDF: ${error.message}`,
         details: this.handleError(error),
       };
     }
   }
 
   /**
-   * Perform OCR on PDF pages using page screenshots (preferred) or embedded images
-   * @param {Object} parser - PDFParse instance (for getting screenshots)
-   * @param {Array} images - Array of embedded images (fallback)
-   * @param {string} customPrompt - Optional custom prompt for OCR (e.g., based on layout analysis)
-   * @returns {Promise<Object>} OCR result with extracted text
+   * Inline layout analysis from already-parsed data (avoids second file read).
    */
-  async performOcr(parser, images, customPrompt = null) {
+  _analyzeLayout(textResult, images) {
+    const pages = [];
+    const totalPages = textResult.pages?.length || 0;
+
+    for (let i = 0; i < totalPages; i++) {
+      const pageData = textResult.pages[i];
+      const textBlocks = this._extractTextBlocks(pageData?.text || "");
+      const pageImages = images.filter((img) => img.page === i);
+      const tables = this._findTableCandidates(pageData?.text || "");
+
+      pages.push({
+        pageNumber: i + 1,
+        textBlocks,
+        images: pageImages,
+        tables,
+        totalTextLength: (pageData?.text || "").length,
+        estimatedLayoutType: this._estimatePageLayout(textBlocks, pageImages),
+      });
+    }
+
+    const totalTables = pages.reduce((s, p) => s + p.tables.length, 0);
+    const totalImages = pages.reduce((s, p) => s + p.images.length, 0);
+    const totalBlocks = pages.reduce((s, p) => s + p.textBlocks.length, 0);
+
+    let structureType = "mixed-document";
+    if (totalTables > 3) structureType = "structured-document";
+    else if (totalImages > 5 && totalBlocks < 10) structureType = "image-heavy-document";
+    else if (totalBlocks > 20) structureType = "text-dense-document";
+
+    return {
+      success: true,
+      pages,
+      totalPages,
+      structureType,
+      layoutSummary: `Layout: ${structureType} | ${totalPages} pages, ${totalBlocks} blocks, ${totalImages} images, ${totalTables} tables`,
+    };
+  }
+
+  _extractTextBlocks(text) {
+    const lines = text.split("\n");
+    const blocks = [];
+    let current = { text: "", startLine: 0 };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) {
+        if (current.text.length >= 20) {
+          blocks.push({ ...current, text: current.text.trim() });
+          current = { text: "", startLine: 0 };
+        }
+      } else {
+        if (!current.text) current.startLine = i;
+        current.text += line + " ";
+      }
+    }
+    if (current.text.length >= 20) blocks.push({ ...current, text: current.text.trim() });
+    return blocks;
+  }
+
+  _findTableCandidates(text) {
+    const lines = text.split("\n");
+    const tables = [];
+
+    for (let i = 0; i < lines.length - 1; i++) {
+      const line = lines[i].trim();
+      const next = lines[i + 1]?.trim() || "";
+
+      if (line.includes("|") && next.includes("---")) {
+        tables.push({ type: "markdown-table", startLine: i });
+      } else if (line.includes("\t") && line.split("\t").length > 2) {
+        tables.push({ type: "tab-separated", startLine: i });
+      } else if (/^\s*\d+\s+\S+\s+\d+/.test(line)) {
+        tables.push({ type: "columnar", startLine: i });
+      }
+    }
+    return tables;
+  }
+
+  _estimatePageLayout(textBlocks, images) {
+    if (images.length > 2) return "image-heavy";
+    if (textBlocks.length < 3) return "sparse-text";
+    if (textBlocks.filter((b) => b.text.length > 500).length > 2) return "text-dense";
+    if (textBlocks.filter((b) => b.text.length < 100).length > 5) return "fragmented";
+    return "balanced";
+  }
+
+  /**
+   * Perform OCR on PDF pages.
+   */
+  async _performOcr(parser, images, layoutAnalysis) {
     try {
       let pageImages = [];
 
-      // First try to get full page screenshots (best for scanned/image-based PDFs)
+      // Try full page screenshots first (best quality)
       try {
         const screenshots = await parser.getScreenshot();
-        if (screenshots && screenshots.pages && screenshots.pages.length > 0) {
+        if (screenshots?.pages?.length > 0) {
           pageImages = screenshots.pages.map((page, i) => ({
             data: page.dataUrl,
             page: i + 1,
-            width: page.width,
-            height: page.height,
             source: "screenshot",
           }));
-          console.error(
-            `[PdfParser] Using ${pageImages.length} page screenshot(s) for OCR`,
-          );
         }
-      } catch (screenshotError) {
-        console.error(
-          "[PdfParser] Screenshot extraction failed:",
-          screenshotError.message,
-        );
+      } catch (err) {
+        log("debug", "Screenshot extraction failed:", { error: err.message });
       }
 
-      // Fall back to embedded images if screenshots failed or are empty
-      if (pageImages.length === 0 && images && images.length > 0) {
+      // Fall back to embedded images
+      if (!pageImages.length && images.length > 0) {
         pageImages = images.filter((img) => img.data);
-        console.error(
-          `[PdfParser] Falling back to ${pageImages.length} embedded image(s) for OCR`,
-        );
       }
 
-      if (pageImages.length === 0) {
-        return { success: false, error: "No images available for OCR" };
-      }
+      if (!pageImages.length) return { success: false, error: "No images for OCR" };
 
       const allText = [];
+      const prompt = this._generateOcrPrompt(layoutAnalysis);
 
-      for (let i = 0; i < pageImages.length; i++) {
-        const image = pageImages[i];
+      for (const image of pageImages) {
+        if (!image.data) continue;
 
-        if (!image.data) {
-          console.error(`[PdfParser] Image ${i} has no data, skipping`);
-          continue;
-        }
-
-        const prompt =
-          customPrompt ||
-          `Extract all text from this document image (page ${image.page || i + 1}).
-This is a scanned document or PDF page. Please:
-1. Extract ALL visible text accurately
-2. Preserve the document structure (headers, paragraphs, lists, tables)
-3. Use markdown formatting for structure
-4. If it's an invoice/form, preserve the field labels and values`;
-
-        const result = await visionService.extractText(image.data, prompt);
+        const result = await visionService.extractText(image.data, prompt.replace("{PAGE}", image.page || 1));
 
         if (result.success) {
-          allText.push(`--- Page ${image.page || i + 1} ---\n${result.text}`);
+          allText.push(`--- Page ${image.page} ---\n${result.text}`);
         } else {
-          console.error(
-            `[PdfParser] OCR failed for page ${image.page || i + 1}:`,
-            result.error,
-          );
+          log("warn", "OCR failed for page:", { page: image.page, error: result.error });
         }
       }
 
-      if (allText.length === 0) {
-        return { success: false, error: "OCR failed for all pages" };
-      }
+      if (!allText.length) return { success: false, error: "OCR failed for all pages" };
 
       return {
         success: true,
@@ -354,16 +263,52 @@ This is a scanned document or PDF page. Please:
         pagesProcessed: allText.length,
       };
     } catch (error) {
-      return {
-        success: false,
-        error: `OCR processing failed: ${error.message}`,
-      };
+      return { success: false, error: `OCR failed: ${error.message}` };
     }
   }
 
   /**
-   * Extract metadata from PDF parsing result
+   * Generate concise OCR prompt based on layout analysis.
    */
+  _generateOcrPrompt(layoutAnalysis) {
+    let prompt = `Extract all text from this document image (page {PAGE}). Preserve document structure using markdown formatting.`;
+
+    if (layoutAnalysis?.structureType === "structured-document") {
+      prompt += "\nThis is a structured document with tables. Preserve table structures using markdown tables (| separators).";
+    } else if (layoutAnalysis?.structureType === "image-heavy-document") {
+      prompt += "\nThis document is image-heavy. Extract ALL visible text including small fonts and low-contrast text.";
+    } else if (layoutAnalysis?.structureType === "text-dense-document") {
+      prompt += "\nThis document is text-dense. Preserve paragraph structure, section headers, and hierarchical formatting.";
+    }
+
+    // Add document type hints
+    const hint = this._getDocTypeHint(layoutAnalysis);
+    if (hint === "invoice") prompt += "\nThis appears to be an invoice — preserve field labels and monetary values.";
+    else if (hint === "contract") prompt += "\nThis appears to be a contract — preserve all clauses and legal terminology.";
+    else if (hint === "resume") prompt += "\nThis appears to be a resume/CV — preserve experience sections and skills.";
+
+    return prompt;
+  }
+
+  _getDocTypeHint(layoutAnalysis) {
+    if (!layoutAnalysis?.pages) return "";
+
+    const totalTables = layoutAnalysis.pages.reduce((s, p) => s + (p.tables?.length || 0), 0);
+    const totalImages = layoutAnalysis.pages.reduce((s, p) => s + (p.images?.length || 0), 0);
+
+    if (totalTables > 3) return "structured document";
+    if (totalImages > layoutAnalysis.pages.length * 2) return "image-heavy document";
+
+    // Check text content for patterns
+    const allText = layoutAnalysis.pages.map((p) => p.textBlocks.map((b) => b.text).join(" ")).join(" ").toLowerCase();
+    if (/invoice|bill\s+to|amount\s+due/.test(allText)) return "invoice";
+    if (/agreement|contract|party/.test(allText)) return "contract";
+    if (/experience|education|skill/.test(allText)) return "resume";
+    if (/report|analysis|summary/.test(allText)) return "report";
+
+    return "";
+  }
+
   extractMetadata(textResult) {
     return {
       title: textResult.infoData?.Title || null,
@@ -371,232 +316,52 @@ This is a scanned document or PDF page. Please:
       subject: textResult.infoData?.Subject || null,
       creator: textResult.infoData?.Creator || null,
       producer: textResult.infoData?.Producer || null,
-      creationDate: textResult.infoData?.CreationDate
-        ? new Date(textResult.infoData.CreationDate)
-        : null,
-      modificationDate: textResult.infoData?.ModDate
-        ? new Date(textResult.infoData.ModDate)
-        : null,
+      creationDate: textResult.infoData?.CreationDate ? new Date(textResult.infoData.CreationDate) : null,
+      modificationDate: textResult.infoData?.ModDate ? new Date(textResult.infoData.ModDate) : null,
       pageCount: textResult.total || 0,
-      fileSize: textResult.infoData?.FileSize || null,
       isEncrypted: textResult.infoData?.Encrypted || false,
     };
   }
 
-  /**
-   * Process images extracted from PDF and format them for MCP
-   */
   processImages(imagesResult) {
     const images = [];
+    if (!imagesResult?.pages) return images;
 
-    if (!imagesResult || !imagesResult.pages) {
-      return images;
-    }
-
-    // Iterate through all pages and extract images
     for (const page of imagesResult.pages) {
-      const pageNumber = page.pageNumber || 0;
+      const pageNum = page.pageNumber || 0;
+      if (!page.images?.length) continue;
 
-      // In pdf-parse v2, images are in the 'images' property
-      if (page.images && page.images.length > 0) {
-        for (const img of page.images) {
-          // Use dataUrl if available (base64 data URL), otherwise convert buffer
-          let imageData = img.dataUrl || null;
-
-          // If no dataUrl but we have raw data, convert it
-          if (!imageData && img.data) {
-            const buffer = Buffer.isBuffer(img.data)
-              ? img.data
-              : Buffer.from(img.data);
-            const mimeType = this.getMimeTypeFromKind(img.kind);
-            imageData = `data:${mimeType};base64,${buffer.toString("base64")}`;
-          }
-
-          const imageSize = imageData
-            ? typeof imageData === "string"
-              ? Math.round(imageData.length * 0.75) // Approximate base64 to bytes
-              : 0
-            : 0;
-
-          images.push({
-            data: imageData,
-            name: img.name || `image_${pageNumber}_${images.length}`,
-            page: pageNumber,
-            width: img.width || 0,
-            height: img.height || 0,
-            mimeType: this.getMimeTypeFromKind(img.kind),
-            size: imageSize,
-            kind: img.kind || "unknown",
-          });
+      for (const img of page.images) {
+        let imageData = img.dataUrl || null;
+        if (!imageData && img.data) {
+          const buffer = Buffer.isBuffer(img.data) ? img.data : Buffer.from(img.data);
+          imageData = `data:${this.getMimeTypeFromKind(img.kind)};base64,${buffer.toString("base64")}`;
         }
+
+        images.push({
+          data: imageData,
+          name: img.name || `image_${pageNum}_${images.length}`,
+          page: pageNum,
+          width: img.width || 0,
+          height: img.height || 0,
+          mimeType: this.getMimeTypeFromKind(img.kind),
+          size: imageData ? Math.round(imageData.length * 0.75) : 0,
+          kind: img.kind || "unknown",
+        });
       }
     }
-
     return images;
   }
 
-  /**
-   * Get MIME type from image kind
-   * In pdf-parse v2, kind can be a number or string
-   */
   getMimeTypeFromKind(kind) {
-    // Numeric kind values used by pdf-parse v2
-    const numericKindMap = {
-      1: "image/jpeg",
-      2: "image/png",
-      3: "image/gif",
-      4: "image/bmp",
-      5: "image/tiff",
-    };
+    const numericMap = { 1: "image/jpeg", 2: "image/png", 3: "image/gif", 4: "image/bmp", 5: "image/tiff" };
+    const stringMap = { jpeg: "image/jpeg", jpg: "image/jpeg", png: "image/png", gif: "image/gif", bmp: "image/bmp", tiff: "image/tiff", webp: "image/webp" };
 
-    // String kind values
-    const stringKindMap = {
-      jpeg: "image/jpeg",
-      jpg: "image/jpeg",
-      png: "image/png",
-      gif: "image/gif",
-      bmp: "image/bmp",
-      tiff: "image/tiff",
-      webp: "image/webp",
-      jpx: "image/jp2",
-      jbig2: "image/jbig2",
-    };
-
-    if (typeof kind === "number") {
-      return numericKindMap[kind] || "image/jpeg";
-    }
-
-    if (typeof kind === "string") {
-      const normalizedKind = kind.toLowerCase().replace("-", "");
-      return stringKindMap[normalizedKind] || "image/jpeg";
-    }
-
+    if (typeof kind === "number") return numericMap[kind] || "image/jpeg";
+    if (typeof kind === "string") return stringMap[kind.toLowerCase().replace("-", "")] || "image/jpeg";
     return "image/jpeg";
   }
 
-  /**
-   * Generate OCR prompts based on layout analysis using PromptEngineer
-   * @param {Object} layoutAnalysis - Layout analysis results from DocumentLayoutAnalyzer
-   * @returns {string} Optimized prompt string for OCR extraction
-   */
-  generateOcrPrompt(layoutAnalysis) {
-    // Use PromptEngineer to generate optimized prompt
-    const options = {
-      textHint: this._getDocumentTypeHint(layoutAnalysis),
-      layoutAnalysis: layoutAnalysis?.success ? layoutAnalysis : null,
-    };
-
-    // Create a dummy image data URL for prompt generation (not used in text-only generation)
-    const dummyImageData = "data:image/jpeg;base64,DUMMY";
-
-    try {
-      const promptConfig = promptEngineer.generateExtractionPrompt(dummyImageData, options);
-      return promptConfig.userPrompt;
-    } catch (error) {
-      // Fallback to legacy prompt generation if PromptEngineer fails
-      console.error(`[PdfParser] PromptEngineer failed, falling back to legacy prompt: ${error.message}`);
-      return this._generateLegacyOcrPrompt(layoutAnalysis);
-    }
-  }
-
-  /**
-   * Generate legacy OCR prompts (fallback method)
-   */
-  _generateLegacyOcrPrompt(layoutAnalysis) {
-    let basePrompt = `Extract all text from this document image with high accuracy. Preserve the original formatting and structure as much as possible.
-
-Key instructions:
-1. Extract ALL visible text from the image with high accuracy
-2. Preserve the original formatting, layout, and structure
-3. For documents with tables, maintain table structure using markdown
-4. For code snippets, identify the programming language and format appropriately
-5. Handle multiple languages if present
-6. Note any text that is unclear or partially visible
-
-`;
-
-    // Add layout-specific instructions
-    if (layoutAnalysis && layoutAnalysis.success) {
-      const structureType = layoutAnalysis.structureType;
-
-      if (structureType === "structured-document") {
-        basePrompt += `This document appears to be a structured document with tables and formal structure. Pay special attention to:
-- Table structures (preserve columns and rows)
-- Headers and footers
-- Section boundaries
-- Numbered lists and bullet points
-- Any structured data like forms or invoices\n`;
-      }
-
-      if (structureType === "image-heavy-document") {
-        basePrompt += `This document is image-heavy with minimal text. Extract all visible text from images with extreme care:
-- Pay attention to small fonts and low-contrast text
-- Preserve all spacing and alignment
-- Extract any text from charts, graphs, or diagrams
-- Note any text that is unclear or partially visible\n`;
-      }
-
-      if (structureType === "text-dense-document") {
-        basePrompt += `This document is text-dense with many paragraphs. Focus on:
-- Preserving paragraph structure
-- Maintaining proper line breaks between sections
-- Identifying section headers and subheaders
-- Keeping the document's hierarchical structure intact\n`;
-      }
-
-      // Add table-specific instructions if tables were detected
-      const totalTables = layoutAnalysis.pages.reduce(
-        (sum, page) => sum + (page.tables?.length || 0),
-        0,
-      );
-      if (totalTables > 0) {
-        basePrompt += `IMPORTANT: There are ${totalTables} potential table(s) in this document. Extract them using markdown table format:
-- Use | to separate columns
-- Use --- to separate header from content
-- Preserve all rows even if they appear incomplete
-- If cells are merged, indicate this with [merged] or appropriate markdown\n`;
-      }
-    }
-
-    return basePrompt;
-  }
-
-  /**
-   * Get document type hint from layout analysis
-   */
-  _getDocumentTypeHint(layoutAnalysis) {
-    if (!layoutAnalysis?.success) return "";
-
-    // Infer document type from layout characteristics
-    const totalTables = layoutAnalysis.pages.reduce(
-      (sum, page) => sum + (page.tables?.length || 0), 0
-    );
-    const totalImages = layoutAnalysis.pages.reduce(
-      (sum, page) => sum + (page.images?.length || 0), 0
-    );
-
-    if (totalTables > 3) return "structured document with tables";
-    if (totalImages > layoutAnalysis.pages.length * 2) return "image-heavy document";
-
-    // Check for invoice patterns
-    const layoutText = JSON.stringify(layoutAnalysis);
-    if (layoutText.match(/invoice|bill|receipt/i)) return "invoice";
-    
-    // Check for contract patterns
-    if (layoutText.match(/agreement|contract|party/i)) return "contract";
-
-    // Check for resume patterns
-    if (layoutText.match(/resume|cv|experience|education/i)) return "resume";
-
-    // Check for report patterns
-    if (layoutText.match(/report|analysis|summary/i)) return "report";
-
-    return "";
-  }
-
-  /**
-   * Handle and format parsing errors
-   */
   handleError(error) {
     return {
       message: error.message,
@@ -605,84 +370,33 @@ Key instructions:
     };
   }
 
-  /**
-   * Get basic structure of the PDF content
-   */
   async getStructure(content) {
-    const lines = content.split("\n");
-
-    // Remove empty lines and whitespace-only lines
-    const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
-
-    // Identify potential headers based on patterns
-    const structure = nonEmptyLines.map((line) => ({
-      text: line.trim(),
-      isHeader: this.isLikelyHeader(line),
-      level: this.guessHeadingLevel(line),
-      position: line.length - line.trimStart().length,
-    }));
-
-    return structure;
+    return content
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((line) => ({
+        text: line.trim(),
+        isHeader: this.isLikelyHeader(line),
+        level: this.guessHeadingLevel(line),
+        position: line.length - line.trimStart().length,
+      }));
   }
 
-  /**
-   * Determine if a line is likely a header based on patterns
-   */
   isLikelyHeader(line) {
-    const trimmed = line.trim();
-
-    // All caps and not too long
-    if (/^[A-Z\s\d\-\.,;:]+$/.test(trimmed) && trimmed.length < 50) {
-      return true;
-    }
-
-    // Ends with colon
-    if (trimmed.endsWith(":")) {
-      return true;
-    }
-
-    // Numbered heading pattern (1.1, 1.2, etc.)
-    if (/^\d+(\.\d+)*\s/.test(trimmed)) {
-      return true;
-    }
-
-    // Roman numerals
-    if (/^[IVX]+\.\s/.test(trimmed)) {
-      return true;
-    }
-
-    // Looks like a section title (words followed by space and then more words)
-    if (/^[A-Z][a-z]+(?:\s[A-Z][a-z]+)+$/.test(trimmed)) {
-      return true;
-    }
-
-    // Common header patterns
-    const headerPatterns = [
-      /^(Chapter|Section|Part)\s+\d+/i,
-      /^(Appendix)\s+[A-Z]/i,
-      /^(Table|Figure)\s+\d+/i,
-    ];
-
-    for (const pattern of headerPatterns) {
-      if (pattern.test(trimmed)) {
-        return true;
-      }
-    }
-
+    const t = line.trim();
+    if (/^[A-Z\s\d\-\.,;:]+$/.test(t) && t.length < 50) return true;
+    if (t.endsWith(":")) return true;
+    if (/^\d+(\.\d+)*\s/.test(t)) return true;
+    if (/^[IVX]+\.\s/.test(t)) return true;
+    if (/^[A-Z][a-z]+(?:\s[A-Z][a-z]+)+$/.test(t)) return true;
+    if (/(^Chapter|^Section|^Part)\s+\d+/i.test(t)) return true;
+    if (/(^Appendix)\s+[A-Z]/i.test(t)) return true;
+    if (/(^Table|^Figure)\s+\d+/i.test(t)) return true;
     return false;
   }
 
-  /**
-   * Guess heading level based on text formatting
-   */
   guessHeadingLevel(line) {
-    const trimmed = line.trim();
-    const indent = line.length - trimmed.length;
-
-    // Less indentation means higher level heading
-    const level = Math.ceil(indent / 4);
-
-    // Clamp to valid heading levels (1-6)
-    return Math.max(1, Math.min(level, 6));
+    const indent = line.length - line.trim().length;
+    return Math.max(1, Math.min(Math.ceil(indent / 4), 6));
   }
 }

@@ -1,6 +1,7 @@
 import fs from "fs";
 import { PDFParse } from "pdf-parse";
-import { visionService } from "./vision-factory.js";
+import { visionService } from "./vision-service.js";
+import { log } from "../utils/logger.js";
 
 /**
  * Table Extractor
@@ -18,7 +19,7 @@ export class TableExtractor {
    * @returns {Promise<Array>} Array of extracted tables with metadata
    */
   async extractTables(text) {
-    console.error(`[TableExtractor] Extracting tables from document...`);
+    log("error", `[TableExtractor] Extracting tables from document...`);
 
     if (!text || text.length === 0) {
       return [];
@@ -62,14 +63,14 @@ export class TableExtractor {
           }
         }
       } catch (error) {
-        console.error(
+        log("error",
           `[TableExtractor] Failed to extract table: ${error.message}`,
         );
         // Continue with other tables
       }
     }
 
-    console.error(
+    log("error",
       `[TableExtractor] Extracted ${extractedTables.length} tables`,
     );
     return extractedTables;
@@ -164,7 +165,7 @@ export class TableExtractor {
    * Extract table content using AI
    */
   async extractTableContent(tableContent, tableType) {
-    console.error(`[TableExtractor] Extracting ${tableType} table content...`);
+    log("error", `[TableExtractor] Extracting ${tableType} table content...`);
 
     const prompt = `Extract this table from the document and format it as a markdown table.
 Table content:
@@ -218,7 +219,7 @@ Return only the markdown table with no additional text.`;
         confidence: 0.9,
       };
     } catch (error) {
-      console.error(
+      log("error",
         `[TableExtractor] Failed to extract table content: ${error.message}`,
       );
       return null;
@@ -229,7 +230,7 @@ Return only the markdown table with no additional text.`;
    * Extract tables from PDF document
    */
   async extractTablesFromPdf(filePath) {
-    console.error(`[TableExtractor] Extracting tables from PDF: ${filePath}`);
+    log("error", `[TableExtractor] Extracting tables from PDF: ${filePath}`);
 
     try {
       // Read PDF file
@@ -254,7 +255,7 @@ Return only the markdown table with no additional text.`;
           if (page.images && page.images.length > 0) {
             for (const image of page.images) {
               if (imagesProcessed >= maxImagesToProcess) {
-                console.warn(
+                log("warn",
                   `[TableExtractor] Reached max images to process (${maxImagesToProcess}), skipping remaining images`,
                 );
                 break;
@@ -282,7 +283,7 @@ Do NOT extract non-table content. Only return the table in markdown format.`;
                     });
                   }
                 } catch (error) {
-                  console.error(
+                  log("error",
                     `[TableExtractor] Failed to extract table from image on page ${i + 1}: ${error.message}`,
                   );
                   // Continue with other images
@@ -302,7 +303,7 @@ Do NOT extract non-table content. Only return the table in markdown format.`;
           ["markdown", "tab-separated", "header-separator"].includes(table.type)
         ) {
           // Simple text-based table - use direct content without AI extraction
-          console.error(
+          log("error",
             `[TableExtractor] Using direct extraction for ${table.type} table (skipping AI)`,
           );
           allTables.push({
@@ -344,12 +345,12 @@ Do NOT extract non-table content. Only return the table in markdown format.`;
       // Clean up parser
       await parser.destroy();
 
-      console.error(
+      log("error",
         `[TableExtractor] Extracted ${allTables.length} tables from PDF`,
       );
       return allTables;
     } catch (error) {
-      console.error(
+      log("error",
         `[TableExtractor] Error extracting tables from PDF: ${error.message}`,
       );
       return [];
