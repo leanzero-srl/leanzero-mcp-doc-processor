@@ -45,7 +45,7 @@ const NAMESPACES = {
  *
  * NOTE: The basic tag-finding logic (findTag / findAllTags) is shared with
  * src/utils/xml-utils.js, which exports a standalone findXMLTags() function
- * used by blueprint-extractor.js and data-extractor.js. This class is kept
+ * used by blueprint-extractor.js. This class is kept
  * separate because it adds stateful XML manipulation (insertAfter, insertBefore,
  * toString) on top of the tag-finding capability.
  */

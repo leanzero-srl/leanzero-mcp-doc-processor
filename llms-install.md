@@ -38,9 +38,7 @@ Add the following configuration to your MCP client settings file (e.g., `cline_m
 
 ### Step 3: (Optional) Configure OCR Provider
 
-If you want to enable advanced PDF processing with OCR, add environment variables:
-
-#### For LM Studio (local OCR - recommended for local development):
+If you want to enable advanced PDF processing with vision-based OCR, add your API key:
 
 ```json
 {
@@ -49,24 +47,6 @@ If you want to enable advanced PDF processing with OCR, add environment variable
       "command": "node",
       "args": ["<absolute-path-to-repo>/src/index.js"],
       "env": {
-        "VISION_PROVIDER": "lm-studio",
-        "LM_STUDIO_BASE_URL": "http://localhost:1234/api/v0"
-      }
-    }
-  }
-}
-```
-
-#### For Z.AI (cloud OCR):
-
-```json
-{
-  "mcpServers": {
-    "doc-processor": {
-      "command": "node",
-      "args": ["<absolute-path-to-repo>/src/index.js"],
-      "env": {
-        "VISION_PROVIDER": "zai",
         "Z_AI_API_KEY": "<your-zai-api-key>"
       }
     }

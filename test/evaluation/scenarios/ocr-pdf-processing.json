@@ -6,9 +6,9 @@
   "created": "2024-01-15",
   "tags": ["ocr", "pdf", "layout-analysis", "text-extraction", "table-detection", "image-extraction"],
   "scenarioType": "integration-test",
-  "descriptionLong": "This test validates the OCR (Optical Character Recognition) functionality with PDF documents. It tests three main components: DocumentLayoutAnalyzer (analyzes document structure), OcrPostProcessor (refines OCR output with AI), and TableExtractor (detects and extracts tables). The test covers layout analysis, text extraction, OCR post-processing, table detection, and image extraction.",
+  "descriptionLong": "This test validates the OCR (Optical Character Recognition) functionality with PDF documents. It tests single-pass PDF parsing with inline layout analysis, OcrPostProcessor (refines OCR output), and TableExtractor (detects and extracts tables). The test covers layout analysis, text extraction, OCR post-processing, table detection, and image extraction.",
   "objectives": [
-    "Verify DocumentLayoutAnalyzer successfully analyzes PDF document structure",
+    "Verify PDF parser successfully performs single-pass layout analysis",
     "Test text extraction produces valid output with minimum content",
     "Validate OCR post-processing improves text quality",
     "Test table extraction identifies tables in PDF documents",
@@ -35,7 +35,7 @@
     {
       "name": "Layout Analysis Test",
       "description": "Test document layout analyzer successfully analyzes PDF structure",
-      "tool": "DocumentLayoutAnalyzer.analyzeDocument",
+      "tool": "PdfParser.parse (with inline layout analysis)",
       "params": {
         "filePath": "./test/testfiles/sample.pdf"
       },

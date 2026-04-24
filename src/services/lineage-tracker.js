@@ -7,6 +7,7 @@
  */
 
 import { loadRegistry, saveRegistry } from "../utils/registry.js";
+import { log } from "../utils/logger.js";
 
 // Session-scoped state: tracks which documents were read recently
 const recentlyRead = new Map(); // filePath -> { readAt, tool }
@@ -93,7 +94,7 @@ export async function recordWrite(outputPath) {
     await saveRegistry(registry);
   } catch (err) {
     // Lineage tracking is non-fatal
-    console.warn("[lineage-tracker] Failed to update registry:", err.message);
+    log("warn", "[lineage-tracker] Failed to update registry:", err.message);
   }
 
   // Clear reads for next cycle

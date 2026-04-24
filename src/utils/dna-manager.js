@@ -14,6 +14,7 @@ import {
 
 // Import schema validation for DNA configuration
 import { validateDNA, applyMigration } from "./dna-schema.js";
+import { log } from "./logger.js";
 
 // Module-level cache for DNA config (backward compatibility)
 let _cache = { path: null, mtime: 0, data: null };
@@ -53,10 +54,10 @@ export function loadDNA(projectRoot) {
     const validation = validateDNA(data);
     
     if (!validation.valid) {
-      console.warn(
+      log("warn",
         `[dna-manager] DNA validation failed for ${DNA_FILENAME}: ${validation.errors.join(", ")}`
       );
-      console.warn("[dna-manager] Using DNA but validation issues should be addressed.");
+      log("warn", "[dna-manager] Using DNA but validation issues should be addressed.");
     }
 
     // Apply migration if needed

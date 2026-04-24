@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { log } from "./logger.js";
 
 const DNA_FILENAME = ".document-dna.json";
 const USER_DNA_FILENAME = ".document-user.json";
@@ -77,7 +78,7 @@ export function loadUserDNA(projectRoot) {
     if (err.code === "ENOENT") {
       return null;
     }
-    console.warn(`[dna-inheritance] Failed to load ${USER_DNA_FILENAME}:`, err.message);
+    log("warn", `[dna-inheritance] Failed to load ${USER_DNA_FILENAME}:`, err.message);
     return null;
   }
 }
@@ -114,7 +115,7 @@ export function loadProjectDNA(projectRoot) {
     if (err.code === "ENOENT") {
       return null;
     }
-    console.warn(`[dna-inheritance] Failed to load ${DNA_FILENAME}:`, err.message);
+    log("warn", `[dna-inheritance] Failed to load ${DNA_FILENAME}:`, err.message);
     return null;
   }
 }
