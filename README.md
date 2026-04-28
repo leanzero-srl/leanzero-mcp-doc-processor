@@ -19,22 +19,84 @@ Part of the [LeanZero](https://leanzero.atlascrafted.com) ecosystem.
 
 ## Tools
 
-The server exposes 11 tools via the MCP protocol. Each tool uses an `action` parameter for sub-operations where applicable.
+The server exposes 13 tools via the MCP protocol. Each tool uses an `action` or `mode` parameter for sub-operations where applicable.
 
 | Tool | Actions / Modes | Description |
 |------|----------------|-------------|
-| `read-doc` | `summary`, `indepth`, `focused` | Read and analyze PDF, DOCX, or Excel files. Summary gives an overview; indepth extracts full text and metadata; focused answers specific queries. |
+| `read-doc` | `summary`, `indepth`, `focused` | Read and analyze PDF, DOCX, or Excel files. Summary gives an overview; indepth extracts full text and metadata; focused answers specific queries. Source can be a local `filePath` OR a remote `url` + `authHeader` -- see [Reading from remote URLs](#reading-from-remote-urls). |
+| `detect-format` | -- | Recommend document format and tone (markdown / docx / excel) based on user query, title, and optional content preview. Call before `create-*` when the format is not specified. |
 | `create-doc` | -- | Create a Word DOCX with paragraphs, tables, headers, footers, and styling. Supports dry run preview. |
+| `create-markdown` | -- | Create a Markdown document. |
 | `create-excel` | -- | Create an Excel XLSX workbook with multiple sheets and styling. |
 | `edit-doc` | `append`, `replace` | Edit existing DOCX files. Append preserves formatting via XML patching; replace overwrites content. |
 | `edit-excel` | `append-rows`, `append-sheet`, `replace-sheet` | Edit existing Excel workbooks. |
 | `list-documents` | -- | Search and filter the document registry by category, tags, or title. |
+| `list-templates` | -- | List available blueprint templates that `create-doc` can validate against. |
 | `dna` | `init`, `get`, `evolve`, `save-memory`, `delete-memory` | Manage Document DNA -- the project's automatic styling and identity system. |
 | `blueprint` | `learn`, `list`, `delete` | Manage structural blueprints. Auto-learned during `dna evolve` or manually extracted from existing documents. |
 | `drift-monitor` | `watch`, `check` | Register documents for monitoring and detect structural changes over time. |
 | `get-lineage` | -- | Trace the provenance chain for any document -- which sources informed it and what was derived from it. |
 
 > **Note:** All old tool names from previous versions (`get-doc-summary`, `get-doc-indepth`, `get-doc-focused`, `init-dna`, `get-dna`, `evolve-dna`, `save-memory`, `delete-memory`, `learn-blueprint`, `list-blueprints`, `watch-document`, `check-drift`, `search-registry`) are accepted as backward-compatible aliases.
+
+## Reading from remote URLs
+
+`read-doc` accepts a remote HTTPS URL guarded by a Bearer header in addition to local file paths. This is designed for **one-shot capabilities** -- short-lived, narrowly-scoped tokens that grant exactly one read of one specific resource -- such as the Forge web trigger that [CogniRunner](https://github.com/leanzero-srl/leanzero-cognirunner-forgeapp) (`feature/byok-postfunctions` branch) uses to expose Jira attachments to a local LM Studio instance.
+
+### Calling shape
+
+```json
+{
+  "url": "https://api.atlassian.com/.../webtrigger/<id>?t=<token>",
+  "authHeader": "Bearer <bearer>",
+  "mode": "summary"
+}
+```
+
+The endpoint is expected to return HTTP 200 with `Content-Type: application/json` and a body of:
+
+```json
+{
+  "data":     "<base64-encoded file content>",
+  "filename": "invoice.pdf",
+  "mimeType": "application/pdf",
+  "size":     256832
+}
+```
+
+`read-doc` decodes the base64 payload, writes it to a unique per-call temp directory under `os.tmpdir()`, runs the existing extraction pipeline, and cleans up the temp dir afterward (even if the pipeline throws).
+
+### Security model
+
+The `url` and `authHeader` parameters carry a one-shot capability. The implementation enforces:
+
+- **HTTPS only** -- non-`https://` URLs are rejected before any fetch is issued.
+- **No redirect following** -- `fetch` is called with `redirect: "error"`. A legitimate web trigger never 3xx's; if one does, treat it as hostile.
+- **No auto-retry on 401 / 404** -- a `401` means the bearer was wrong (caller error); a `404` means the token already worked once or expired (single-use semantics). The caller must mint a fresh capability rather than retry.
+- **Auth header is never logged** -- the helper logs only `host` + `pathname` from the URL; the `?t=` token and the `Authorization` header are redacted.
+- **No caching** -- the payload, URL, and auth header live only for the duration of the single call.
+
+If your endpoint expects a different response shape, point it through a small adapter rather than relaxing these rules.
+
+### CogniRunner integration example
+
+CogniRunner's `mcp.json` snippet for wiring this server to an LM Studio agent that needs to read Jira attachments:
+
+```json
+{
+  "mcpServers": {
+    "doc-processor": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-doc-processor/src/index.js"],
+      "env": {
+        "READ_DOC_MAX_BYTES": "52428800"
+      }
+    }
+  }
+}
+```
+
+CogniRunner mints the `url` + `authHeader` per attachment in its post-function flow and passes them to the model in its system prompt; the model then calls `read-doc` directly. See the [CogniRunner repo](https://github.com/leanzero-srl/leanzero-cognirunner-forgeapp/tree/feature/byok-postfunctions) for token issuance details.
 
 ## Quick Start
 
@@ -221,21 +283,17 @@ DNA supports three-level inheritance: System defaults (hardcoded) < Project DNA 
 | `Z_AI_VISION_MODEL` | `glm-4.6v` | Vision model name |
 | `Z_AI_TIMEOUT` | `300000` | Request timeout in milliseconds |
 | `SKIP_TABLE_EXTRACTION` | `true` | Skip table extraction from images during PDF processing |
+| `READ_DOC_MAX_BYTES` | `52428800` (50 MB) | Maximum decoded payload size accepted by the `read-doc` URL-fetch path. Requests with larger bodies are rejected before the file is materialized. |
 
 ## Testing
 
 ```bash
-npm test                    # Main integration suite
-npm run test:ocr            # OCR improvements
-npm run test:styling        # Style presets and document creation
-npm run test:create         # create-doc and create-excel integration
-npm run test:patch          # DOCX XML patching
-npm run test:category       # Categorization and registry
-npm run test:dna            # DNA system
-npm run test:innovations    # Innovation features (52 tests)
-npm run test:drift          # Drift detection internals
-npm run test:auto-blueprint # Auto-blueprint learning
+npm test                    # Markdown format router suite
+npm run test:read-doc       # read-doc URL-fetch extension (14 tests, node:test)
+npm run lint:no-console-log # Fail if any src/ file uses console.log (corrupts MCP stdio)
 ```
+
+> **Note:** `package.json` declares additional scripts (`test:ocr`, `test:styling`, `test:create`, `test:patch`, `test:category`, `test:dna`, `test:innovations`, `test:drift`, `test:auto-blueprint`) whose source files are not currently committed to the repository -- running them today fails with `Cannot find module`. They are kept as placeholders for future restoration. New work should add tests under matching script names.
 
 ## Generated Files
 
