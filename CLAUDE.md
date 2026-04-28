@@ -36,7 +36,7 @@ Upon receiving a task, immediately gather context by:
 
 1. **Read Project Documentation** (priority order):
    - `CLAUDE.md` - This file, understanding project structure, MCP protocol rules, and conventions
-   - `src/index.js` - MCP server entry point, tool definitions and dispatch (507 lines)
+   - `src/index.js` - MCP server entry point, tool definitions and dispatch (~450 lines)
    - The specific tool handler file(s) relevant to the task in `src/tools/`
    - Any service or utility files referenced by the tool handlers
    - Any files specifically mentioned by the human agent
@@ -100,7 +100,7 @@ Once you have confirmed your understanding (and any necessary clarifications), p
 
 ## PROJECT OVERVIEW
 
-This is an **MCP (Model Context Protocol) server** that processes PDF, DOCX, and Excel files. It exposes **9 active tools** (plus 12 backward-compatible aliases) via the MCP protocol over **stdio transport**, enabling AI models to read, create, edit, and manage documents with intelligent styling, categorization, and lineage tracking.
+This is an **MCP (Model Context Protocol) server** that processes PDF, DOCX, and Excel files. It exposes **13 active tools** advertised via `ListToolsRequestSchema` (plus 13 backward-compatible aliases dispatched in `CallToolRequestSchema`) over **stdio transport**, enabling AI models to read, create, edit, and manage documents with intelligent styling, categorization, and lineage tracking.
 
 **Server identity:** `mcp-doc-processor` v1.0.0
 **SDK:** `@modelcontextprotocol/sdk ^1.25.2`
@@ -116,16 +116,13 @@ This is an **MCP (Model Context Protocol) server** that processes PDF, DOCX, and
 npm start
 
 # Test suites
-npm test                    # Main integration suite (16 tests)
-npm run test:ocr            # OCR improvements
-npm run test:styling        # Style presets + document creation demos (node:test)
-npm run test:create         # create-doc and create-excel integration (node:test)
-npm run test:patch          # DOCX XML patching — tests 1-4 pass, test 5 has pre-existing failure (node:test)
-npm run test:category       # Categorization and registry
-npm run test:dna            # DNA system
-npm run test:innovations    # Innovation features — 52 tests across 6 features (node:test)
-npm run test:drift          # Drift internals — 35 tests: semantic diff, Jaccard, fuzzy matching (node:test)
-npm run test:auto-blueprint # Auto-blueprint learning — 12 tests (node:test)
+npm test                    # Markdown format router suite — the only suite whose source file is currently committed
+npm run test:read-doc       # read-doc URL-fetch extension — 14 tests covering fetchToTempFile + handleReadDoc (node:test)
+npm run lint:no-console-log # Fail if any src/ file uses console.log (corrupts MCP stdio)
+# NOTE: package.json declares additional scripts (test:ocr, test:styling, test:create,
+# test:patch, test:category, test:dna, test:innovations, test:drift, test:auto-blueprint)
+# but their source files are not currently committed — running them fails with
+# "Cannot find module". They are kept for future restoration.
 ```
 
 ---
@@ -160,7 +157,7 @@ Tool `inputSchema` definitions in the `ListToolsRequestSchema` handler (in `src/
 
 ### Rule 4: Errors Must Be Structured
 
-On error, return `isError: true` with a human-readable error message in the content block. Never throw unhandled exceptions from tool handlers — the top-level try/catch in `src/index.js:485` is a safety net, not a strategy.
+On error, return `isError: true` with a human-readable error message in the content block. Never throw unhandled exceptions from tool handlers — the top-level try/catch in `src/index.js` (near the bottom of the `CallToolRequestSchema` handler) is a safety net, not a strategy.
 
 ### Rule 5: Tool Names Use kebab-case
 
@@ -185,7 +182,7 @@ When consolidating tools, the old tool names are kept as aliases in the `CallToo
 ```
 mcp-doc-processor/
 ├── src/
-│   ├── index.js                    # MCP server entry point, tool definitions, dispatch (444 lines)
+│   ├── index.js                    # MCP server entry point, tool definitions, dispatch (~450 lines)
 │   ├── tools/                      # Tool handlers (one file per tool or tool group)
 │   │   ├── read-doc-tool.js        # Unified read-doc handler: summary/indepth/focused modes
 │   │   ├── create-doc.js           # create-doc handler — most complex tool
@@ -221,7 +218,7 @@ mcp-doc-processor/
 │       ├── image-processor.js      # Image processing helpers
 │       ├── categorizer.js          # Keyword-based document classification (6 categories)
 │       ├── registry.js             # Document registry with file locking (docs/registry.json)
-│       ├── dna-manager.js          # Document DNA: load, create, apply, evolve, fuzzy template matching (684 lines)
+│       ├── dna-manager.js          # Document DNA: load, create, apply, evolve, fuzzy template matching (~760 lines)
 │       ├── dna-inheritance.js      # Three-level DNA inheritance (system > project > user)
 │       ├── dna-schema.js           # DNA validation and migration
 │       ├── blueprint-store.js      # Blueprint CRUD in .document-dna.json
@@ -233,22 +230,23 @@ mcp-doc-processor/
 └── package.json                    # ES module, no devDependencies
 ```
 
-### Tool Inventory (9 Active Tools)
+### Tool Inventory (13 Active Tools)
 
 | Tool | Handler File | Purpose |
 |------|-------------|---------|
-| `read-doc` | `read-doc-tool.js` | Read documents with mode: summary, indepth, or focused |
+| `read-doc` | `read-doc-tool.js` | Read documents with mode: summary, indepth, or focused. Source can be a local `filePath` OR a remote `url` + `authHeader` (HTTPS only, JSON envelope of shape `{data:base64, filename, mimeType, size}`). |
+| `detect-format` | inline in `src/index.js` | Recommend document format and tone (markdown/docx/excel) based on user query, title, content preview |
 | `create-doc` | `create-doc.js` | Create DOCX with styling, headers, DNA, blueprint validation |
+| `create-markdown` | `create-markdown.js` | Create Markdown documents |
 | `create-excel` | `create-excel.js` | Create XLSX workbook with styling |
 | `edit-doc` | `edit-doc.js` | Append/replace DOCX content via XML patching |
 | `edit-excel` | `edit-excel.js` | Append rows/sheets, replace sheet data |
 | `list-documents` | `utils.js` | Search/filter document registry |
+| `list-templates` | dynamic import + `blueprint-store` | List available blueprint templates |
 | `dna` | `dna-tool.js` | Manage Document DNA (init/get/evolve/save-memory/delete-memory) |
 | `blueprint` | `blueprint-tool.js` | Learn/list/delete structural blueprints |
 | `drift-monitor` | `drift-tool.js` | Watch documents and check for structural drift |
-
-Additional tools available only as backward-compatible aliases (not advertised in tool listing):
-- `get-lineage` → `lineage-tool.js` — Trace document provenance chains
+| `get-lineage` | `lineage-tool.js` | Trace document provenance chains (sources and derivatives) |
 
 ### Key Patterns
 
@@ -284,7 +282,7 @@ Additional tools available only as backward-compatible aliases (not advertised i
 
 - **Before ANY edit, read the full file** — never edit based on partial knowledge
 - Understand the file's full structure, imports, exports, and dependencies before changing anything
-- For `src/index.js` (507 lines), reading the full file is feasible
+- For `src/index.js` (~450 lines), reading the full file is feasible
 
 ### Rule 2: Preserve MCP Compatibility
 
@@ -515,7 +513,7 @@ Layout analysis is inlined in the PDF parser — it reads text/image data alread
 2. **Add the handler** in the `CallToolRequestSchema` switch statement
 3. **Create the handler function** in a dedicated `src/tools/<name>-tool.js` file
 4. **Return format:** Always `{ content: [{ type: "text", text: JSON.stringify(result, null, 2) }], isError: !result.success }`
-5. **Validate file paths** for read/edit tools — the existing validation block at `src/index.js:329-348` handles this automatically for tools that receive `filePath`
+5. **Validate file paths** for read/edit tools — the existing validation block in the `CallToolRequestSchema` handler in `src/index.js` handles this automatically for tools that receive `filePath`. Note: this guard is bypassed when `params.url` is set (the URL-fetch path materializes a temp file later).
 6. **Add tests** covering success and error paths
 7. **Update this CLAUDE.md** tool inventory table
 
@@ -561,7 +559,7 @@ The `edit-doc` tool uses XML-level patching (not full document recreation) to pr
 - Tests that modify `.document-dna.json` must backup and restore it
 - `test:patch` test 5 has a known pre-existing failure — do not try to fix unless explicitly asked
 - Run the relevant test suite after any change; run all suites before committing
-- Suites using `node:test`: `test:styling`, `test:create`, `test:patch`, `test:innovations`, `test:drift`, `test:auto-blueprint`
+- Suites using `node:test`: `test:read-doc` (currently the only `node:test` suite whose source file is committed). Other `node:test` script names declared in `package.json` (`test:styling`, `test:create`, `test:patch`, `test:innovations`, `test:drift`, `test:auto-blueprint`) reference test files that are not currently in the repo
 
 ### Dependencies (No devDependencies)
 
@@ -599,3 +597,5 @@ The `edit-doc` tool uses XML-level patching (not full document recreation) to pr
 9. **Drift detection has a 500-paragraph cap** — The LCS semantic diff uses O(n*m) memory. Paragraphs beyond 500 are silently dropped from fingerprints. `watchDocument()` warns when truncation occurs and stores `totalParagraphCount` for awareness.
 
 10. **`analyzeTrends()` and `detectRecurringStructures()` are NOT on the hot path** — They were intentionally removed from `create-doc` for performance. They only run when the user explicitly calls `dna` with `action: "evolve"`.
+
+11. **`read-doc` accepts remote URLs (HTTPS only, single-use capability)** — When called with `url` + `authHeader` instead of `filePath`, the tool fetches a JSON envelope (`{data:base64, filename, mimeType, size}`) via `fetchToTempFile()` in `src/tools/read-doc-tool.js`, materializes the binary to `os.tmpdir()/doc-reader-<random>/`, runs the existing pipeline, and cleans up via `try/finally`. Security rules enforced in code: HTTPS only, no redirect following (`redirect: "error"`), no auto-retry on 401/404, `authHeader` is never logged, the URL token is redacted from log output (only host+path are logged). Payload size capped by `READ_DOC_MAX_BYTES` env var (default 50 MB). Designed for one-shot capabilities like CogniRunner's Forge web trigger that serves Jira attachments.
