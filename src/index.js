@@ -80,16 +80,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "read-doc",
       description:
-        "Read and analyze PDF, DOCX, or Excel files. Modes: 'summary' (overview with preview), 'indepth' (full text, structure, metadata), 'focused' (query-based search). Always read before editing; use 'indepth' before edit-doc.",
+        "Read and analyze PDF, DOCX, or Excel files. Modes: 'summary' (overview with preview), 'indepth' (full text, structure, metadata), 'focused' (query-based search). Source: either local filePath OR a remote https url whose response is {data:base64, filename, mimeType, size} JSON guarded by authHeader (used for one-shot capabilities like CogniRunner attachment fetches). Always read before editing; use 'indepth' before edit-doc.",
       inputSchema: {
         type: "object",
         properties: {
-          filePath: { type: "string", description: "Local file path to the document" },
+          filePath: { type: "string", description: "Local file path. Use this OR url+authHeader." },
+          url: { type: "string", description: "HTTPS URL whose response is {data:base64, filename, mimeType, size} JSON. Use this OR filePath." },
+          authHeader: { type: "string", description: "Authorization header value (e.g. 'Bearer abc123'). Required when url is set." },
+          filename: { type: "string", description: "Optional filename hint used for the temp-file extension when the response omits one." },
           mode: { type: "string", enum: ["summary", "indepth", "focused"], description: "Read mode (default: summary)" },
           userQuery: { type: "string", description: "Query for focused analysis. Only used with mode 'focused'." },
           context: { type: "string", description: "Context from previous questions. Only used with mode 'focused'." },
         },
-        required: ["filePath"],
+        anyOf: [
+          { required: ["filePath"] },
+          { required: ["url", "authHeader"] },
+        ],
       },
     },
     {
@@ -319,8 +325,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   log("info", "Tool called:", { toolName: name });
 
   try {
-    // Validate file path exists for read/edit tools (not create tools)
-    if (params?.filePath && !name.startsWith("create-")) {
+    // Validate file path exists for read/edit tools (not create tools).
+    // Skip when params.url is set: read-doc URL-fetch path materializes a temp file later.
+    if (params?.filePath && !params?.url && !name.startsWith("create-")) {
       const skipValidation =
         (name === "drift-monitor" && params.action === "check") ||
         (name === "blueprint" && params.action !== "learn") ||

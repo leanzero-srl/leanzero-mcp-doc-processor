@@ -6,6 +6,10 @@
  * backward-compatible aliases in the CallToolRequestSchema switch.
  */
 
+import fs from "fs";
+import path from "path";
+import os from "os";
+
 import { documentProcessor } from "../services/document-processor.js";
 import { analysisService } from "../services/analysis-service.js";
 import { imageProcessor } from "../utils/image-processor.js";
@@ -17,10 +21,80 @@ import { classifyDocumentContent } from "../utils/categorizer.js";
 const documentContext = new Map();
 
 /**
+ * Fetch a remote document (one-shot capability) and write it to a per-call temp dir.
+ * Caller MUST clean up the returned tempDir via fs.rm in a finally block.
+ * Security: never logs authHeader; never caches; never follows redirects; https only.
+ *
+ * @param {string} url - HTTPS URL returning JSON of shape {data:base64, filename, mimeType, size}
+ * @param {string} authHeader - Value for the Authorization header (e.g. "Bearer abc123")
+ * @param {string} [suggestedFilename] - Fallback filename if response omits one
+ * @returns {Promise<{tempPath:string, tempDir:string, mimeType?:string, originalFilename?:string}>}
+ */
+export async function fetchToTempFile(url, authHeader, suggestedFilename) {
+  if (!/^https:\/\//i.test(url)) {
+    throw new Error("read-doc URL must use https://");
+  }
+
+  // Safe-to-log breadcrumb: host + path only — never the ?t= token or auth header.
+  let safeUrl;
+  try {
+    const u = new URL(url);
+    safeUrl = `${u.host}${u.pathname}`;
+  } catch {
+    throw new Error("read-doc URL is not parseable");
+  }
+  log("info", "read-doc remote fetch", { url: safeUrl });
+
+  const resp = await fetch(url, {
+    method: "GET",
+    headers: { Authorization: authHeader, Accept: "application/json" },
+    redirect: "error",
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (!resp.ok) {
+    // Do NOT auto-retry — 401 = wrong bearer (caller error), 404 = consumed/expired (single-use).
+    const bodyPreview = await resp.text().catch(() => "");
+    throw new Error(`read-doc fetch failed: HTTP ${resp.status} ${bodyPreview.slice(0, 200)}`);
+  }
+
+  const ct = resp.headers.get("Content-Type") || "";
+  if (!/json/i.test(ct)) {
+    throw new Error(`read-doc endpoint returned unexpected Content-Type: ${ct}`);
+  }
+
+  const payload = await resp.json();
+  if (!payload || typeof payload.data !== "string") {
+    throw new Error("read-doc payload missing required 'data' field (base64)");
+  }
+
+  const filename = payload.filename || suggestedFilename || `attachment-${Date.now()}.bin`;
+  const buffer = Buffer.from(payload.data, "base64");
+
+  const maxBytes = Number(process.env.READ_DOC_MAX_BYTES) || 50 * 1024 * 1024;
+  if (buffer.length > maxBytes) {
+    throw new Error(`read-doc attachment too large: ${buffer.length} bytes (limit ${maxBytes})`);
+  }
+
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "doc-reader-"));
+  const tempPath = path.join(tempDir, filename);
+  await fs.promises.writeFile(tempPath, buffer);
+
+  return { tempPath, tempDir, mimeType: payload.mimeType, originalFilename: payload.filename };
+}
+
+/**
  * Handle unified document read request.
  *
+ * Source resolution: either a local `filePath` OR a remote `url` + `authHeader` pair.
+ * In the URL case the helper fetches a JSON envelope, materializes the binary to a
+ * per-call temp dir, runs the existing pipeline, and cleans up regardless of outcome.
+ *
  * @param {Object} params - Tool parameters
- * @param {string} params.filePath - Path to the document
+ * @param {string} [params.filePath] - Path to the document (use this OR url+authHeader)
+ * @param {string} [params.url] - HTTPS URL returning {data:base64, filename, mimeType, size}
+ * @param {string} [params.authHeader] - Authorization header value (required when url is set)
+ * @param {string} [params.filename] - Optional filename hint for the temp file extension
  * @param {string} [params.mode="summary"] - Read mode: "summary", "indepth", or "focused"
  * @param {string} [params.userQuery] - User query (focused mode only)
  * @param {string} [params.context] - Additional context (focused mode only)
@@ -28,20 +102,54 @@ const documentContext = new Map();
  */
 export async function handleReadDoc(params) {
   const mode = params.mode || "summary";
-  logFunctionCall("handleReadDoc", { filePath: params.filePath, mode });
 
-  switch (mode) {
-    case "summary":
-      return handleSummary(params);
-    case "indepth":
-      return handleInDepth(params);
-    case "focused":
-      return handleFocused(params, params.userQuery, params.context);
-    default:
+  let workingParams = params;
+  let tempDirToCleanup = null;
+
+  if (!params.filePath && params.url && params.authHeader) {
+    try {
+      const fetched = await fetchToTempFile(params.url, params.authHeader, params.filename);
+      workingParams = { ...params, filePath: fetched.tempPath };
+      tempDirToCleanup = fetched.tempDir;
+    } catch (err) {
+      log("warn", "read-doc remote fetch rejected:", { error: err.message });
       return {
-        content: [{ type: "text", text: `Unknown read mode: "${mode}". Use "summary", "indepth", or "focused".` }],
+        content: [{ type: "text", text: err.message }],
         isError: true,
       };
+    }
+  } else if (!params.filePath) {
+    return {
+      content: [{ type: "text", text: "read-doc requires either filePath OR url+authHeader" }],
+      isError: true,
+    };
+  }
+
+  // logFunctionCall must NOT include authHeader — log only filePath/mode/remote flag.
+  logFunctionCall("handleReadDoc", { filePath: workingParams.filePath, mode, remote: !!params.url });
+
+  try {
+    switch (mode) {
+      case "summary":
+        return await handleSummary(workingParams);
+      case "indepth":
+        return await handleInDepth(workingParams);
+      case "focused":
+        return await handleFocused(workingParams, workingParams.userQuery, workingParams.context);
+      default:
+        return {
+          content: [{ type: "text", text: `Unknown read mode: "${mode}". Use "summary", "indepth", or "focused".` }],
+          isError: true,
+        };
+    }
+  } finally {
+    if (tempDirToCleanup) {
+      try {
+        await fs.promises.rm(tempDirToCleanup, { recursive: true, force: true });
+      } catch {
+        // best-effort cleanup
+      }
+    }
   }
 }
 
