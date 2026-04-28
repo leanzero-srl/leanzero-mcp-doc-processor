@@ -92,10 +92,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           userQuery: { type: "string", description: "Query for focused analysis. Only used with mode 'focused'." },
           context: { type: "string", description: "Context from previous questions. Only used with mode 'focused'." },
         },
-        anyOf: [
-          { required: ["filePath"] },
-          { required: ["url", "authHeader"] },
-        ],
+        // NOTE: Anthropic API rejects top-level anyOf/oneOf/allOf in MCP tool schemas.
+        // We rely on the runtime check in handleReadDoc that enforces filePath OR url+authHeader.
+        required: [],
       },
     },
     {
@@ -352,7 +351,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "get-doc-focused": return await handleReadDoc({ ...params, mode: "focused" });
 
       case "detect-format": {
-        const result = detectFormat(params);
+        const result = await detectFormat(params);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
 
