@@ -17,6 +17,7 @@
     "test:drift": "node --test test/test-drift-internals.js",
     "test:auto-blueprint": "node --test test/test-auto-blueprint.js",
     "test:read-doc": "node --test test/test-read-doc.js",
+    "test:schemas": "node --test test/test-tool-schemas.js",
     "lint:no-console-log": "! grep -rn 'console\\.log(' src/ --include='*.js'"
   },
   "dependencies": {

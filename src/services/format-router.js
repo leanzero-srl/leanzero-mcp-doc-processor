@@ -229,16 +229,24 @@ export async function detectFormat(params) {
   // Calculate confidence based on number of matched keywords
   let confidence = 'low';
   let reason = '';
-  
+
+  // Category-aware label so the reason text matches the winning format.
+  const labelByFormat = {
+    [DocumentFormat.MARKDOWN]: 'implementation/technical',
+    [DocumentFormat.DOCX]: 'stakeholder/business',
+    [DocumentFormat.EXCEL]: 'data/spreadsheet',
+  };
+  const label = labelByFormat[winner.format] || 'format';
+
   if (winner.keywords.length >= 3) {
     confidence = 'high';
-    reason = `Multiple implementation/technical keywords detected: ${winner.keywords.slice(0, 5).join(', ')}`;
+    reason = `Multiple ${label} keywords detected: ${winner.keywords.slice(0, 5).join(', ')}`;
   } else if (winner.keywords.length >= 2) {
     confidence = 'medium';
-    reason = `Several keywords suggest this format: ${winner.keywords.join(', ')}`;
+    reason = `Several ${label} keywords suggest this format: ${winner.keywords.join(', ')}`;
   } else if (winner.keywords.length === 1) {
     confidence = 'low';
-    reason = `Single keyword "${winner.keywords[0]}" suggests this format`;
+    reason = `Single ${label} keyword "${winner.keywords[0]}" suggests this format`;
   } else {
     // No clear winner - default to markdown for technical projects
     return {
