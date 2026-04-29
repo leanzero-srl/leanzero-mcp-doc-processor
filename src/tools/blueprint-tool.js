@@ -27,6 +27,18 @@ export async function handleBlueprint(params, toolName) {
 
   if (bpAction === "learn") {
     try {
+      if (!params.filePath || typeof params.filePath !== "string") {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ success: false, error: "blueprint action 'learn' requires a filePath pointing to a DOCX or PDF source." }, null, 2) }],
+          isError: true,
+        };
+      }
+      if (!params.name || typeof params.name !== "string") {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ success: false, error: "blueprint action 'learn' requires a 'name' for the blueprint." }, null, 2) }],
+          isError: true,
+        };
+      }
       const detected = params.filePath.toLowerCase();
       let blueprintData;
 

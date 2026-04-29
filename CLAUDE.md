@@ -201,10 +201,11 @@ mcp-doc-processor/
 │   ├── services/                   # Business logic and external integrations
 │   │   ├── document-processor.js   # Central document processing (routes to parsers)
 │   │   ├── vision-service.js       # Unified vision service for OCR (Z.AI API)
-│   │   ├── ai-guidance-system.js   # Duplicate detection, version cleanup
+│   │   ├── ai-guidance-system.js   # Duplicate detection, version cleanup (used by create-doc)
 │   │   ├── lineage-tracker.js      # Session-scoped read→write provenance tracking
 │   │   ├── drift-detector.js       # Structural fingerprinting, semantic diff, Jaccard similarity
 │   │   ├── blueprint-extractor.js  # Extract structural blueprints from DOCX/PDF
+│   │   ├── format-router.js        # Keyword-based format recommender (used by detect-format) — async, MUST be awaited
 │   │   ├── analysis-service.js     # Clarification question generation
 │   │   ├── ocr-postprocessor.js    # OCR text correction
 │   │   └── table-extractor.js      # Table extraction from images
@@ -221,7 +222,9 @@ mcp-doc-processor/
 │       ├── dna-manager.js          # Document DNA: load, create, apply, evolve, fuzzy template matching (~760 lines)
 │       ├── dna-inheritance.js      # Three-level DNA inheritance (system > project > user)
 │       ├── dna-schema.js           # DNA validation and migration
-│       ├── blueprint-store.js      # Blueprint CRUD in .document-dna.json
+│       ├── blueprint-store.js      # Blueprint CRUD in .document-blueprints.json
+│       ├── document-tags.js        # Static templates (claude-like, marketing, technical-docs, business-report, legal) + tag→template mapping; findMatchingTemplate returns {key, ...template} or null
+│       ├── markdown-formatter.js   # Markdown content helpers used by create-markdown
 │       └── xml-utils.js            # Shared XML helper utilities
 ├── test/                           # Test directory (node:test runner for newer suites, custom assert for legacy)
 ├── docs/                           # Generated documents output (organized by category)
@@ -235,16 +238,16 @@ mcp-doc-processor/
 | Tool | Handler File | Purpose |
 |------|-------------|---------|
 | `read-doc` | `read-doc-tool.js` | Read documents with mode: summary, indepth, or focused. Source can be a local `filePath` OR a remote `url` + `authHeader` (HTTPS only, JSON envelope of shape `{data:base64, filename, mimeType, size}`). |
-| `detect-format` | inline in `src/index.js` | Recommend document format and tone (markdown/docx/excel) based on user query, title, content preview |
-| `create-doc` | `create-doc.js` | Create DOCX with styling, headers, DNA, blueprint validation |
-| `create-markdown` | `create-markdown.js` | Create Markdown documents |
-| `create-excel` | `create-excel.js` | Create XLSX workbook with styling |
-| `edit-doc` | `edit-doc.js` | Append/replace DOCX content via XML patching |
-| `edit-excel` | `edit-excel.js` | Append rows/sheets, replace sheet data |
-| `list-documents` | `utils.js` | Search/filter document registry |
-| `list-templates` | dynamic import + `blueprint-store` | List available blueprint templates |
-| `dna` | `dna-tool.js` | Manage Document DNA (init/get/evolve/save-memory/delete-memory) |
-| `blueprint` | `blueprint-tool.js` | Learn/list/delete structural blueprints |
+| `detect-format` | `services/format-router.js` (called from `src/index.js`, MUST be awaited) | Recommend document format and tone (markdown/docx/excel) based on user query, title, content preview |
+| `create-doc` | `create-doc.js` | Create DOCX with styling, headers, footers, margins, DNA, blueprint validation. Schema advertises: header, footer, margins, backgroundColor, blueprint, enforceDocsFolder, preventDuplicates, tableHeaderFill, style. |
+| `create-markdown` | `create-markdown.js` | Create Markdown documents (no tables; for code-heavy/technical content) |
+| `create-excel` | `create-excel.js` | Create XLSX workbook with styling. DNA defaults are merged BEFORE the dryRun preview so the preview reflects what would be written. |
+| `edit-doc` | `edit-doc.js` | Append/replace/style/preview DOCX. `useLegacy:true` is destructive (loses formatting) and emits a runtime warning. |
+| `edit-excel` | `edit-excel.js` | Append rows/sheets, replace sheets, preview. Validation errors return structured `{success:false, error}` (not throws). |
+| `list-documents` | `utils.js` | Search/filter document registry (filters compose with AND-logic) |
+| `list-templates` | inline in `src/index.js` | Lists BOTH static templates (from `utils/document-tags.js`) AND learned blueprints (from `.document-blueprints.json`). Honors `category` filter. |
+| `dna` | `dna-tool.js` | Manage Document DNA (init/get/evolve/save-memory/delete-memory). `evolve` with `apply:true` MUTATES the dna config and may auto-create blueprints. |
+| `blueprint` | `blueprint-tool.js` | Learn/list/delete structural blueprints. `learn` validates filePath + name presence at the handler level. |
 | `drift-monitor` | `drift-tool.js` | Watch documents and check for structural drift |
 | `get-lineage` | `lineage-tool.js` | Trace document provenance chains (sources and derivatives) |
 
@@ -599,3 +602,19 @@ The `edit-doc` tool uses XML-level patching (not full document recreation) to pr
 10. **`analyzeTrends()` and `detectRecurringStructures()` are NOT on the hot path** — They were intentionally removed from `create-doc` for performance. They only run when the user explicitly calls `dna` with `action: "evolve"`.
 
 11. **`read-doc` accepts remote URLs (HTTPS only, single-use capability)** — When called with `url` + `authHeader` instead of `filePath`, the tool fetches a JSON envelope (`{data:base64, filename, mimeType, size}`) via `fetchToTempFile()` in `src/tools/read-doc-tool.js`, materializes the binary to `os.tmpdir()/doc-reader-<random>/`, runs the existing pipeline, and cleans up via `try/finally`. Security rules enforced in code: HTTPS only, no redirect following (`redirect: "error"`), no auto-retry on 401/404, `authHeader` is never logged, the URL token is redacted from log output (only host+path are logged). Payload size capped by `READ_DOC_MAX_BYTES` env var (default 50 MB). Designed for one-shot capabilities like CogniRunner's Forge web trigger that serves Jira attachments.
+
+12. **`read-doc` schema must NOT use top-level `anyOf`/`oneOf`/`allOf`** — the Anthropic API rejects this with `tools.N.custom.input_schema: input_schema does not support oneOf, allOf, or anyOf at the top level`, breaking every Claude-based MCP client. The schema uses `required: []` and `handleReadDoc` runtime-validates that filePath OR url+authHeader is present. Test `test:schemas` enforces this invariant. Note: `oneOf`/`anyOf` nested inside `properties.X.items` (e.g. PARA_ITEM) is fine — only top-level is rejected.
+
+13. **`detect-format` MUST be awaited** — `detectFormat()` in `src/services/format-router.js` is `async`. The dispatcher in `src/index.js` previously called it without `await`, returning `JSON.stringify(promise) === "{}"` to every caller. Always `await detectFormat(params)`. Tests in `test:schemas` enforce non-empty response.
+
+14. **`create-doc` reads parameters from `parsedInput`, NOT `input`** — the handler accepts JSON-string input as well as object input. After `parsedInput = typeof input === "string" ? JSON.parse(input) : input`, every subsequent caller-config read MUST use `parsedInput.X`. Reading `input.X` after parsedInput is set silently misses caller config when input came as a JSON string AND drops DNA defaults that `applyDNAToInput(parsedInput)` injected.
+
+15. **`create-excel` applies DNA defaults BEFORE the dryRun check** — so the preview reflects what would actually be written. The classifier uses `input.title` + `input.description` (not the top-left cell, which is fragile).
+
+16. **`edit-excel` returns structured errors** — validation failures return `{success: false, error, message}` instead of throwing. Caller can rely on the response shape. The top-level `try/catch` is reserved for unexpected errors.
+
+17. **`edit-doc useLegacy:true` is destructive** — recreates the document via mammoth which loses ALL original formatting (fonts, colors, images, headers, footers). The handler emits a `log("warn", ...)` when this path is taken. Schema description marks it as DANGER.
+
+18. **`list-templates` returns BOTH static templates AND learned blueprints** — static templates come from `src/utils/document-tags.js` (claude-like, marketing, technical-docs, business-report, legal). Learned blueprints come from `.document-blueprints.json`. Optional `category` filter substring-matches against name/stylePreset/recommendedFor.
+
+19. **`findMatchingTemplate` returns `null` when nothing matches** — used to fall back to "claude-like" for unknown documents, which masked the no-match case. Now returns `{key, ...template}` on match (with the key included so callers don't have to reverse-lookup) or `null`.

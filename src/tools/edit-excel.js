@@ -3,15 +3,19 @@ import fs from "fs";
 import path from "path";
 import { getStyleConfig, getAvailablePresets } from "./styling.js";
 import { registerDocumentInRegistry } from "./utils.js";
-// Import shared utilities (eliminates code duplication)
-import { stripMarkdownPlain } from "./doc-utils.js";
 import {
-  hexToRgb,
   applyExcelStyling,
   applyExcelStylingToNewRows,
   cleanSheetData,
   getZebraColor,
 } from "./excel-utils.js";
+import { log } from "../utils/logger.js";
+
+const fail = (error, message) => ({
+  success: false,
+  error,
+  message: message || `Failed to edit Excel file: ${error}`,
+});
 
 /**
  * Edits an existing Excel workbook by appending rows, adding sheets, or replacing sheets.
@@ -36,14 +40,12 @@ export async function editExcel(input) {
     const category = input.category || null;
     const tags = Array.isArray(input.tags) ? input.tags : [];
 
-    if (!filePath) {
-      throw new Error("filePath is required");
-    }
+    if (!filePath) return fail("filePath is required");
     if (
       !action ||
       !["append-rows", "append-sheet", "replace-sheet", "preview"].includes(action)
     ) {
-      throw new Error(
+      return fail(
         `Invalid action. Valid actions: 'append-rows' (add rows to existing sheet), 'append-sheet' (add new sheet), 'replace-sheet' (replace existing sheet), 'preview' (show what would change).`
       );
     }
@@ -52,10 +54,7 @@ export async function editExcel(input) {
       ? filePath
       : path.resolve(process.cwd(), filePath);
 
-    // Verify file exists
-    if (!fs.existsSync(resolvedPath)) {
-      throw new Error(`File not found: ${resolvedPath}`);
-    }
+    if (!fs.existsSync(resolvedPath)) return fail(`File not found: ${resolvedPath}`);
 
     // Read existing workbook
     const wb = XLSX.readFile(resolvedPath);
@@ -73,16 +72,14 @@ export async function editExcel(input) {
 
     if (action === "append-rows") {
       const sheetName = input.sheetName;
-      if (!sheetName) {
-        throw new Error("sheetName is required for append-rows action");
-      }
+      if (!sheetName) return fail("sheetName is required for append-rows action");
       if (!wb.SheetNames.includes(sheetName)) {
-        throw new Error(
+        return fail(
           `Sheet '${sheetName}' not found. Available sheets: ${wb.SheetNames.join(", ")}`,
         );
       }
       if (!Array.isArray(input.rows) || input.rows.length === 0) {
-        throw new Error("rows must be a non-empty array of row arrays");
+        return fail("rows must be a non-empty array of row arrays");
       }
 
       const ws = wb.Sheets[sheetName];
@@ -129,15 +126,13 @@ export async function editExcel(input) {
         !input.sheetData.name ||
         !Array.isArray(input.sheetData.data)
       ) {
-        throw new Error(
-          "sheetData with 'name' and 'data' is required for append-sheet action",
-        );
+        return fail("sheetData with 'name' and 'data' is required for append-sheet action");
       }
 
       const newSheetName = input.sheetData.name;
 
       if (wb.SheetNames.includes(newSheetName)) {
-        throw new Error(
+        return fail(
           `Sheet '${newSheetName}' already exists. Use 'replace-sheet' to overwrite, or choose a different name.`,
         );
       }
@@ -177,18 +172,14 @@ export async function editExcel(input) {
 
     if (action === "replace-sheet") {
       const sheetName = input.sheetName;
-      if (!sheetName) {
-        throw new Error("sheetName is required for replace-sheet action");
-      }
+      if (!sheetName) return fail("sheetName is required for replace-sheet action");
       if (!wb.SheetNames.includes(sheetName)) {
-        throw new Error(
+        return fail(
           `Sheet '${sheetName}' not found. Available sheets: ${wb.SheetNames.join(", ")}`,
         );
       }
       if (!input.sheetData || !Array.isArray(input.sheetData.data)) {
-        throw new Error(
-          "sheetData with 'data' array is required for replace-sheet action",
-        );
+        return fail("sheetData with 'data' array is required for replace-sheet action");
       }
 
       // Strip markdown from data using shared utility
@@ -239,6 +230,7 @@ export async function editExcel(input) {
       };
     }
   } catch (err) {
+    log("error", "[edit-excel] Unexpected error:", { message: err.message });
     return {
       success: false,
       error: err.message,

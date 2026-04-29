@@ -5,7 +5,6 @@ import {
   TableCell,
   TableRow,
   AlignmentType,
-  HeadingLevel,
   Header,
   Footer,
   PageNumber,
@@ -13,7 +12,7 @@ import {
   TableLayoutType,
 } from "docx";
 import { marked } from "marked";
-import { COLORS, createCellBorders, createCellMargins } from "./styling.js";
+import { log } from "../utils/logger.js";
 
 /**
  * Extracts heading levels from markdown content
@@ -278,9 +277,9 @@ export function parseInlineMarkdown(text, baseStyle = {}) {
     return runs.length > 0 ? runs : [createText(cleaned, baseStyle)];
   } catch (error) {
     // Fallback to plain text if parsing fails
-    console.warn(
-      "Markdown parsing failed, falling back to plain text:",
-      error.message,
+    log("warn",
+      "[doc-utils] Markdown parsing failed, falling back to plain text:",
+      { error: error.message },
     );
     return [createText(cleaned, baseStyle)];
   }

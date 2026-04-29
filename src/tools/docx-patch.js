@@ -1,13 +1,13 @@
 import JSZip from "jszip";
-import { Packer, Document, Paragraph, Table, HeadingLevel } from "docx";
+import { Packer, Document, Paragraph, HeadingLevel } from "docx";
 import {
   parseInlineMarkdown,
   createParagraph,
   createTableFromData,
-  createText,
   createCodeBlock,
 } from "./doc-utils.js";
 import { getStyleConfig, buildDocumentStyles } from "./styling.js";
+import { log } from "../utils/logger.js";
 import fs from "fs/promises";
 
 /**
@@ -709,8 +709,7 @@ export async function inspectDocx(filePath) {
       const tables = parser.findAllTags("w:tbl");
       result.structure.hasTables = tables.length > 0;
 
-      // Log for debugging
-      console.error(
+      log("debug",
         `[inspectDocx] Found ${paragraphs.length} paragraphs and ${tables.length} tables`,
       );
     }

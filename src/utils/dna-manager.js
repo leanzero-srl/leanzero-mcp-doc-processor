@@ -71,7 +71,7 @@ export function loadDNA(projectRoot) {
     if (err.code === "ENOENT") {
       return null;
     }
-    console.warn(`[dna-manager] Failed to load ${DNA_FILENAME}:`, err.message);
+    log("warn", `[dna-manager] Failed to load ${DNA_FILENAME}:`, { error: err.message });
     return null;
   }
 }
@@ -139,10 +139,10 @@ export function createDNAFile(config = {}, projectRoot) {
   const validation = validateDNA(merged);
   
   if (!validation.valid) {
-    console.warn(
-      `[dna-manager] DNA validation failed: ${validation.errors.join(", ")}`
+    log("warn",
+      `[dna-manager] DNA validation failed: ${validation.errors.join(", ")}`,
     );
-    console.warn("[dna-manager] Using DNA but validation issues should be addressed.");
+    log("warn", "[dna-manager] Using DNA but validation issues should be addressed.");
   }
 
   fs.writeFileSync(filePath, JSON.stringify(merged, null, 2), "utf-8");

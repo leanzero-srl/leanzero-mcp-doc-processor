@@ -11,6 +11,7 @@ import {
   classifyDocumentContent,
 } from "./utils.js";
 import { applyImplementationStyle } from "../utils/markdown-formatter.js";
+import { log } from "../utils/logger.js";
 
 /**
  * Creates a markdown document from structured content with implementation-style formatting
@@ -77,23 +78,23 @@ export async function createMarkdown(input) {
       return para;
     });
 
-    // Get category and tags from input
-    let category = input.category || null;
-    const tags = Array.isArray(input.tags) ? input.tags : [];
+    // Get category and tags from parsedInput (handles JSON-string inputs)
+    let category = parsedInput.category || null;
+    const tags = Array.isArray(parsedInput.tags) ? parsedInput.tags : [];
 
     // Auto-classify if no category provided and title/content available
-    if (!category && input.title) {
-      const classification = classifyDocumentContent(input.title, "");
+    if (!category && parsedInput.title) {
+      const classification = classifyDocumentContent(parsedInput.title, "");
       if (classification.category !== "misc") {
         category = classification.category;
-        console.error(
+        log("info",
           `[create-markdown] Auto-classified document as "${category}" (confidence: ${classification.confidence})`,
         );
       }
     }
 
     // Normalize input with extension handling FIRST
-    const normalized = validateAndNormalizeInput(input, [], "md");
+    const normalized = validateAndNormalizeInput(parsedInput, [], "md");
     let outputPath = normalized.outputPath;
     if (!path.isAbsolute(outputPath)) {
       outputPath = path.resolve(process.cwd(), outputPath);
@@ -107,7 +108,7 @@ export async function createMarkdown(input) {
     outputPath = categorizedPath;
 
     // Enforce docs/ folder FIRST so duplicate prevention checks the final location
-    const enforceDocs = input.enforceDocsFolder !== false;
+    const enforceDocs = parsedInput.enforceDocsFolder !== false;
     let { outputPath: docsPath, wasEnforced: docsEnforced } = enforceDocsFolder(
       outputPath,
       enforceDocs,
@@ -119,7 +120,7 @@ export async function createMarkdown(input) {
 
     // Dry run mode: return a preview without writing to disk
     // Must be checked BEFORE preventDuplicateFiles which creates placeholder files
-    if (input.dryRun) {
+    if (parsedInput.dryRun) {
       const paraCount = paragraphs.length;
       const totalParaChars = paragraphs.reduce((sum, p) => {
         const text = typeof p === "string" ? p : (p && p.text) || "";
@@ -148,7 +149,7 @@ export async function createMarkdown(input) {
     }
 
     // THEN prevent duplicate files (checks the final docs/ location)
-    const preventDupes = input.preventDuplicates !== false;
+    const preventDupes = parsedInput.preventDuplicates !== false;
     const uniquePath = await preventDuplicateFiles(outputPath, preventDupes);
     const wasDuplicatePrevented = uniquePath !== outputPath;
     outputPath = uniquePath;
@@ -156,9 +157,8 @@ export async function createMarkdown(input) {
     // Ensure output directory exists
     await ensureDirectory(path.dirname(outputPath));
 
-    // Log enforcement actions to teach AI models
     if (docsEnforced) {
-      console.error(
+      log("info",
         `[create-markdown] Enforced docs/ folder structure. File placed in: ${path.relative(
           process.cwd(),
           outputPath,
@@ -166,7 +166,7 @@ export async function createMarkdown(input) {
       );
     }
     if (wasDuplicatePrevented) {
-      console.error(
+      log("info",
         `[create-markdown] Prevented duplicate file. Created: ${path.basename(
           outputPath,
         )}`,
@@ -182,7 +182,7 @@ export async function createMarkdown(input) {
     // Register document in registry (non-blocking, failure is non-fatal)
     let registryEntry = null;
     try {
-      const autoDescription = input.description || (() => {
+      const autoDescription = parsedInput.description || (() => {
         const firstTextPara = paragraphs.find(p => typeof p === "string" ? p.trim() : (p.text && !p.headingLevel));
         const text = typeof firstTextPara === "string" ? firstTextPara : firstTextPara?.text;
         return text ? text.slice(0, 200).trim() : title;
@@ -196,7 +196,7 @@ export async function createMarkdown(input) {
         description: autoDescription,
       });
     } catch (err) {
-      console.warn("Failed to register document:", err.message);
+      log("warn", "[create-markdown] Failed to register document:", { error: err.message });
     }
 
     // Build message with enforcement information
