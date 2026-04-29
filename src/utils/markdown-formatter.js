@@ -98,49 +98,6 @@ export function formatQuote(text) {
 }
 
 /**
- * Format a table from 2D array data
- * @param {Array<Array<string>>} data - Table data as 2D array (first row is header)
- * @returns {string} Markdown table with alignment separators
- */
-export function formatTable(data) {
-  if (!Array.isArray(data) || data.length === 0) return '';
-  
-  // Ensure all rows have same number of columns
-  const maxCols = Math.max(...data.map(row => Array.isArray(row) ? row.length : 0));
-  if (maxCols === 0) return '';
-  
-  // Format header row
-  const headerRow = data[0];
-  const headerCells = headerRow.slice(0, maxCols)
-    .map(cell => cell !== undefined && cell !== null ? String(cell).trim() : '')
-    .join(' | ');
-  
-  // Format separator row
-  const separatorCells = Array(maxCols).fill('---').join(' | ');
-  
-  // Format data rows
-  const dataRows = data.slice(1)
-    .map(row => {
-      const cells = Array(maxCols).fill('');
-      if (Array.isArray(row)) {
-        for (let i = 0; i < row.length && i < maxCols; i++) {
-          cells[i] = row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : '';
-        }
-      }
-      return cells.join(' | ');
-    })
-    .join('\n');
-  
-  // Combine all rows
-  const rows = [headerCells, separatorCells];
-  if (dataRows) {
-    rows.push(dataRows);
-  }
-  
-  return rows.join('\n');
-}
-
-/**
  * Convert paragraph objects to markdown with implementation style formatting
  * @param {Array<MarkdownParagraph>} paragraphs - Array of paragraph objects or strings
  * @param {string} [docType] - The intended tone and depth (concise, formal, explanatory, scientific)
@@ -242,16 +199,3 @@ export function applyImplementationStyle(paragraphs, docType) {
   return formattedParts.join('\n\n');
 }
 
-/**
- * Convert paragraph objects to markdown with lean formatting rules
- * - No tables (use bullet lists instead)
- * - Heavy code blocks with language hints
- * - Bullet/checkbox lists for structured data
- * - Inline code for technical terms, paths, commands
- * @param {Array<MarkdownParagraph>} paragraphs - Array of paragraph objects or strings
- * @param {string} [docType] - The intended tone and depth (concise, formal, explanatory, scientific)
- * @returns {string} Lean formatted markdown content
- */
-export function convertToLeanMarkdown(paragraphs, docType) {
-  return applyImplementationStyle(paragraphs, docType);
-}

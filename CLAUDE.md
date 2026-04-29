@@ -193,7 +193,7 @@ mcp-doc-processor/
 │   │   ├── blueprint-tool.js       # blueprint tool handler — learn/list/delete
 │   │   ├── drift-tool.js           # drift-monitor tool handler — watch/check
 │   │   ├── lineage-tool.js         # get-lineage tool handler
-│   │   ├── styling.js              # 7 style presets, getStyleConfig(), buildDocumentStyles()
+│   │   ├── styling.js              # STYLE_PRESETS const + getStyleConfig() / buildDocumentStyles() / selectStyleBasedOnCategory() / createNumberingConfig() / createExcelColumnWidths() / createExcelRowHeights() / encodeCell(). ~1350 lines (down from 2634 — the legacy "flat-preset" helper system was removed in the dead-code cleanup; nested STYLE_PRESETS is the only system now).
 │   │   ├── doc-utils.js            # Shared: createParagraph(), parseInlineMarkdown(), createTableFromData()
 │   │   ├── docx-patch.js           # XML-level DOCX patching (SimpleXMLParser, appendToDocx, replaceDocxContent)
 │   │   ├── excel-utils.js          # Excel styling helpers
@@ -380,12 +380,15 @@ Eight presets: `minimal`, `professional`, `technical`, `legal`, `business`, `cas
 
 The default for create-doc when no category and no explicit preset is `claude-like` — modern blue-accented Calibri-based design with proper rendering of bullet/numbered lists, blockquotes, hyperlinks, horizontal rules, and inline tables (via `parseMarkdownToDocx`).
 
-### Architecture (Two Systems — Use Only Nested)
+### Architecture
 
-`src/tools/styling.js` contains both flat presets (legacy, unused) and nested presets (current). The current API:
-- `getStyleConfig(presetName, overrides)` → nested object with `font`, `heading1-3`, `title`, `paragraph`, `table`, `code` sections
-- `buildDocumentStyles(styleConfig)` → converts to `docx` library's `styles` format for `new Document({ styles: ... })`
-- `selectStyleBasedOnCategory(category)` → maps categories to presets
+`src/tools/styling.js` provides the styling pipeline:
+- `STYLE_PRESETS` — the single source of truth, 8 presets defined inline.
+- `getStyleConfig(presetName, overrides)` → nested object with `font`, `heading1-3`, `title`, `paragraph`, `table`, `code` sections (plus `blockquote`, `hr`, `link` on the `claude-like` preset).
+- `buildDocumentStyles(styleConfig)` → converts to `docx` library's `styles` format for `new Document({ styles: ... })`.
+- `selectStyleBasedOnCategory(category)` → maps categories to presets.
+- `createNumberingConfig()` → bullet/numbered list numbering definitions; required on every `new Document(...)` for list rendering.
+- (A previous "flat-preset" system with helpers like `heading1`/`para`/`bold`/`bulletItem`/`infoTable` was removed during the dead-code cleanup — those were never imported anywhere outside the file. ~1300 LOC removed.)
 
 ### Category-to-Style Mapping
 
