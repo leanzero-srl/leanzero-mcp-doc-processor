@@ -394,23 +394,53 @@ describe("create-doc upload integration", () => {
     assert.strictEqual(called, false, "fetch must not be called when auth header is missing");
   });
 
-  test("create-doc without upload params behaves identically to before (backward compat)", async () => {
+  test("normal agent — no upload params, no MCP_CLIENT_TYPE: response has ZERO upload-related fields", async () => {
+    // This test guards the genericity of the upload bridge: tools must
+    // continue to behave identically to the pre-upload-bridge era when no
+    // upload params are supplied. The response shape MUST NOT carry
+    // upload-related noise (uploaded / uploadAttachment / etc.) because
+    // those fields would mislead a model that has nothing to do with
+    // attachments.
     tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "create-no-upload-"));
     const outputPath = path.join(tempDir, "no-upload.docx");
 
-    const result = await createDoc({
-      title: "No Upload Sanity Check",
-      paragraphs: ["Plain content."],
-      outputPath,
-      enforceDocsFolder: false,
-      preventDuplicates: false,
-    });
+    // Ensure no env-leaked client hint
+    const previousEnv = process.env.MCP_CLIENT_TYPE;
+    delete process.env.MCP_CLIENT_TYPE;
 
-    assert.strictEqual(result.success, true);
-    assert.strictEqual(result.uploaded, false);
-    assert.strictEqual(result.uploadAttachment, null);
-    assert.strictEqual(result.uploadError, null);
-    assert.ok(fs.existsSync(result.filePath));
+    let fetchCalled = false;
+    globalThis.fetch = async () => {
+      fetchCalled = true;
+      return jsonOk({});
+    };
+
+    try {
+      const result = await createDoc({
+        title: "No Upload Sanity Check",
+        paragraphs: ["Plain content."],
+        outputPath,
+        enforceDocsFolder: false,
+        preventDuplicates: false,
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(fetchCalled, false, "no upload params → fetch must not be called at all");
+      assert.ok(fs.existsSync(result.filePath));
+
+      // Crucially: the upload-related fields must be ABSENT (undefined),
+      // not present-but-falsy. This is what makes the upload bridge a true
+      // additive feature for non-CogniRunner consumers.
+      assert.strictEqual(result.uploaded, undefined, "uploaded must not appear when no upload was attempted");
+      assert.strictEqual(result.uploadAttachment, undefined, "uploadAttachment must not appear");
+      assert.strictEqual(result.uploadStatus, undefined, "uploadStatus must not appear");
+      assert.strictEqual(result.uploadError, undefined, "uploadError must not appear");
+
+      // The verbose agent message must NOT mention upload outcomes.
+      assert.ok(!/UPLOADED|UPLOAD FAILED/i.test(result.message), `agent message must not mention upload when none happened: ${result.message}`);
+    } finally {
+      if (previousEnv === undefined) delete process.env.MCP_CLIENT_TYPE;
+      else process.env.MCP_CLIENT_TYPE = previousEnv;
+    }
   });
 
   test("interactive clientHint + successful upload produces concise message", async () => {

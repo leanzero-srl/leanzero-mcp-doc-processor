@@ -7,7 +7,9 @@ Part of the [LeanZero](https://leanzero.atlascrafted.com) ecosystem.
 ## Features
 
 - **Read any document** -- PDF, DOCX, and Excel with OCR support for image-based PDFs
-- **Create professional documents** -- DOCX and Excel with 7 style presets, headers, footers, and custom formatting
+- **Create polished documents** -- DOCX, Markdown, and Excel with 8 style presets (including a "claude-like" modern professional look), proper rendering of bullet/numbered lists, blockquotes, hyperlinks, code blocks, and tables embedded in markdown content
+- **Generic read & upload bridges** -- both `read-doc` and the create tools accept an HTTPS URL + Bearer auth so any Forge app, Cloudflare Worker, AWS Lambda, Express server, or other backend can plug in. doc-processor speaks one wire contract; you build the receiver however you like. CogniRunner's Jira-attachment bridge is the reference implementation, but the pattern is generic. **Existing local-file callers are unaffected.**
+- **Polished or verbose output** -- `clientHint` parameter lets host applications request a concise human-facing message or the full agent metadata response.
 - **Document DNA** -- project-level identity system that automatically applies styling, headers, and footers
 - **Auto-categorization** -- classifies documents into 6 categories (contracts, technical, business, legal, meeting, research) and organizes them into subfolders
 - **Blueprint system** -- structural templates extracted from existing documents or auto-learned from recurring patterns
@@ -15,7 +17,6 @@ Part of the [LeanZero](https://leanzero.atlascrafted.com) ecosystem.
 - **Lineage tracking** -- automatic provenance chains that record which source documents informed each created document
 - **Duplicate prevention** -- atomic file locking and registry-based title matching to prevent overwrites
 - **Document registry** -- searchable index of all created documents with category, tag, and title filtering
-- **Enhanced styling** -- advanced typography, color constants, and professional formatting helpers
 
 ## Tools
 
@@ -49,19 +50,27 @@ The server exposes 13 tools via the MCP protocol. Each tool uses an `action` or 
 
 Set `MCP_CLIENT_TYPE=interactive` in the MCP server's environment to make `"auto"` resolve to interactive across all calls.
 
-## Reading from remote URLs
+## Generic remote-read bridge — read files from any authenticated endpoint
 
-`read-doc` accepts a remote HTTPS URL guarded by a Bearer header in addition to local file paths. This is designed for **one-shot capabilities** -- short-lived, narrowly-scoped tokens that grant exactly one read of one specific resource -- such as the Forge web trigger that [CogniRunner](https://github.com/leanzero-srl/leanzero-cognirunner-forgeapp) (`feature/byok-postfunctions` branch) uses to expose Jira attachments to a local LM Studio instance.
+`read-doc` works on local files OR on a remote HTTPS URL guarded by a Bearer header. The remote shape is the **mirror image** of the upload bridge below — same wire contract, same security guarantees, same generic philosophy. doc-processor doesn't care what's on the other side; any HTTPS endpoint that returns the JSON envelope works.
+
+> **Reference implementation:** [CogniRunner](https://github.com/leanzero-srl/leanzero-cognirunner-forgeapp) — Forge web trigger that exposes Jira attachments to local LM Studio inference, behind a one-shot capability. Use it as a template for your own bridge.
+
+### Decision: when does it activate?
+
+The remote-read path fires **if and only if BOTH** `url` and `authHeader` are passed (and `filePath` is not). Otherwise `read-doc` works on the local path as before. **Existing local-file callers are 100% unaffected.**
 
 ### Calling shape
 
 ```json
 {
-  "url": "https://api.atlassian.com/.../webtrigger/<id>?t=<token>",
+  "url": "https://your-receiver.example/attachments/123?t=<token>",
   "authHeader": "Bearer <bearer>",
   "mode": "summary"
 }
 ```
+
+### Wire contract
 
 The endpoint is expected to return HTTP 200 with `Content-Type: application/json` and a body of:
 
@@ -74,23 +83,19 @@ The endpoint is expected to return HTTP 200 with `Content-Type: application/json
 }
 ```
 
-`read-doc` decodes the base64 payload, writes it to a unique per-call temp directory under `os.tmpdir()`, runs the existing extraction pipeline, and cleans up the temp dir afterward (even if the pipeline throws).
+`read-doc` decodes the base64 payload, writes it to a unique per-call temp directory under `os.tmpdir()`, runs the existing PDF/DOCX/XLSX extraction pipeline, and cleans up the temp dir afterward (even if the pipeline throws).
 
-### Security model
+### Security guarantees
 
-The `url` and `authHeader` parameters carry a one-shot capability. The implementation enforces:
+Same as the upload bridge — see the next section for the full list. In short:
 
-- **HTTPS only** -- non-`https://` URLs are rejected before any fetch is issued.
-- **No redirect following** -- `fetch` is called with `redirect: "error"`. A legitimate web trigger never 3xx's; if one does, treat it as hostile.
-- **No auto-retry on 401 / 404** -- a `401` means the bearer was wrong (caller error); a `404` means the token already worked once or expired (single-use semantics). The caller must mint a fresh capability rather than retry.
-- **Auth header is never logged** -- the helper logs only `host` + `pathname` from the URL; the `?t=` token and the `Authorization` header are redacted.
-- **No caching** -- the payload, URL, and auth header live only for the duration of the single call.
+- HTTPS only, no redirects, no auto-retry on 4xx, auth header never logged, URL token redacted in logs, 30-second timeout, payload size capped by `READ_DOC_MAX_BYTES` (default 50 MB).
 
-If your endpoint expects a different response shape, point it through a small adapter rather than relaxing these rules.
+### Build your own remote-read source
 
-### CogniRunner integration example
+It's the inverse of the upload receiver, so the same Forge / Express skeletons in the next section apply. For Forge, instead of POSTing to `/rest/api/3/issue/{key}/attachments`, GET from `/rest/api/3/attachment/content/{id}` and base64-encode the response into the JSON envelope shape above. The CogniRunner repo has the full pattern.
 
-CogniRunner's `mcp.json` snippet for wiring this server to an LM Studio agent that needs to read Jira attachments:
+### `mcp.json` example
 
 ```json
 {
@@ -99,39 +104,52 @@ CogniRunner's `mcp.json` snippet for wiring this server to an LM Studio agent th
       "command": "node",
       "args": ["/absolute/path/to/mcp-doc-processor/src/index.js"],
       "env": {
-        "READ_DOC_MAX_BYTES": "52428800"
+        "READ_DOC_MAX_BYTES": "52428800",
+        "WRITE_DOC_MAX_BYTES": "26214400",
+        "MCP_CLIENT_TYPE": "agent"
       }
     }
   }
 }
 ```
 
-CogniRunner mints the `url` + `authHeader` per attachment in its post-function flow and passes them to the model in its system prompt; the model then calls `read-doc` directly. See the [CogniRunner repo](https://github.com/leanzero-srl/leanzero-cognirunner-forgeapp/tree/feature/byok-postfunctions) for token issuance details.
+The application that hosts the model (CogniRunner, your own Forge app, Claude Desktop with extra context, an internal post-function, etc.) injects the per-call `url`/`authHeader` for read OR `uploadUrl`/`uploadAuthHeader` for write into the model's prompt. doc-processor never sees the application — it just speaks the wire contract.
 
-## Uploading to authenticated endpoints
+## Generic upload bridge — attach files to any authenticated endpoint
 
-The three creation tools (`create-doc`, `create-markdown`, `create-excel`) accept an optional `uploadUrl` + `uploadAuthHeader` pair. When set, after writing the file locally the tool POSTs a JSON envelope to that URL — symmetric with `read-doc`'s URL fetch path. Designed for one-shot upload capabilities (e.g. attaching the freshly-created document to a Jira issue via CogniRunner's `attachment-upload` web trigger).
+`create-doc`, `create-markdown`, and `create-excel` can OPTIONALLY upload the file they just wrote to **any HTTPS endpoint** that implements a small, well-defined contract. Use this to:
 
-### Calling shape
+- Attach a generated document to a Jira issue (Atlassian Forge)
+- Drop a generated workbook into a Slack channel via a Slack-bot lambda
+- Push a generated markdown file to a GitHub issue via a tiny proxy
+- Send a generated PDF to a Cloudflare R2 / S3 signed-URL receiver
+- Hook into your internal document-management system
 
-```json
-{
-  "title": "Q1 2026 Engineering Strategy",
-  "paragraphs": ["..."],
-  "uploadUrl": "https://api.atlassian.com/.../webtrigger/<id>?t=<token>",
-  "uploadAuthHeader": "Bearer <bearer>",
-  "uploadFilename": "q1-2026-strategy.docx"
-}
-```
+doc-processor doesn't know or care what's on the other side. It just speaks one well-defined wire contract; you build the receiver however you like.
 
-The `uploadFilename` is optional and overrides the default (the local file's basename).
+> **Reference implementation:** [CogniRunner](https://github.com/leanzero-srl/leanzero-cognirunner-forgeapp) — a Forge app that exposes a per-issue, single-use upload capability so an LM Studio model can attach generated docs back to Jira tickets. The CogniRunner web trigger is ~150 lines and worth reading if you're building your own receiver.
 
-### Wire format (sent to `uploadUrl`)
+### Decision: when does it activate?
+
+The upload bridge fires **if and only if BOTH** `uploadUrl` and `uploadAuthHeader` are present in the call. Otherwise the tool behaves exactly as before — writes the file locally, returns the path, no upload-related fields in the response. **Existing callers and "normal" agent flows are 100% unaffected.**
+
+| Caller passes | Behavior |
+|---|---|
+| Neither `uploadUrl` nor `uploadAuthHeader` | Local write only. Response has no upload-related fields. (default) |
+| Both | Local write **then** upload. Response gains `uploaded`, `uploadAttachment`, `uploadStatus`, `uploadError`. |
+| Only one | Local write succeeds. Response has `uploaded: false, uploadError: "uploadUrl and uploadAuthHeader must be provided together"`. `fetch` is never called. |
+
+The model decides per-call. If your application injects upload credentials into the model's context (system prompt or per-tool extra args), the model uses them. If you don't, the model ignores those fields — there's nothing for it to fill in.
+
+### Wire contract
+
+#### Request (doc-processor → your receiver)
 
 ```
 POST <uploadUrl>
 Authorization: <uploadAuthHeader>
 Content-Type: application/json
+Accept: application/json
 
 {
   "data":     "<base64-encoded file bytes>",
@@ -141,46 +159,197 @@ Content-Type: application/json
 }
 ```
 
-Expected success response (HTTP 200, JSON):
+#### Success response (your receiver → doc-processor)
+
+HTTP 200, `Content-Type: application/json`:
 
 ```json
 {
   "success": true,
   "attachment": {
-    "id": "10523",
+    "id":       "<your-target-id>",
     "filename": "q1-2026-strategy.docx",
-    "size": 27834,
+    "size":     27834,
     "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "content": "https://<your-site>.atlassian.net/rest/api/3/attachment/content/10523"
+    "content":  "<URL or pointer the user can use to access the uploaded file>"
   }
 }
 ```
 
-### Security model
+The `attachment.content` field is what gets shown in the model's interactive-mode response message — it should be a usable URL (e.g. the Jira attachment content URL) so end-users get a working link.
 
-The same rules as the read URL path:
+doc-processor tolerates any 2xx JSON shape — if `attachment` is missing it uses the whole body, but the strict shape above is recommended.
 
-- **HTTPS only.** Non-`https://` URLs are rejected before any fetch.
-- **No redirect following.** Legitimate single-use endpoints never 3xx.
-- **No auto-retry on 401 / 404.** A `401` means the bearer was wrong; a `404` means the token was already consumed or expired (the URL is single-use).
-- **`uploadAuthHeader` is never logged.** The `?t=` URL token is redacted in any log output — only host+path are emitted.
-- **No caching.** The bytes, URL, and auth header live only for the duration of the single call.
-- **Local file kept on upload failure.** The caller can retry the upload manually or use the local path directly. The tool's response includes `uploaded: false, uploadError: "..."` on failure.
+#### Failure responses
 
-Set the cap via `WRITE_DOC_MAX_BYTES` env var (default 25 MB).
+doc-processor surfaces these verbatim as `uploadError` and **does not auto-retry**:
 
-### Response shape
+| Status | Meaning |
+|---|---|
+| 400 | malformed envelope |
+| 401 | bearer mismatch |
+| 404 | token expired / consumed (single-use) |
+| 413 | payload too large for receiver |
+| 415 | disallowed mimeType / extension |
+| 502 | receiver's upstream (e.g. Jira) failed |
+| 500 | unexpected receiver error |
 
-The handler appends four fields to its normal response:
+Receivers MUST NOT respond with 3xx — `fetch` is configured with `redirect: "error"` and aborts on any redirect.
+
+### Security guarantees the SENDER (doc-processor) provides
+
+- **HTTPS only.** Non-`https://` URLs are rejected before `fetch` is called.
+- **No redirects.** `redirect: "error"` — receiver must respond directly.
+- **No auto-retry on any 4xx/5xx.** Single-use semantics are honored end-to-end.
+- **`uploadAuthHeader` is never logged** at any level.
+- **URL `?t=` token is redacted** in log output — only host+path are emitted.
+- **No caching.** Bytes, URL, auth header live only for the duration of one call.
+- **Bounded payload size.** Capped by `WRITE_DOC_MAX_BYTES` env var (default 25 MB).
+- **60-second timeout** on the upload fetch.
+- **Local file is kept on upload failure** — your caller can retry or fall back to the local path.
+
+### What your RECEIVER should provide
+
+- HTTPS endpoint with a valid certificate.
+- One-shot capability semantics if you're using URL+bearer pairs (mint per request, store with TTL, delete-on-consume, constant-time bearer compare).
+- Don't 3xx — return 4xx/5xx with a JSON body.
+- Validate filename extension on the receiver side; don't trust the envelope's `mimeType` field as authoritative.
+- Audit-log the upload event (caller, target, filename, bytes).
+
+### Build your own receiver
+
+#### Atlassian Forge web trigger (the CogniRunner pattern)
+
+Receives the JSON envelope, validates a one-shot capability, forwards to Jira's attachment endpoint via `api.asApp().requestJira()`. Skeleton (~50 lines):
+
+```javascript
+import api, { route } from "@forge/api";
+import storage from "@forge/kvs";
+import FormData from "form-data";
+import { timingSafeEqual } from "node:crypto";
+
+export async function serveAttachmentUpload(request) {
+  const token = request.queryParameters?.t?.[0];
+  if (!token) return { statusCode: 404, body: "" };
+
+  const auth = request.headers?.authorization?.[0] || "";
+  if (!auth.startsWith("Bearer ")) return { statusCode: 401, body: "" };
+  const bearer = auth.slice(7);
+
+  const cap = await storage.get(`uploadcap:${token}`);
+  await storage.delete(`uploadcap:${token}`);   // single-use: consume BEFORE any work
+  if (!cap || cap.expiresAt < Date.now()) return { statusCode: 404, body: "" };
+
+  const a = Buffer.from(cap.bearer, "utf8");
+  const b = Buffer.from(bearer, "utf8");
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return { statusCode: 401, body: "" };
+
+  const envelope = JSON.parse(request.body);
+  if (typeof envelope.data !== "string") return { statusCode: 400, body: '{"error":"missing data"}' };
+
+  const buf = Buffer.from(envelope.data, "base64");
+  if (buf.length > 25 * 1024 * 1024) return { statusCode: 413, body: "" };
+
+  const allowed = new Set([".pdf", ".docx", ".xlsx", ".md", ".txt", ".csv"]);
+  const ext = (envelope.filename.match(/\.[^.]+$/) || [""])[0].toLowerCase();
+  if (!allowed.has(ext)) return { statusCode: 415, body: "" };
+
+  const form = new FormData();
+  form.append("file", buf, { filename: envelope.filename, contentType: envelope.mimeType, knownLength: buf.length });
+
+  const jiraResp = await api.asApp().requestJira(
+    route`/rest/api/3/issue/${cap.issueKey}/attachments`,
+    { method: "POST", body: form, headers: { Accept: "application/json", "X-Atlassian-Token": "no-check" } },
+  );
+  if (!jiraResp.ok) return { statusCode: 502, body: '{"error":"jira upstream failed"}' };
+
+  const created = (await jiraResp.json())[0];
+  return {
+    statusCode: 200,
+    headers: { "Content-Type": ["application/json"] },
+    body: JSON.stringify({
+      success: true,
+      attachment: {
+        id: created.id,
+        filename: created.filename,
+        size: created.size,
+        mimeType: created.mimeType,
+        content: created.content,
+      },
+    }),
+  };
+}
+```
+
+#### Express server (for local testing or non-Forge use cases)
+
+```javascript
+import express from "express";
+import { randomUUID } from "node:crypto";
+
+const app = express();
+app.use(express.json({ limit: "30mb" }));
+
+const TOKEN = "test-token-123";
+const BEARER = "Bearer test-bearer-456";
+
+app.post("/upload", (req, res) => {
+  if (req.query.t !== TOKEN) return res.status(404).end();
+  if (req.headers.authorization !== BEARER) return res.status(401).end();
+
+  const { data, filename, mimeType, size } = req.body;
+  if (!data) return res.status(400).json({ error: "missing data" });
+
+  const buf = Buffer.from(data, "base64");
+  if (buf.length > 25 * 1024 * 1024) return res.status(413).end();
+
+  // Persist the file or forward it somewhere — your call.
+  console.log(`Received ${filename} (${mimeType}, ${size} bytes)`);
+
+  res.json({
+    success: true,
+    attachment: {
+      id: randomUUID(),
+      filename,
+      size: buf.length,
+      mimeType,
+      content: `https://your-storage.example/files/${filename}`,
+    },
+  });
+});
+
+app.listen(8443);
+```
+
+(For production, terminate TLS in front via a real cert — doc-processor refuses non-HTTPS.)
+
+### Calling shape (what you put in the model's tool args)
+
+```json
+{
+  "title": "Q1 2026 Engineering Strategy",
+  "paragraphs": ["..."],
+  "uploadUrl": "https://your-receiver.example/upload?t=<one-shot-token>",
+  "uploadAuthHeader": "Bearer <one-shot-bearer>",
+  "uploadFilename": "q1-2026-strategy.docx",
+  "clientHint": "interactive"
+}
+```
+
+The `uploadFilename` is optional and overrides the default (the local file's basename). Useful when duplicate prevention auto-suffixes the local filename and you still want a clean name on the receiver side.
+
+### Response shape (when upload was attempted)
+
+The handler appends four fields to its normal response **only when an upload was attempted** (when both upload params were supplied). For "normal" agent calls without upload params, none of these fields appear.
 
 | Field | Type | Description |
-|-------|------|-------------|
-| `uploaded` | boolean | `true` if the upload succeeded with a 2xx, `false` otherwise. |
-| `uploadAttachment` | object \| null | Whatever the receiver returned in `attachment` (or null on failure). |
-| `uploadStatus` | number \| null | The HTTP status code from the receiver (200 on success). |
-| `uploadError` | string \| null | The error message if upload failed. |
+|---|---|---|
+| `uploaded` | boolean | `true` if 2xx, `false` if any error path |
+| `uploadAttachment` | object \| null | Whatever the receiver returned in `attachment` |
+| `uploadStatus` | number \| null | HTTP status code from the receiver |
+| `uploadError` | string \| null | Error message if the upload failed |
 
-In `clientHint: "interactive"` mode, the response message collapses to a single line:
+In `clientHint: "interactive"` mode the response message collapses to one line:
 
 - Success: `Created and uploaded: <path> → <attachment-content-url>`
 - Failure: `Created locally at <path>; upload failed: <error>`

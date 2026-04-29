@@ -260,14 +260,22 @@ export async function createMarkdown(input) {
     const interactiveMessage = uploadInteractiveMsg;
     const agentMessage = `MARKDOWN FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .md file on your filesystem. The document is available at the absolute path shown above.\n\n${enforcementMessage}` + uploadAgentNote;
 
+    // Only surface upload fields when the caller opted into the upload path.
+    const uploadAttempted = !!uploadResult || !!uploadError;
+    const uploadFields = uploadAttempted
+      ? {
+          uploaded: !!uploadResult,
+          uploadAttachment: uploadResult?.attachment || null,
+          uploadStatus: uploadResult?.status || null,
+          uploadError: uploadError || null,
+        }
+      : {};
+
     return {
       success: true,
       filePath: outputPath,
       clientMode,
-      uploaded: !!uploadResult,
-      uploadAttachment: uploadResult?.attachment || null,
-      uploadStatus: uploadResult?.status || null,
-      uploadError: uploadError || null,
+      ...uploadFields,
       category: category || null,
       tags: tags.length > 0 ? tags : null,
       wasCategorized: wasCategorized,
