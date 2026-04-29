@@ -29,6 +29,7 @@ import {
   getPresetDescription,
   selectStyleBasedOnCategory,
   buildDocumentStyles,
+  createNumberingConfig,
 } from "./styling.js";
 import {
   validateAndNormalizeInput,
@@ -39,6 +40,7 @@ import {
   registerDocumentInRegistry,
   getCategoryPath,
   classifyDocumentContent,
+  resolveClientHint,
 } from "./utils.js";
 import { applyDNAToInput, loadDNA, recordUsage, signatureSimilarity } from "../utils/dna-manager.js";
 import { log } from "../utils/logger.js";
@@ -50,14 +52,13 @@ import { validateAgainstBlueprint } from "../services/blueprint-extractor.js";
 import {
   stripMarkdownLinePrefixes,
   parseInlineMarkdown,
+  parseMarkdownToDocx,
   stripMarkdownPlain,
   extractHeadingLevels,
-  createText,
   createParagraph,
   createTableFromData,
   createDocHeader,
   createDocFooter,
-  createCodeBlock,
 } from "./doc-utils.js";
 
 // Re-export for backwards compatibility (other modules import from create-doc.js)
@@ -414,9 +415,10 @@ export async function createDoc(input) {
       stylePreset = parsedInput.stylePreset;
       styleReason = "DNA default";
     } else {
-      // DEFAULT: professional preset (will be replaced by claude-like in Phase 2.4)
-      stylePreset = "professional";
-      styleReason = "default (professional)";
+      // DEFAULT: claude-like — modern blue-accented professional with
+      // generous whitespace and proper list/blockquote/link rendering.
+      stylePreset = "claude-like";
+      styleReason = "default (claude-like)";
       log("info",
         `[create-doc] Using default style "${stylePreset}"`,
       );
@@ -517,35 +519,29 @@ export async function createDoc(input) {
       );
     }
 
-    // Add paragraphs with proper styling (markdown ornaments are parsed into formatting)
+    // Add paragraphs with proper styling.
+    //
+    // STRING entries: pass through `parseMarkdownToDocx` which handles
+    // bullet/numbered lists, blockquotes, horizontal rules, hyperlinks,
+    // inline markdown tables, fenced code blocks, and inline emphasis.
+    //
+    // OBJECT entries with explicit `headingLevel`: use the legacy inline
+    // path so the caller's intent (this is a heading, not a paragraph) is
+    // preserved exactly — block-level parsing would re-tokenize the text
+    // and could split it.
     for (const para of processedParagraphs) {
       if (!para) continue;
 
       if (typeof para === "string") {
-        // Detect fenced code blocks (```...```)
-        if (para.trimStart().startsWith("```")) {
-          children.push(...createCodeBlock(para, styleConfig.code));
-          continue;
-        }
-
-        // Parse inline markdown into styled TextRun array
         const baseStyle = {
           size: styleConfig.font.size,
           fontFamily: styleConfig.font.family,
           color: styleConfig.font.color,
           codeColor: styleConfig.code?.color,
           codeBackground: styleConfig.code?.backgroundColor,
+          linkColor: styleConfig.link?.color,
         };
-        const textRuns = parseInlineMarkdown(para, baseStyle);
-
-        children.push(
-          createParagraph(textRuns, {
-            alignment: styleConfig.paragraph.alignment,
-            spacingBefore: styleConfig.paragraph.spacingBefore,
-            spacingAfter: styleConfig.paragraph.spacingAfter,
-            lineSpacing: styleConfig.paragraph.lineSpacing,
-          }),
-        );
+        children.push(...parseMarkdownToDocx(para, baseStyle, styleConfig));
       } else if (para && typeof para === "object" && para.text) {
         // Determine heading level and apply preset styling
         const isHeading =
@@ -642,6 +638,11 @@ export async function createDoc(input) {
       title: title,
       description: autoDescription,
       styles: buildDocumentStyles(styleConfig),
+      // Numbering config is REQUIRED for bullet/numbered list paragraphs
+      // emitted by parseMarkdownToDocx to render correctly. Without it the
+      // numbering: { reference: "bullets" } property is dropped and lists
+      // become unindented plain paragraphs.
+      numbering: createNumberingConfig(),
       sections: [
         {
           ...sectionProps,
@@ -724,26 +725,38 @@ export async function createDoc(input) {
       // Lineage tracking is non-fatal
     }
 
-    // Build message with enforcement information
+    // Resolve interactive vs agent output shape
+    const clientMode = resolveClientHint(parsedInput);
+    const isInteractive = clientMode === "interactive";
+
+    // Build message with enforcement information (agent mode only)
     let enforcementMessage = "";
-    if (docsEnforced) {
-      enforcementMessage += `NOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\n`;
+    if (!isInteractive) {
+      if (docsEnforced) {
+        enforcementMessage += `NOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\n`;
+      }
+      if (wasDuplicatePrevented) {
+        enforcementMessage += `NOTE: Duplicate file detected and prevented. Used unique filename: ${path.basename(
+          outputPath,
+        )}. To allow duplicates, set preventDuplicates: false.\n`;
+      }
+      if (wasCategorized) {
+        enforcementMessage += `NOTE: Document categorized as "${category}" and placed in docs/${getCategoryPath(category).subfolder}/.\n`;
+      }
+      if (registryEntry) {
+        enforcementMessage += `NOTE: Document registered in registry (ID: ${registryEntry.id}).\n`;
+      }
     }
-    if (wasDuplicatePrevented) {
-      enforcementMessage += `NOTE: Duplicate file detected and prevented. Used unique filename: ${path.basename(
-        outputPath,
-      )}. To allow duplicates, set preventDuplicates: false.\n`;
-    }
-    if (wasCategorized) {
-      enforcementMessage += `NOTE: Document categorized as "${category}" and placed in docs/${getCategoryPath(category).subfolder}/.\n`;
-    }
-    if (registryEntry) {
-      enforcementMessage += `NOTE: Document registered in registry (ID: ${registryEntry.id}).\n`;
-    }
+
+    const interactiveMessage = `Created: ${outputPath}`;
+    const agentMessage = `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
+      (blueprintMatch ? `\nBLUEPRINT MATCH: ${blueprintMatch.message}\n` : "") +
+      (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : "");
 
     return {
       success: true,
       filePath: outputPath,
+      clientMode,
       category: category || null,
       tags: tags.length > 0 ? tags : null,
       wasCategorized: wasCategorized,
@@ -752,7 +765,7 @@ export async function createDoc(input) {
         : null,
       stylePreset: stylePreset,
       styleReason: styleReason,
-      styleConfig: {
+      styleConfig: isInteractive ? undefined : {
         preset: stylePreset,
         description: getPresetDescription(stylePreset),
         font: styleConfig.font,
@@ -762,21 +775,19 @@ export async function createDoc(input) {
       dnaApplied: hasDNA,
       header: hasHeader ? parsedInput.header : null,
       footer: hasFooter ? parsedInput.footer : null,
-      enforcement: {
+      enforcement: isInteractive ? undefined : {
         docsFolderEnforced: docsEnforced,
         duplicatePrevented: wasDuplicatePrevented,
         categorized: wasCategorized,
         categoryApplied: category || null,
       },
-      memoriesApplied: memories ? Object.keys(memories).length : 0,
+      memoriesApplied: isInteractive ? undefined : (memories ? Object.keys(memories).length : 0),
       blueprintMatch: blueprintMatch || null,
-      lineage: lineageRecord ? {
+      lineage: isInteractive ? undefined : (lineageRecord ? {
         sourceCount: lineageRecord.sources.length,
         sources: lineageRecord.sources.map(s => s.filePath),
-      } : null,
-      message: `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
-        (blueprintMatch ? `\nBLUEPRINT MATCH: ${blueprintMatch.message}\n` : "") +
-        (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : ""),
+      } : null),
+      message: isInteractive ? interactiveMessage : agentMessage,
     };
   } catch (err) {
     return {

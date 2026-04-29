@@ -6,7 +6,7 @@ import {
   createTableFromData,
   createCodeBlock,
 } from "./doc-utils.js";
-import { getStyleConfig, buildDocumentStyles } from "./styling.js";
+import { getStyleConfig, buildDocumentStyles, createNumberingConfig } from "./styling.js";
 import { log } from "../utils/logger.js";
 import fs from "fs/promises";
 
@@ -250,9 +250,12 @@ async function generateParagraphsXML(paragraphs, styleConfig) {
     }
   }
 
-  // Create a temporary document to generate the XML (with embedded styles)
+  // Create a temporary document to generate the XML (with embedded styles).
+  // Numbering config is included so list paragraphs from parseMarkdownToDocx
+  // render correctly even when emitted via the XML-patch path.
   const tempDoc = new Document({
     styles: buildDocumentStyles(styleConfig),
+    numbering: createNumberingConfig(),
     sections: [
       {
         children:
@@ -299,9 +302,9 @@ async function generateTablesXML(tables, styleConfig) {
 
   if (children.length === 0) return "";
 
-  // Create a temporary document to generate the XML (with embedded styles)
   const tempDoc = new Document({
     styles: buildDocumentStyles(styleConfig),
+    numbering: createNumberingConfig(),
     sections: [
       {
         children,
@@ -309,7 +312,6 @@ async function generateTablesXML(tables, styleConfig) {
     ],
   });
 
-  // Pack to buffer and extract XML
   const buffer = await Packer.toBuffer(tempDoc);
   const zip = await JSZip.loadAsync(buffer);
   const documentXml = await zip.file("word/document.xml").async("string");
@@ -545,6 +547,7 @@ export async function replaceDocxContent(filePath, options = {}) {
 
       const tempDoc = new Document({
         styles: buildDocumentStyles(styleConfig),
+        numbering: createNumberingConfig(),
         sections: [{ children: [titlePara] }],
       });
 
@@ -806,6 +809,7 @@ export async function applyStylingToDocx(filePath, options = {}) {
     // Create a new document with proper styling (embedded style definitions)
     const newDoc = new Document({
       styles: buildDocumentStyles(styleConfig),
+      numbering: createNumberingConfig(),
       sections: [
         {
           children:

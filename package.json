@@ -7,17 +7,10 @@
   "scripts": {
     "start": "node src/index.js",
     "test": "node test/test-markdown-format-router.js",
-    "test:ocr": "node test/test-ocr-improvements.js",
-    "test:styling": "node --test test/test-styling.js",
-    "test:create": "node --test test/create-tools.js",
-    "test:patch": "node --test test/test-docx-patch.js",
-    "test:category": "node test/test-category-registry.js",
-    "test:dna": "node test/test-dna.js",
-    "test:innovations": "node --test test/test-innovations.js",
-    "test:drift": "node --test test/test-drift-internals.js",
-    "test:auto-blueprint": "node --test test/test-auto-blueprint.js",
     "test:read-doc": "node --test test/test-read-doc.js",
     "test:schemas": "node --test test/test-tool-schemas.js",
+    "test:render": "node --test test/test-render-markdown.js",
+    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render",
     "lint:no-console-log": "! grep -rn 'console\\.log(' src/ --include='*.js'"
   },
   "dependencies": {

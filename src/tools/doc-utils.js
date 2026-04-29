@@ -5,11 +5,14 @@ import {
   TableCell,
   TableRow,
   AlignmentType,
+  HeadingLevel,
   Header,
   Footer,
   PageNumber,
   ShadingType,
   TableLayoutType,
+  ExternalHyperlink,
+  BorderStyle,
 } from "docx";
 import { marked } from "marked";
 import { log } from "../utils/logger.js";
@@ -101,6 +104,7 @@ export function createText(text, options = {}) {
     bold: options.bold ?? false,
     italics: options.italics ?? false,
     underline: options.underline ? { style: "single" } : undefined,
+    strike: options.strike ?? false,
     size: (options.size || 12) * 2, // Convert points to half-points
     color: options.color || "000000",
     font: options.fontFamily || "Arial",
@@ -170,16 +174,33 @@ function processMarkedToken(token, baseStyle, currentStyle = {}) {
       );
       break;
 
-    case "link":
-      // Links - just render the text (ignore URL for DOCX)
+    case "link": {
+      const linkColor = baseStyle.linkColor || "2563EB";
+      const linkRuns = [];
+      const linkChildStyle = { ...currentStyle, color: linkColor, underline: true };
       if (token.tokens && token.tokens.length > 0) {
         token.tokens.forEach((childToken) => {
-          runs.push(...processMarkedToken(childToken, baseStyle, currentStyle));
+          linkRuns.push(
+            ...processMarkedToken(childToken, baseStyle, linkChildStyle),
+          );
         });
       } else if (token.text) {
-        runs.push(createText(token.text, style));
+        linkRuns.push(createText(token.text, { ...style, color: linkColor, underline: true }));
+      }
+      // Only wrap as a real ExternalHyperlink if the href is http(s).
+      if (token.href && /^https?:\/\//i.test(token.href)) {
+        runs.push(
+          new ExternalHyperlink({
+            children: linkRuns,
+            link: token.href,
+          }),
+        );
+      } else {
+        // mailto:, anchor links, or no href — render the styled text without the hyperlink wrapper
+        runs.push(...linkRuns);
       }
       break;
+    }
 
     case "escape":
       // Escaped characters
@@ -192,13 +213,13 @@ function processMarkedToken(token, baseStyle, currentStyle = {}) {
       break;
 
     case "del":
-      // Strikethrough (not well supported in basic DOCX, render as plain)
+      // Strikethrough — recurse with strike on so nested formatting is preserved.
       if (token.tokens && token.tokens.length > 0) {
         token.tokens.forEach((childToken) => {
-          runs.push(...processMarkedToken(childToken, baseStyle, currentStyle));
+          runs.push(...processMarkedToken(childToken, baseStyle, { ...currentStyle, strike: true }));
         });
       } else if (token.text) {
-        runs.push(createText(token.text, style));
+        runs.push(createText(token.text, { ...style, strike: true }));
       }
       break;
 
@@ -591,4 +612,310 @@ export function createCodeBlock(code, codeStyle = {}) {
       },
     });
   });
+}
+
+// ============================================================================
+// BLOCK-LEVEL MARKDOWN RENDERER (parseMarkdownToDocx + helpers)
+// ============================================================================
+
+/**
+ * Process inline tokens from a marked.js block-level token into a flat
+ * array of TextRun / ExternalHyperlink / etc. Suitable as Paragraph children.
+ */
+function renderInlineTokens(tokens, baseStyle, parentStyle = {}) {
+  const runs = [];
+  if (!Array.isArray(tokens)) return runs;
+  for (const tok of tokens) {
+    runs.push(...processMarkedToken(tok, baseStyle, parentStyle));
+  }
+  return runs;
+}
+
+/**
+ * Render a marked.js `paragraph` token to a single Paragraph.
+ */
+function renderParagraphToken(token, baseStyle, styleConfig) {
+  const inline = token.tokens && token.tokens.length > 0
+    ? renderInlineTokens(token.tokens, baseStyle)
+    : [createText(token.text || "", baseStyle)];
+
+  return createParagraph(inline, {
+    alignment: styleConfig.paragraph?.alignment,
+    spacingBefore: styleConfig.paragraph?.spacingBefore,
+    spacingAfter: styleConfig.paragraph?.spacingAfter,
+    lineSpacing: styleConfig.paragraph?.lineSpacing,
+  });
+}
+
+/**
+ * Render a marked.js `heading` token to a single Paragraph styled per the
+ * configured headingN preset. Falls back to heading3 styling for depth>3.
+ */
+function renderHeadingToken(token, baseStyle, styleConfig) {
+  const depth = Math.min(Math.max(token.depth || 1, 1), 3);
+  const levelKey = `heading${depth}`;
+  const levelStyle = styleConfig[levelKey] || styleConfig.heading || {};
+  const headingFontFamily = styleConfig.headingFont || baseStyle.fontFamily || "Arial";
+
+  const headingBaseStyle = {
+    ...baseStyle,
+    size: levelStyle.size || baseStyle.size,
+    bold: levelStyle.bold ?? true,
+    italics: levelStyle.italic ?? false,
+    color: levelStyle.color || baseStyle.color,
+    fontFamily: headingFontFamily,
+  };
+
+  const inline = token.tokens && token.tokens.length > 0
+    ? renderInlineTokens(token.tokens, headingBaseStyle)
+    : [createText(token.text || "", headingBaseStyle)];
+
+  const headingMap = { 1: HeadingLevel.HEADING_1, 2: HeadingLevel.HEADING_2, 3: HeadingLevel.HEADING_3 };
+
+  return createParagraph(inline, {
+    heading: headingMap[depth],
+    alignment: levelStyle.alignment,
+    spacingBefore: levelStyle.spacingBefore,
+    spacingAfter: levelStyle.spacingAfter,
+  });
+}
+
+/**
+ * Render a marked.js `list` token to an array of Paragraphs with proper
+ * docx numbering references. Supports one level of nesting via "subbullets"
+ * (defined in createNumberingConfig in styling.js).
+ *
+ * IMPORTANT: the calling Document MUST include the numbering config:
+ *   `new Document({ numbering: createNumberingConfig(), ... })`
+ * Without it, list paragraphs render as plain unindented lines.
+ */
+function renderListToken(token, baseStyle, styleConfig, depth = 0) {
+  const reference = token.ordered ? "numbers" : (depth === 0 ? "bullets" : "subbullets");
+  const out = [];
+
+  for (const item of token.items || []) {
+    // marked tokenises list items with a `tokens` array containing block-level
+    // and inline children. We collect the text/inline content for the bullet
+    // line itself, and recurse into nested lists.
+    const inlineForItem = [];
+    const nestedRender = [];
+
+    for (const inner of item.tokens || []) {
+      if (inner.type === "list") {
+        nestedRender.push(...renderListToken(inner, baseStyle, styleConfig, depth + 1));
+      } else if (inner.type === "text" || inner.type === "paragraph") {
+        if (inner.tokens && inner.tokens.length > 0) {
+          inlineForItem.push(...renderInlineTokens(inner.tokens, baseStyle));
+        } else if (inner.text) {
+          inlineForItem.push(createText(inner.text, baseStyle));
+        }
+      } else {
+        // Unknown nested block — flatten via the generic dispatcher.
+        const fallback = processMarkedToken(inner, baseStyle, {});
+        if (fallback.length > 0) inlineForItem.push(...fallback);
+      }
+    }
+
+    if (inlineForItem.length === 0) {
+      inlineForItem.push(createText(item.text || "", baseStyle));
+    }
+
+    out.push(
+      new Paragraph({
+        children: inlineForItem,
+        numbering: { reference, level: 0 },
+        spacing: {
+          before: 0,
+          after: 80,
+        },
+      }),
+    );
+
+    // Append any nested lists immediately after this bullet
+    out.push(...nestedRender);
+  }
+
+  return out;
+}
+
+/**
+ * Render a marked.js `blockquote` token to one or more Paragraphs styled
+ * with a left border + indent + italic, mimicking GitHub/Claude blockquotes.
+ */
+function renderBlockquoteToken(token, baseStyle, styleConfig) {
+  const bqStyle = styleConfig.blockquote || {};
+  const out = [];
+  const innerTokens = token.tokens || [];
+
+  const quoteBaseStyle = {
+    ...baseStyle,
+    italics: bqStyle.italic !== false,
+    color: bqStyle.color || baseStyle.color,
+  };
+
+  for (const inner of innerTokens) {
+    if (inner.type === "paragraph") {
+      const inline = inner.tokens && inner.tokens.length > 0
+        ? renderInlineTokens(inner.tokens, quoteBaseStyle)
+        : [createText(inner.text || "", quoteBaseStyle)];
+
+      out.push(
+        new Paragraph({
+          children: inline,
+          indent: { left: bqStyle.indent || 480 },
+          border: {
+            left: {
+              style: BorderStyle.SINGLE,
+              size: bqStyle.borderWidth || 12,
+              color: bqStyle.borderColor || "CCCCCC",
+              space: 8,
+            },
+          },
+          spacing: { before: 80, after: 80 },
+        }),
+      );
+    } else if (inner.type === "blockquote") {
+      // Nested blockquote — render with deeper indent
+      out.push(...renderBlockquoteToken(inner, baseStyle, styleConfig));
+    } else if (inner.type === "list") {
+      out.push(...renderListToken(inner, quoteBaseStyle, styleConfig));
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Render a horizontal rule (`---`) as a paragraph with a bottom border line.
+ */
+function renderHorizontalRuleToken(styleConfig) {
+  const hrStyle = styleConfig.hr || {};
+  return new Paragraph({
+    children: [],
+    border: {
+      bottom: {
+        style: BorderStyle.SINGLE,
+        size: hrStyle.thickness || 4,
+        color: hrStyle.color || "CCCCCC",
+        space: 8,
+      },
+    },
+    spacing: { before: 120, after: 120 },
+  });
+}
+
+/**
+ * Render a marked.js `table` token to a docx Table by converting to a 2D
+ * array and reusing createTableFromData.
+ */
+function renderMarkdownTableToken(token, styleConfig) {
+  const headerRow = (token.header || []).map((cell) => {
+    if (typeof cell === "string") return cell;
+    return cell.text || "";
+  });
+  const dataRows = (token.rows || []).map((row) =>
+    row.map((cell) => (typeof cell === "string" ? cell : (cell.text || ""))),
+  );
+  const data = [headerRow, ...dataRows];
+
+  return createTableFromData(data, {
+    borderColor: styleConfig.table?.borderColor,
+    borderStyle: styleConfig.table?.borderStyle,
+    borderWidth: styleConfig.table?.borderWidth,
+    headerFill: styleConfig.table?.headerFill,
+    headerFontColor: styleConfig.table?.headerFontColor,
+    zebraFill: styleConfig.table?.zebraFill,
+    zebraInterval: styleConfig.table?.zebraInterval,
+    insideBorderColor: styleConfig.table?.insideBorderColor,
+    insideBorderWidth: styleConfig.table?.insideBorderWidth,
+    outsideBorderWidth: styleConfig.table?.outsideBorderWidth,
+    cellSize: styleConfig.font?.size,
+    fontFamily: styleConfig.font?.family,
+    color: styleConfig.font?.color,
+  });
+}
+
+/**
+ * Parse a markdown string into an array of docx Paragraph / Table elements.
+ *
+ * This is the block-level entry point — use it whenever a paragraph-string
+ * input may contain bullet/numbered lists, blockquotes, horizontal rules,
+ * inline tables, fenced code blocks, or hyperlinks. The previous
+ * `parseInlineMarkdown` was inline-only and silently stripped block markers.
+ *
+ * IMPORTANT: the Document that consumes the returned elements MUST be
+ * constructed with `numbering: createNumberingConfig()` (from styling.js)
+ * for list rendering to work. Without it, bullets render as unindented
+ * paragraphs.
+ *
+ * @param {string} text - Markdown text (any length, may include block-level constructs)
+ * @param {Object} baseStyle - Base style for body text (size, color, fontFamily, linkColor)
+ * @param {Object} styleConfig - Full preset config from getStyleConfig() — used for heading, table, code, blockquote, hr, paragraph spacing
+ * @returns {Array<Paragraph|Table>}
+ */
+export function parseMarkdownToDocx(text, baseStyle = {}, styleConfig = {}) {
+  if (!text || typeof text !== "string") {
+    return [createParagraph([createText("", baseStyle)], styleConfig.paragraph || {})];
+  }
+
+  let tokens;
+  try {
+    tokens = marked.lexer(text);
+  } catch (err) {
+    log("warn", "[doc-utils] parseMarkdownToDocx lexer failed; rendering as plain paragraph", { error: err.message });
+    return [createParagraph([createText(text, baseStyle)], styleConfig.paragraph || {})];
+  }
+
+  const out = [];
+
+  for (const token of tokens) {
+    switch (token.type) {
+      case "heading":
+        out.push(renderHeadingToken(token, baseStyle, styleConfig));
+        break;
+      case "list":
+        out.push(...renderListToken(token, baseStyle, styleConfig));
+        break;
+      case "blockquote":
+        out.push(...renderBlockquoteToken(token, baseStyle, styleConfig));
+        break;
+      case "hr":
+        out.push(renderHorizontalRuleToken(styleConfig));
+        break;
+      case "code":
+        out.push(...createCodeBlock(`\`\`\`${token.lang || ""}\n${token.text}\n\`\`\``, styleConfig.code));
+        break;
+      case "table":
+        out.push(renderMarkdownTableToken(token, styleConfig));
+        break;
+      case "paragraph":
+        out.push(renderParagraphToken(token, baseStyle, styleConfig));
+        break;
+      case "space":
+        // skip whitespace-only blocks
+        break;
+      case "html": {
+        // Strip tags and render as plain paragraph
+        const stripped = (token.text || "").replace(/<[^>]*>/g, "").trim();
+        if (stripped) {
+          out.push(createParagraph([createText(stripped, baseStyle)], styleConfig.paragraph || {}));
+        }
+        break;
+      }
+      default: {
+        // Fall back: try the inline dispatcher; if it produces runs, wrap in a paragraph
+        const inline = processMarkedToken(token, baseStyle, {});
+        if (inline.length > 0) {
+          out.push(createParagraph(inline, styleConfig.paragraph || {}));
+        }
+      }
+    }
+  }
+
+  // If nothing parsed, fall back to a single plain paragraph
+  if (out.length === 0) {
+    out.push(createParagraph([createText(text, baseStyle)], styleConfig.paragraph || {}));
+  }
+
+  return out;
 }
