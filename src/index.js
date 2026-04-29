@@ -59,12 +59,16 @@ const SERVER_INSTRUCTIONS = [
   "  • 'interactive' = polished one-line response for human-facing UIs.",
   "  • 'agent' (default) = verbose response with all metadata for AI consumption.",
   "",
-  "Uploading: if you've been given an `uploadUrl` and `uploadAuthHeader` for a",
-  "target (e.g. a Jira issue exposed via CogniRunner's attachment-upload web",
-  "trigger), pass them to create-doc / create-markdown / create-excel and the",
-  "tool will write the file locally AND POST it as a JSON envelope to the URL",
-  "in the same call. Single-use semantics — DO NOT retry on 404. The URL is",
-  "bound server-side to a specific target; do not reuse it for a different one.",
+  "Uploading (OPTIONAL):",
+  "  • If — AND ONLY IF — you have been given an `uploadUrl` and `uploadAuthHeader`",
+  "    for the current context, pass them to create-doc / create-markdown /",
+  "    create-excel and the tool will write the file locally AND POST it as a",
+  "    JSON envelope to that URL. Receivers can be any HTTPS endpoint that",
+  "    implements the upload contract (Jira via CogniRunner is one example).",
+  "  • If you have NOT been given upload credentials, simply OMIT both fields.",
+  "    The tools work normally and return a local file path.",
+  "  • The URL is single-use and bound server-side to a specific target. Do not",
+  "    retry on 4xx, do not reuse one URL for a different target.",
 ].join("\n");
 
 // Create MCP server
@@ -155,25 +159,32 @@ const CLIENT_HINT = {
 };
 
 // ---------------------------------------------------------------------------
-// UPLOAD shared schema fragments — symmetric with the read-doc URL fetch path.
-// When `uploadUrl` is set, the create handlers POST a JSON envelope
+// UPLOAD shared schema fragments. PURELY OPTIONAL — when both uploadUrl and
+// uploadAuthHeader are absent, the create handlers behave exactly as before
+// (write locally, return path). When BOTH are set, after writing the file
+// locally the handler additionally POSTs a JSON envelope
 //   { data:base64, filename, mimeType, size }
-// to that URL with `Authorization: <uploadAuthHeader>` after writing the file
-// locally. Designed for one-shot capabilities (e.g. CogniRunner per-issue
-// attachment-upload tokens). HTTPS only, no redirects, no auto-retry, never
-// log the auth header. Size cap via WRITE_DOC_MAX_BYTES env var (default 25MB).
+// to uploadUrl with `Authorization: <uploadAuthHeader>`.
+//
+// This is the GENERIC upload contract — it works with any HTTPS endpoint
+// that implements the receiver side (Forge web trigger, Cloudflare Worker,
+// AWS Lambda, Express server, etc.). CogniRunner's attachment-upload web
+// trigger is the reference implementation; see the README for details.
+//
+// Security: HTTPS only, no redirects, no auto-retry on 4xx/5xx, auth header
+// never logged. Size cap via WRITE_DOC_MAX_BYTES env (default 25 MB).
 // ---------------------------------------------------------------------------
 const UPLOAD_URL_FIELD = {
   type: "string",
-  description: "Optional HTTPS URL to POST the file to as a JSON envelope after writing it locally. Pair with uploadAuthHeader. Single-use semantics — do not retry on 404. Designed for one-shot upload capabilities like CogniRunner's attachment-upload web trigger.",
+  description: "OPTIONAL. HTTPS URL of a receiver that will accept a JSON envelope `{data:base64, filename, mimeType, size}` POSTed with this Bearer auth. If you have NOT been given an uploadUrl in your context, OMIT this field and the tool just writes the file locally. Single-use semantics — do not retry on 4xx. Works with any compliant receiver (CogniRunner attachment-upload web trigger is the reference implementation, but the contract is generic).",
 };
 const UPLOAD_AUTH_HEADER_FIELD = {
   type: "string",
-  description: "Authorization header value for uploadUrl (e.g. 'Bearer abc123'). Required when uploadUrl is set. Never logged.",
+  description: "OPTIONAL. Authorization header value for uploadUrl (e.g. 'Bearer abc123'). REQUIRED when uploadUrl is set; ignored otherwise. Never logged.",
 };
 const UPLOAD_FILENAME_FIELD = {
   type: "string",
-  description: "Optional filename to put in the upload envelope. Defaults to the local file's basename.",
+  description: "OPTIONAL. Filename to put in the upload envelope. Defaults to the local file's basename. Useful when the local file got auto-suffixed (e.g. duplicate prevention) and you want a clean name on the receiver side.",
 };
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({

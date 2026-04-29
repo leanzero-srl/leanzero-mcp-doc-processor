@@ -307,14 +307,22 @@ export async function createExcel(input) {
     const interactiveMessage = uploadInteractiveMsg;
     const agentMessage = `XLSX FILE WRITTEN TO DISK at: ${path.resolve(outputPath)}\n\nIMPORTANT: This tool has created an actual .xlsx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` + uploadAgentNote;
 
+    // Only surface upload fields when the caller opted into the upload path.
+    const uploadAttempted = !!uploadResult || !!uploadError;
+    const uploadFields = uploadAttempted
+      ? {
+          uploaded: !!uploadResult,
+          uploadAttachment: uploadResult?.attachment || null,
+          uploadStatus: uploadResult?.status || null,
+          uploadError: uploadError || null,
+        }
+      : {};
+
     return {
       success: true,
       filePath: path.resolve(outputPath),
       clientMode,
-      uploaded: !!uploadResult,
-      uploadAttachment: uploadResult?.attachment || null,
-      uploadStatus: uploadResult?.status || null,
-      uploadError: uploadError || null,
+      ...uploadFields,
       category: category || null,
       tags: tags.length > 0 ? tags : null,
       wasCategorized: wasCategorized,

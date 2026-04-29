@@ -794,14 +794,24 @@ export async function createDoc(input) {
       (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : "") +
       uploadAgentNote;
 
+    // Only surface upload fields when the caller actually opted into the
+    // upload path. For "normal" agent calls (no uploadUrl), the response
+    // shape is identical to the pre-upload-bridge era — backward compat.
+    const uploadAttempted = !!uploadResult || !!uploadError;
+    const uploadFields = uploadAttempted
+      ? {
+          uploaded: !!uploadResult,
+          uploadAttachment: uploadResult?.attachment || null,
+          uploadStatus: uploadResult?.status || null,
+          uploadError: uploadError || null,
+        }
+      : {};
+
     return {
       success: true,
       filePath: outputPath,
       clientMode,
-      uploaded: !!uploadResult,
-      uploadAttachment: uploadResult?.attachment || null,
-      uploadStatus: uploadResult?.status || null,
-      uploadError: uploadError || null,
+      ...uploadFields,
       category: category || null,
       tags: tags.length > 0 ? tags : null,
       wasCategorized: wasCategorized,
