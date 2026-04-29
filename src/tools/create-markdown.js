@@ -9,6 +9,9 @@ import {
   registerDocumentInRegistry,
   getCategoryPath,
   classifyDocumentContent,
+  resolveClientHint,
+  uploadFileToTarget,
+  mimeTypeFromExtension,
 } from "./utils.js";
 import { applyImplementationStyle } from "../utils/markdown-formatter.js";
 import { log } from "../utils/logger.js";
@@ -199,39 +202,85 @@ export async function createMarkdown(input) {
       log("warn", "[create-markdown] Failed to register document:", { error: err.message });
     }
 
-    // Build message with enforcement information
+    // Optional: upload the freshly-written file to a remote endpoint via JSON envelope.
+    let uploadResult = null;
+    let uploadError = null;
+    if (parsedInput.uploadUrl && parsedInput.uploadAuthHeader) {
+      try {
+        uploadResult = await uploadFileToTarget({
+          filePath: outputPath,
+          uploadUrl: parsedInput.uploadUrl,
+          uploadAuthHeader: parsedInput.uploadAuthHeader,
+          filename: parsedInput.uploadFilename,
+          mimeType: mimeTypeFromExtension(outputPath),
+        });
+      } catch (err) {
+        uploadError = err.message;
+        log("warn", "[create-markdown] upload failed (file still written locally)", { error: err.message });
+      }
+    } else if (parsedInput.uploadUrl || parsedInput.uploadAuthHeader) {
+      uploadError = "uploadUrl and uploadAuthHeader must be provided together";
+      log("warn", "[create-markdown] partial upload params — both uploadUrl and uploadAuthHeader required");
+    }
+
+    const clientMode = resolveClientHint(parsedInput);
+    const isInteractive = clientMode === "interactive";
+
+    // Build message with enforcement information (agent mode only)
     let enforcementMessage = "";
-    if (docsEnforced) {
-      enforcementMessage += `NOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\n`;
+    if (!isInteractive) {
+      if (docsEnforced) {
+        enforcementMessage += `NOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\n`;
+      }
+      if (wasDuplicatePrevented) {
+        enforcementMessage += `NOTE: Duplicate file detected and prevented. Used unique filename: ${path.basename(
+          outputPath,
+        )}. To allow duplicates, set preventDuplicates: false.\n`;
+      }
+      if (wasCategorized) {
+        enforcementMessage += `NOTE: Document categorized as "${category}" and placed in docs/${getCategoryPath(category).subfolder}/.\n`;
+      }
+      if (registryEntry) {
+        enforcementMessage += `NOTE: Document registered in registry (ID: ${registryEntry.id}).\n`;
+      }
     }
-    if (wasDuplicatePrevented) {
-      enforcementMessage += `NOTE: Duplicate file detected and prevented. Used unique filename: ${path.basename(
-        outputPath,
-      )}. To allow duplicates, set preventDuplicates: false.\n`;
-    }
-    if (wasCategorized) {
-      enforcementMessage += `NOTE: Document categorized as "${category}" and placed in docs/${getCategoryPath(category).subfolder}/.\n`;
-    }
-    if (registryEntry) {
-      enforcementMessage += `NOTE: Document registered in registry (ID: ${registryEntry.id}).\n`;
-    }
+
+    const uploadInteractiveMsg = uploadResult
+      ? `Created and uploaded: ${outputPath} → ${uploadResult.attachment?.content || uploadResult.attachment?.id || "remote endpoint"}`
+      : uploadError
+        ? `Created locally at ${outputPath}; upload failed: ${uploadError}`
+        : `Created: ${outputPath}`;
+
+    const uploadAgentNote = uploadResult
+      ? `\nUPLOADED: file POSTed to remote endpoint (status ${uploadResult.status}). Receiver returned: ${JSON.stringify(uploadResult.attachment).slice(0, 300)}\n`
+      : uploadError
+        ? `\nUPLOAD FAILED: ${uploadError}\nThe local file is still available at ${outputPath}.\n`
+        : "";
+
+    const interactiveMessage = uploadInteractiveMsg;
+    const agentMessage = `MARKDOWN FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .md file on your filesystem. The document is available at the absolute path shown above.\n\n${enforcementMessage}` + uploadAgentNote;
 
     return {
       success: true,
       filePath: outputPath,
+      clientMode,
+      uploaded: !!uploadResult,
+      uploadAttachment: uploadResult?.attachment || null,
+      uploadStatus: uploadResult?.status || null,
+      uploadError: uploadError || null,
       category: category || null,
       tags: tags.length > 0 ? tags : null,
       wasCategorized: wasCategorized,
       registryEntry: registryEntry
         ? { id: registryEntry.id, category: registryEntry.category }
         : null,
-      enforcement: {
+      enforcement: isInteractive ? undefined : {
         docsFolderEnforced: docsEnforced,
         duplicatePrevented: wasDuplicatePrevented,
         categorized: wasCategorized,
         categoryApplied: category || null,
       },
-      message: `MARKDOWN FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .md file on your filesystem. The document is available at the absolute path shown above.\n\n${enforcementMessage}`,
+      message: isInteractive ? interactiveMessage : agentMessage,
     };
   } catch (err) {
     return {
