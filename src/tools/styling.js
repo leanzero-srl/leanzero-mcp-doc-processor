@@ -1055,6 +1055,102 @@ const STYLE_PRESETS = {
      headerColor: "FFFFFF",
      headerBackground: "2F5496",
    },
+
+  // CLAUDE-LIKE — Modern, blue-accented, generous whitespace, designed to
+  // look like a polished Claude chat answer rendered as a document.
+  // Uses Calibri (universal Word default) so files look the same on any
+  // Word/LibreOffice/Pages install — no font-installation required.
+  "claude-like": {
+    font: { size: 11, color: "1F2937", bold: false, family: "Calibri" },
+    headingFont: "Calibri",
+    heading1: {
+      size: 22,
+      color: "0F172A",
+      bold: true,
+      spacingBefore: 480,
+      spacingAfter: 240,
+    },
+    heading2: {
+      size: 16,
+      color: "1E293B",
+      bold: true,
+      spacingBefore: 360,
+      spacingAfter: 200,
+    },
+    heading3: {
+      size: 13,
+      color: "334155",
+      bold: true,
+      spacingBefore: 280,
+      spacingAfter: 160,
+    },
+    heading: {
+      size: 16,
+      color: "1E293B",
+      bold: true,
+      spacingBefore: 360,
+      spacingAfter: 200,
+    },
+    title: {
+      size: 28,
+      color: "0F172A",
+      bold: true,
+      spacingBefore: 240,
+      spacingAfter: 480,
+      alignment: "left",
+      smallCaps: false,
+      characterSpacing: 0,
+      borderBottom: null,
+    },
+    paragraph: {
+      alignment: "left",
+      spacingBefore: 0,
+      spacingAfter: 200,
+      lineSpacing: 1.5,
+    },
+    table: {
+      borderColor: "E2E8F0",
+      borderStyle: "single",
+      borderWidth: 4,
+      headerFill: "F1F5F9",
+      headerFontColor: "0F172A",
+      zebraFill: "F8FAFC",
+      zebraInterval: 2,
+      insideBorderColor: "E2E8F0",
+      insideBorderWidth: 2,
+      outsideBorderWidth: 4,
+    },
+    code: {
+      fontFamily: "Consolas",
+      fontSize: 10,
+      color: "0F172A",
+      backgroundColor: "F8FAFC",
+      borderColor: "E2E8F0",
+    },
+    // New block-level styles consumed by parseMarkdownToDocx
+    blockquote: {
+      borderColor: "94A3B8",
+      borderWidth: 12,
+      italic: true,
+      color: "475569",
+      indent: 480,
+    },
+    hr: {
+      color: "E2E8F0",
+      thickness: 4,
+    },
+    link: {
+      color: "2563EB",
+      underline: true,
+    },
+    // Excel styling (in case a workbook uses this preset)
+    columnWidths: {},
+    rowHeights: {},
+    headerBold: true,
+    headerSize: 11,
+    headerColor: "0F172A",
+    headerBackground: "F1F5F9",
+  },
  };
 
 // ============================================================================
@@ -1323,6 +1419,8 @@ export function getPresetDescription(presetName) {
       "Modern, polished business formatting with refined color palette and sophisticated contemporary design",
     casual: "Friendly, readable formatting with warm colors",
     colorful: "Vibrant, eye-catching formatting for presentations",
+    "claude-like":
+      "Modern, blue-accented Claude-like documents — generous whitespace, Calibri body, blue accents, polished tables and code blocks. Best default for general-purpose professional output.",
   };
   return descriptions[presetName] || "Unknown preset";
 }

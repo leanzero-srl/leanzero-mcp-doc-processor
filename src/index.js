@@ -29,17 +29,51 @@ import { detectFormat } from "./services/format-router.js";
 // Initialize logging
 setupLogging();
 
+// Top-level instructions sent to the MCP client. These reach the calling LLM
+// alongside the tool list. Keep them tight and actionable — the model uses
+// them to pick the right tool and shape the right inputs.
+const SERVER_INSTRUCTIONS = [
+  "This server reads, creates, and edits PDF / DOCX / Markdown / Excel files.",
+  "",
+  "Format selection:",
+  "  • Call `detect-format` FIRST when the user didn't specify a format.",
+  "  • Technical/code/API/integration → markdown (use `create-markdown`).",
+  "  • Stakeholder/business/legal/research/report → docx (use `create-doc`).",
+  "  • Numeric/budget/data/tabular → excel (use `create-excel`).",
+  "",
+  "Quality:",
+  "  • Titles MUST be specific. 'Document', 'Untitled', 'File' etc. are rejected.",
+  "  • For DOCX, the default style 'claude-like' renders modern blue-accented",
+  "    documents with proper bullet/numbered lists, blockquotes, hyperlinks,",
+  "    and inline tables. You don't need to flatten markdown — pass it through.",
+  "  • For DOCX paragraphs use object form `{text, headingLevel}` for headings.",
+  "  • Inline emphasis (**bold**, *italic*, `code`, [text](url)) renders correctly.",
+  "",
+  "Workflow:",
+  "  • Always call `read-doc` with mode 'indepth' BEFORE `edit-doc` so you see",
+  "    the existing structure.",
+  "  • If `create-doc` returns `{ duplicate: true, existingPath }`, switch to",
+  "    `edit-doc` on that path — do not retry create-doc with a different name.",
+  "",
+  "Output mode (`clientHint` parameter on creation tools):",
+  "  • 'interactive' = polished one-line response for human-facing UIs.",
+  "  • 'agent' (default) = verbose response with all metadata for AI consumption.",
+].join("\n");
+
 // Create MCP server
 const server = new Server(
   { name: "mcp-doc-processor", version: "1.0.0" },
-  { capabilities: { tools: {} } },
+  {
+    capabilities: { tools: {} },
+    instructions: SERVER_INSTRUCTIONS,
+  },
 );
 
 // Shared schema fragments
 const STYLE_PRESET = {
   type: "string",
-  enum: ["minimal", "professional", "technical", "legal", "business", "casual", "colorful"],
-  description: "Style preset. Auto-selected from category if omitted.",
+  enum: ["minimal", "professional", "technical", "legal", "business", "casual", "colorful", "claude-like"],
+  description: "Style preset. 'claude-like' (modern blue-accented professional) is the default for general-purpose docs. 'professional' is the executive serif look. Auto-selected from category if omitted.",
 };
 const CATEGORY = {
   type: "string",
@@ -107,6 +141,12 @@ const MARGINS_OBJ = {
   },
 };
 
+const CLIENT_HINT = {
+  type: "string",
+  enum: ["agent", "interactive", "auto"],
+  description: "How the response should be shaped. 'interactive' = polished one-line message for end-users (no chatty registry/lineage notes). 'agent' = verbose response with all metadata for AI consumption. 'auto' (default) = detect from input shape or MCP_CLIENT_TYPE env var, falling back to 'agent'.",
+};
+
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
@@ -169,6 +209,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           preventDuplicates: { type: "boolean", description: "If false, allow same-title duplicates. Default: true (recommended)." },
           tableHeaderFill: { type: "string", description: "Optional override for table header cell fill color (hex)." },
           style: { type: "object", description: "Advanced: fine-grained style overrides merged on top of stylePreset.", additionalProperties: true },
+          clientHint: CLIENT_HINT,
         },
         required: ["title"],
       },
@@ -190,6 +231,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           docType: DOC_TYPE,
           enforceDocsFolder: { type: "boolean", description: "If false, allow output outside docs/. Default: true." },
           preventDuplicates: { type: "boolean", description: "If false, allow same-title duplicates. Default: true." },
+          clientHint: CLIENT_HINT,
         },
         required: ["title"],
       },
@@ -227,6 +269,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           tags: TAGS,
           description: { type: "string", description: "Brief description stored in the registry." },
           docType: DOC_TYPE,
+          clientHint: CLIENT_HINT,
         },
         required: ["sheets"],
       },
@@ -416,25 +459,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "create-doc": {
         const r = await createDoc(params);
-        if (r.success) {
-          r.message = r.dryRun ? r.message : `DOCX FILE WRITTEN TO DISK at: ${r.filePath}\n\nThe document is available at the path above.`;
-        }
         return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.success };
       }
 
       case "create-markdown": {
         const r = await createMarkdown(params);
-        if (r.success) {
-          r.message = r.dryRun ? r.message : `MARKDOWN FILE WRITTEN TO DISK at: ${r.filePath}\n\nThe document is available at the path above.`;
-        }
         return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.success };
       }
 
       case "create-excel": {
         const r = await createExcel(params);
-        if (r.success) {
-          r.message = r.dryRun ? r.message : `EXCEL FILE WRITTEN TO DISK at: ${r.filePath}\n\nThe workbook is available at the path above.`;
-        }
         return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.success };
       }
 
