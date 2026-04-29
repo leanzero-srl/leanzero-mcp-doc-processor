@@ -10,7 +10,8 @@
     "test:read-doc": "node --test test/test-read-doc.js",
     "test:schemas": "node --test test/test-tool-schemas.js",
     "test:render": "node --test test/test-render-markdown.js",
-    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render",
+    "test:upload": "node --test test/test-upload.js",
+    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload",
     "lint:no-console-log": "! grep -rn 'console\\.log(' src/ --include='*.js'"
   },
   "dependencies": {

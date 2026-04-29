@@ -120,7 +120,8 @@ npm test                    # Markdown format router (custom-assert)
 npm run test:read-doc       # read-doc URL-fetch extension — 14 tests (node:test)
 npm run test:schemas        # MCP schema invariants + detect-format E2E — 6 tests (node:test)
 npm run test:render         # parseMarkdownToDocx + create-doc round-trip — 15 tests (node:test)
-npm run test:all            # Run all four suites in sequence
+npm run test:upload         # uploadFileToTarget + create-doc upload integration — 18 tests (node:test)
+npm run test:all            # Run all five suites in sequence
 npm run lint:no-console-log # Fail if any src/ file uses console.log (corrupts MCP stdio)
 ```
 
@@ -631,3 +632,13 @@ The `edit-doc` tool uses XML-level patching (not full document recreation) to pr
 24. **Server-level `instructions`** — set in `src/index.js` via `new Server({...}, { capabilities, instructions: SERVER_INSTRUCTIONS })`. The instructions reach the calling LLM alongside the tool list and coach format selection, title quality, edit workflow, and clientHint usage. Edit `SERVER_INSTRUCTIONS` near the top of `src/index.js` to update.
 
 25. **The `create-doc` dispatcher in `src/index.js` no longer overwrites the handler's `message` field** — previously every successful create-* call had its message replaced with a hardcoded "DOCX FILE WRITTEN TO DISK..." string. The handlers now produce their own message (interactive vs agent shape) and the dispatcher just relays the result.
+
+26. **Upload bridge: `create-doc`, `create-markdown`, `create-excel` accept `uploadUrl` + `uploadAuthHeader` (+ optional `uploadFilename`)** — symmetric with `read-doc`'s URL fetch path. After writing the file locally, the handler POSTs a JSON envelope `{data:base64, filename, mimeType, size}` to `uploadUrl` with `Authorization: <uploadAuthHeader>`. Designed for one-shot upload capabilities like CogniRunner's per-issue `attachment-upload` web trigger. Security rules MIRROR read-doc:
+    - HTTPS only, no redirects (`redirect: "error"`), no auto-retry on 401/404, never log `uploadAuthHeader`.
+    - URL token (`?t=`) is redacted in logs (only host+path are emitted).
+    - Payload size capped by `WRITE_DOC_MAX_BYTES` env var (default 25 MB — half of the read cap because Forge web trigger payload limits are tighter).
+    - 60-second timeout.
+    - Local file is kept on upload failure (caller may want to retry or attach manually).
+    - Handler returns `{uploaded, uploadAttachment, uploadStatus, uploadError}` alongside the existing fields. Interactive mode collapses the message to `Created and uploaded: <path> → <attachment-content-url>` or `Created locally at <path>; upload failed: <error>`.
+    - Helper `uploadFileToTarget()` lives in `src/tools/utils.js`. MIME helper `mimeTypeFromExtension()` maps `.docx` / `.xlsx` / `.md` / `.pdf` / `.txt` / `.csv` to their MIME, defaulting to `application/octet-stream`.
+    - Tests: `test/test-upload.js` (18 tests covering helper unit tests + create-doc end-to-end + clientHint interaction + backward-compat with no upload params).

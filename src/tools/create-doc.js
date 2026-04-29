@@ -41,6 +41,8 @@ import {
   getCategoryPath,
   classifyDocumentContent,
   resolveClientHint,
+  uploadFileToTarget,
+  mimeTypeFromExtension,
 } from "./utils.js";
 import { applyDNAToInput, loadDNA, recordUsage, signatureSimilarity } from "../utils/dna-manager.js";
 import { log } from "../utils/logger.js";
@@ -725,6 +727,31 @@ export async function createDoc(input) {
       // Lineage tracking is non-fatal
     }
 
+    // Optional: upload the freshly-written file to a remote endpoint via
+    // JSON envelope. Used by CogniRunner's attachment-upload web trigger and
+    // any other one-shot upload capability. The local file is kept either way
+    // so the caller can still reference it on upload failure.
+    let uploadResult = null;
+    let uploadError = null;
+    if (parsedInput.uploadUrl && parsedInput.uploadAuthHeader) {
+      try {
+        uploadResult = await uploadFileToTarget({
+          filePath: outputPath,
+          uploadUrl: parsedInput.uploadUrl,
+          uploadAuthHeader: parsedInput.uploadAuthHeader,
+          filename: parsedInput.uploadFilename,
+          mimeType: mimeTypeFromExtension(outputPath),
+        });
+      } catch (err) {
+        uploadError = err.message;
+        log("warn", "[create-doc] upload failed (file still written locally)", { error: err.message });
+      }
+    } else if (parsedInput.uploadUrl || parsedInput.uploadAuthHeader) {
+      // Caller supplied only one — surface a clear error so they don't think it worked.
+      uploadError = "uploadUrl and uploadAuthHeader must be provided together";
+      log("warn", "[create-doc] partial upload params — both uploadUrl and uploadAuthHeader required");
+    }
+
     // Resolve interactive vs agent output shape
     const clientMode = resolveClientHint(parsedInput);
     const isInteractive = clientMode === "interactive";
@@ -748,15 +775,33 @@ export async function createDoc(input) {
       }
     }
 
-    const interactiveMessage = `Created: ${outputPath}`;
+    // Compose upload-aware message fragments
+    const uploadInteractiveMsg = uploadResult
+      ? `Created and uploaded: ${outputPath} → ${uploadResult.attachment?.content || uploadResult.attachment?.id || "remote endpoint"}`
+      : uploadError
+        ? `Created locally at ${outputPath}; upload failed: ${uploadError}`
+        : `Created: ${outputPath}`;
+
+    const uploadAgentNote = uploadResult
+      ? `\nUPLOADED: file POSTed to remote endpoint (status ${uploadResult.status}). Receiver returned: ${JSON.stringify(uploadResult.attachment).slice(0, 300)}\n`
+      : uploadError
+        ? `\nUPLOAD FAILED: ${uploadError}\nThe local file is still available at ${outputPath}.\n`
+        : "";
+
+    const interactiveMessage = uploadInteractiveMsg;
     const agentMessage = `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
       (blueprintMatch ? `\nBLUEPRINT MATCH: ${blueprintMatch.message}\n` : "") +
-      (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : "");
+      (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : "") +
+      uploadAgentNote;
 
     return {
       success: true,
       filePath: outputPath,
       clientMode,
+      uploaded: !!uploadResult,
+      uploadAttachment: uploadResult?.attachment || null,
+      uploadStatus: uploadResult?.status || null,
+      uploadError: uploadError || null,
       category: category || null,
       tags: tags.length > 0 ? tags : null,
       wasCategorized: wasCategorized,
