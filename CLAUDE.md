@@ -633,12 +633,13 @@ The `edit-doc` tool uses XML-level patching (not full document recreation) to pr
 
 25. **The `create-doc` dispatcher in `src/index.js` no longer overwrites the handler's `message` field** — previously every successful create-* call had its message replaced with a hardcoded "DOCX FILE WRITTEN TO DISK..." string. The handlers now produce their own message (interactive vs agent shape) and the dispatcher just relays the result.
 
-26. **Upload bridge: `create-doc`, `create-markdown`, `create-excel` accept `uploadUrl` + `uploadAuthHeader` (+ optional `uploadFilename`)** — symmetric with `read-doc`'s URL fetch path. After writing the file locally, the handler POSTs a JSON envelope `{data:base64, filename, mimeType, size}` to `uploadUrl` with `Authorization: <uploadAuthHeader>`. Designed for one-shot upload capabilities like CogniRunner's per-issue `attachment-upload` web trigger. Security rules MIRROR read-doc:
-    - HTTPS only, no redirects (`redirect: "error"`), no auto-retry on 401/404, never log `uploadAuthHeader`.
-    - URL token (`?t=`) is redacted in logs (only host+path are emitted).
+26. **Upload bridge — GENERIC HTTPS receiver contract** — `create-doc`, `create-markdown`, `create-excel` accept optional `uploadUrl` + `uploadAuthHeader` (+ optional `uploadFilename`). When BOTH are present, after writing the file locally the handler POSTs a JSON envelope `{data:base64, filename, mimeType, size}` to `uploadUrl` with `Authorization: <uploadAuthHeader>`.
+    - **The receiver contract is generic** — any HTTPS endpoint can implement it (Forge web triggers, Cloudflare Workers, AWS Lambda, Express servers, etc.). CogniRunner's `attachment-upload` web trigger is the reference implementation; see README "Build your own receiver" section.
+    - **Decision logic — NORMAL agents are unaffected**: when uploadUrl is absent, the tool behaves identically to before. The response shape does NOT include `uploaded` / `uploadAttachment` / `uploadStatus` / `uploadError` — those are only present when an upload was attempted. Pre-upload-bridge consumers see no change.
+    - **Partial-params guard**: passing only `uploadUrl` without `uploadAuthHeader` (or vice versa) returns `uploadError: "uploadUrl and uploadAuthHeader must be provided together"` and `fetch` is NEVER called — defensive against a model that injects only one variable.
+    - Security rules mirror read-doc: HTTPS only, no redirects (`redirect: "error"`), no auto-retry on any 4xx/5xx, never log `uploadAuthHeader`, redact URL token (`?t=`) in logs (only host+path emitted), 60-second timeout.
     - Payload size capped by `WRITE_DOC_MAX_BYTES` env var (default 25 MB — half of the read cap because Forge web trigger payload limits are tighter).
-    - 60-second timeout.
-    - Local file is kept on upload failure (caller may want to retry or attach manually).
-    - Handler returns `{uploaded, uploadAttachment, uploadStatus, uploadError}` alongside the existing fields. Interactive mode collapses the message to `Created and uploaded: <path> → <attachment-content-url>` or `Created locally at <path>; upload failed: <error>`.
-    - Helper `uploadFileToTarget()` lives in `src/tools/utils.js`. MIME helper `mimeTypeFromExtension()` maps `.docx` / `.xlsx` / `.md` / `.pdf` / `.txt` / `.csv` to their MIME, defaulting to `application/octet-stream`.
-    - Tests: `test/test-upload.js` (18 tests covering helper unit tests + create-doc end-to-end + clientHint interaction + backward-compat with no upload params).
+    - Local file is kept on upload failure — caller can retry the upload manually or attach the path another way.
+    - Interactive `clientHint` mode collapses the message: `Created and uploaded: <path> → <attachment-content-url>` on success, `Created locally at <path>; upload failed: <error>` on failure.
+    - Helper `uploadFileToTarget()` in `src/tools/utils.js`. MIME helper `mimeTypeFromExtension()` maps `.docx` / `.xlsx` / `.md` / `.pdf` / `.txt` / `.csv` to their MIME (default `application/octet-stream`).
+    - Tests: `test/test-upload.js` (18 tests covering the helper, create-doc end-to-end, clientHint × upload, backward-compat-when-no-upload, partial-params guard, all error codes 401 / 404 / 413 / 415, redirect rejection, oversized rejection, missing-arg validations).
