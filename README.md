@@ -108,6 +108,83 @@ CogniRunner's `mcp.json` snippet for wiring this server to an LM Studio agent th
 
 CogniRunner mints the `url` + `authHeader` per attachment in its post-function flow and passes them to the model in its system prompt; the model then calls `read-doc` directly. See the [CogniRunner repo](https://github.com/leanzero-srl/leanzero-cognirunner-forgeapp/tree/feature/byok-postfunctions) for token issuance details.
 
+## Uploading to authenticated endpoints
+
+The three creation tools (`create-doc`, `create-markdown`, `create-excel`) accept an optional `uploadUrl` + `uploadAuthHeader` pair. When set, after writing the file locally the tool POSTs a JSON envelope to that URL — symmetric with `read-doc`'s URL fetch path. Designed for one-shot upload capabilities (e.g. attaching the freshly-created document to a Jira issue via CogniRunner's `attachment-upload` web trigger).
+
+### Calling shape
+
+```json
+{
+  "title": "Q1 2026 Engineering Strategy",
+  "paragraphs": ["..."],
+  "uploadUrl": "https://api.atlassian.com/.../webtrigger/<id>?t=<token>",
+  "uploadAuthHeader": "Bearer <bearer>",
+  "uploadFilename": "q1-2026-strategy.docx"
+}
+```
+
+The `uploadFilename` is optional and overrides the default (the local file's basename).
+
+### Wire format (sent to `uploadUrl`)
+
+```
+POST <uploadUrl>
+Authorization: <uploadAuthHeader>
+Content-Type: application/json
+
+{
+  "data":     "<base64-encoded file bytes>",
+  "filename": "q1-2026-strategy.docx",
+  "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "size":     27834
+}
+```
+
+Expected success response (HTTP 200, JSON):
+
+```json
+{
+  "success": true,
+  "attachment": {
+    "id": "10523",
+    "filename": "q1-2026-strategy.docx",
+    "size": 27834,
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "content": "https://<your-site>.atlassian.net/rest/api/3/attachment/content/10523"
+  }
+}
+```
+
+### Security model
+
+The same rules as the read URL path:
+
+- **HTTPS only.** Non-`https://` URLs are rejected before any fetch.
+- **No redirect following.** Legitimate single-use endpoints never 3xx.
+- **No auto-retry on 401 / 404.** A `401` means the bearer was wrong; a `404` means the token was already consumed or expired (the URL is single-use).
+- **`uploadAuthHeader` is never logged.** The `?t=` URL token is redacted in any log output — only host+path are emitted.
+- **No caching.** The bytes, URL, and auth header live only for the duration of the single call.
+- **Local file kept on upload failure.** The caller can retry the upload manually or use the local path directly. The tool's response includes `uploaded: false, uploadError: "..."` on failure.
+
+Set the cap via `WRITE_DOC_MAX_BYTES` env var (default 25 MB).
+
+### Response shape
+
+The handler appends four fields to its normal response:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `uploaded` | boolean | `true` if the upload succeeded with a 2xx, `false` otherwise. |
+| `uploadAttachment` | object \| null | Whatever the receiver returned in `attachment` (or null on failure). |
+| `uploadStatus` | number \| null | The HTTP status code from the receiver (200 on success). |
+| `uploadError` | string \| null | The error message if upload failed. |
+
+In `clientHint: "interactive"` mode, the response message collapses to a single line:
+
+- Success: `Created and uploaded: <path> → <attachment-content-url>`
+- Failure: `Created locally at <path>; upload failed: <error>`
+
 ## Quick Start
 
 ### Installation
@@ -295,6 +372,7 @@ DNA supports three-level inheritance: System defaults (hardcoded) < Project DNA 
 | `Z_AI_TIMEOUT` | `300000` | Request timeout in milliseconds |
 | `SKIP_TABLE_EXTRACTION` | `true` | Skip table extraction from images during PDF processing |
 | `READ_DOC_MAX_BYTES` | `52428800` (50 MB) | Maximum decoded payload size accepted by the `read-doc` URL-fetch path. Requests with larger bodies are rejected before the file is materialized. |
+| `WRITE_DOC_MAX_BYTES` | `26214400` (25 MB) | Maximum file size the `create-*` tools will POST to a remote `uploadUrl`. Half of the read cap because Forge web trigger payload limits are tighter. |
 
 ## Testing
 
@@ -303,7 +381,8 @@ npm test                    # Markdown format router (custom-assert)
 npm run test:read-doc       # read-doc URL-fetch — 14 tests (node:test)
 npm run test:schemas        # MCP schema invariants + detect-format E2E — 6 tests (node:test)
 npm run test:render         # parseMarkdownToDocx + create-doc round-trip — 15 tests (node:test)
-npm run test:all            # Run all four suites in sequence
+npm run test:upload         # uploadFileToTarget + create-doc upload integration — 18 tests (node:test)
+npm run test:all            # Run all five suites in sequence
 npm run lint:no-console-log # Fail if any src/ file uses console.log (corrupts MCP stdio)
 ```
 

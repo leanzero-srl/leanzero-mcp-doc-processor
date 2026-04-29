@@ -10,6 +10,9 @@ import {
   registerDocumentInRegistry,
   getCategoryPath,
   classifyDocumentContent,
+  resolveClientHint,
+  uploadFileToTarget,
+  mimeTypeFromExtension,
 } from "./utils.js";
 import {
   getStyleConfig,
@@ -246,26 +249,72 @@ export async function createExcel(input) {
       description: input.description || `Excel workbook with sheets: ${normalized.sheets.map(s => s.name).join(", ")}`,
     });
 
-    // Build message with enforcement information
+    // Optional: upload the freshly-written file to a remote endpoint via JSON envelope.
+    let uploadResult = null;
+    let uploadError = null;
+    if (input.uploadUrl && input.uploadAuthHeader) {
+      try {
+        uploadResult = await uploadFileToTarget({
+          filePath: path.resolve(outputPath),
+          uploadUrl: input.uploadUrl,
+          uploadAuthHeader: input.uploadAuthHeader,
+          filename: input.uploadFilename,
+          mimeType: mimeTypeFromExtension(outputPath),
+        });
+      } catch (err) {
+        uploadError = err.message;
+        log("warn", "[create-excel] upload failed (file still written locally)", { error: err.message });
+      }
+    } else if (input.uploadUrl || input.uploadAuthHeader) {
+      uploadError = "uploadUrl and uploadAuthHeader must be provided together";
+      log("warn", "[create-excel] partial upload params — both uploadUrl and uploadAuthHeader required");
+    }
+
+    const clientMode = resolveClientHint(input);
+    const isInteractive = clientMode === "interactive";
+
+    // Build message with enforcement information (agent mode only)
     let enforcementMessage = "";
-    if (docsEnforced) {
-      enforcementMessage += `NOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\n`;
+    if (!isInteractive) {
+      if (docsEnforced) {
+        enforcementMessage += `NOTE: File was automatically placed in docs/ folder for organization. To disable this, set enforceDocsFolder: false.\n`;
+      }
+      if (wasDuplicatePrevented) {
+        enforcementMessage += `NOTE: Duplicate file detected and prevented. Used unique filename: ${path.basename(
+          outputPath,
+        )}. To allow duplicates, set preventDuplicates: false.\n`;
+      }
+      if (wasCategorized) {
+        enforcementMessage += `NOTE: Document categorized as "${category}" and placed in docs/${getCategoryPath(category).subfolder}/.\n`;
+      }
+      if (registryEntry) {
+        enforcementMessage += `NOTE: Document registered in registry (ID: ${registryEntry.id}).\n`;
+      }
     }
-    if (wasDuplicatePrevented) {
-      enforcementMessage += `NOTE: Duplicate file detected and prevented. Used unique filename: ${path.basename(
-        outputPath,
-      )}. To allow duplicates, set preventDuplicates: false.\n`;
-    }
-    if (wasCategorized) {
-      enforcementMessage += `NOTE: Document categorized as "${category}" and placed in docs/${getCategoryPath(category).subfolder}/.\n`;
-    }
-    if (registryEntry) {
-      enforcementMessage += `NOTE: Document registered in registry (ID: ${registryEntry.id}).\n`;
-    }
+
+    const uploadInteractiveMsg = uploadResult
+      ? `Created and uploaded: ${path.resolve(outputPath)} → ${uploadResult.attachment?.content || uploadResult.attachment?.id || "remote endpoint"}`
+      : uploadError
+        ? `Created locally at ${path.resolve(outputPath)}; upload failed: ${uploadError}`
+        : `Created: ${path.resolve(outputPath)}`;
+
+    const uploadAgentNote = uploadResult
+      ? `\nUPLOADED: file POSTed to remote endpoint (status ${uploadResult.status}). Receiver returned: ${JSON.stringify(uploadResult.attachment).slice(0, 300)}\n`
+      : uploadError
+        ? `\nUPLOAD FAILED: ${uploadError}\nThe local file is still available at ${path.resolve(outputPath)}.\n`
+        : "";
+
+    const interactiveMessage = uploadInteractiveMsg;
+    const agentMessage = `XLSX FILE WRITTEN TO DISK at: ${path.resolve(outputPath)}\n\nIMPORTANT: This tool has created an actual .xlsx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` + uploadAgentNote;
 
     return {
       success: true,
       filePath: path.resolve(outputPath),
+      clientMode,
+      uploaded: !!uploadResult,
+      uploadAttachment: uploadResult?.attachment || null,
+      uploadStatus: uploadResult?.status || null,
+      uploadError: uploadError || null,
       category: category || null,
       tags: tags.length > 0 ? tags : null,
       wasCategorized: wasCategorized,
@@ -273,7 +322,7 @@ export async function createExcel(input) {
         ? { id: registryEntry.id, category: registryEntry.category }
         : null,
       stylePreset: input.stylePreset,
-      styleConfig: {
+      styleConfig: isInteractive ? undefined : {
         preset: input.stylePreset,
         description: getPresetDescription(input.stylePreset),
         font: {
@@ -289,13 +338,13 @@ export async function createExcel(input) {
         },
         zebraColor: styleConfig.zebraColor,
       },
-      enforcement: {
+      enforcement: isInteractive ? undefined : {
         docsFolderEnforced: docsEnforced,
         duplicatePrevented: wasDuplicatePrevented,
         categorized: wasCategorized,
         categoryApplied: category || null,
       },
-      message: `XLSX FILE WRITTEN TO DISK at: ${path.resolve(outputPath)}\n\nIMPORTANT: This tool has created an actual .xlsx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}`,
+      message: isInteractive ? interactiveMessage : agentMessage,
     };
   } catch (err) {
     log("error", "[create-excel] Creation error:", { message: err.message, name: err.name, code: err.code });

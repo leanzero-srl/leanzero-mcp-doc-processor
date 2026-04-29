@@ -473,3 +473,145 @@ export async function searchRegistry(criteria = {}) {
     return { query: criteria, totalMatches: 0, byCategory: {}, documents: [] };
   }
 }
+
+// ============================================================================
+// REMOTE UPLOAD (mirror of read-doc URL fetch path)
+// ============================================================================
+
+/**
+ * Map a file extension to its MIME type. Used by the upload helper to fill the
+ * envelope's `mimeType` field so the receiving endpoint can choose the right
+ * content type when forwarding to e.g. Jira's attachment endpoint.
+ *
+ * @param {string} filePath - Path or filename
+ * @returns {string} A best-guess MIME type (defaults to application/octet-stream)
+ */
+const MIME_BY_EXT = {
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".md":   "text/markdown",
+  ".pdf":  "application/pdf",
+  ".txt":  "text/plain",
+  ".csv":  "text/csv",
+};
+
+export function mimeTypeFromExtension(filePath) {
+  if (!filePath || typeof filePath !== "string") return "application/octet-stream";
+  return MIME_BY_EXT[path.extname(filePath).toLowerCase()] || "application/octet-stream";
+}
+
+/**
+ * Build a redacted version of a URL for logging — keeps the host + path so
+ * traces are useful, drops the `?t=<token>` query parameter and any other
+ * query/fragment that might carry secrets.
+ *
+ * @param {string} urlString
+ * @returns {string} `<host><pathname>` or `(unparseable URL)` on error
+ */
+function safeUrlForLogging(urlString) {
+  try {
+    const u = new URL(urlString);
+    return `${u.host}${u.pathname}`;
+  } catch {
+    return "(unparseable URL)";
+  }
+}
+
+/**
+ * Upload a locally-written file to a remote HTTPS endpoint as a JSON envelope.
+ *
+ * The envelope shape is identical to what `fetchToTempFile` consumes on the
+ * read side — symmetric on the wire so both directions of the bridge use the
+ * same security model and audit shape:
+ *
+ *   POST <uploadUrl>
+ *   Authorization: <uploadAuthHeader>
+ *   Content-Type: application/json
+ *   { "data": "<base64>", "filename": "...", "mimeType": "...", "size": <bytes> }
+ *
+ * Designed for one-shot upload capabilities (e.g. CogniRunner's per-issue
+ * `attachment-upload` web trigger), so the security rules are STRICT:
+ *
+ *  - `uploadUrl` must be `https://`. Non-HTTPS is rejected before any fetch.
+ *  - Redirects are refused (`redirect: "error"`). A legitimate single-use
+ *    capability never 3xx's.
+ *  - No auto-retry: a 401 means the bearer was wrong (caller error); a 404
+ *    means the token was already consumed or expired (single-use).
+ *  - `uploadAuthHeader` is NEVER logged. The URL token (if present in `?t=`)
+ *    is redacted from log output — only host+path are emitted.
+ *  - Payload size is capped by `WRITE_DOC_MAX_BYTES` env var (default 25 MB).
+ *  - 60-second timeout to bound stuck network calls.
+ *
+ * The local file is NOT touched on upload failure — the caller can decide
+ * whether to keep it as a record or delete it.
+ *
+ * @param {Object} args
+ * @param {string} args.filePath - Absolute path to the file to upload
+ * @param {string} args.uploadUrl - HTTPS URL to POST to
+ * @param {string} args.uploadAuthHeader - Authorization header value (e.g. "Bearer abc123")
+ * @param {string} [args.filename] - Optional override for the envelope filename (defaults to basename)
+ * @param {string} [args.mimeType] - Optional MIME type (defaults to mimeTypeFromExtension)
+ * @returns {Promise<{success:true, status:number, attachment:object|null, raw:any}>}
+ * @throws {Error} on validation failure, oversize, fetch failure, or non-2xx response
+ */
+export async function uploadFileToTarget({ filePath, uploadUrl, uploadAuthHeader, filename, mimeType }) {
+  if (!filePath || typeof filePath !== "string") {
+    throw new Error("uploadFileToTarget: filePath is required");
+  }
+  if (!uploadUrl || typeof uploadUrl !== "string") {
+    throw new Error("uploadFileToTarget: uploadUrl is required");
+  }
+  if (!uploadAuthHeader || typeof uploadAuthHeader !== "string") {
+    throw new Error("uploadFileToTarget: uploadAuthHeader is required");
+  }
+  if (!/^https:\/\//i.test(uploadUrl)) {
+    throw new Error("uploadFileToTarget: uploadUrl must use https://");
+  }
+
+  // Safe-to-log breadcrumb — host + path only, never the ?t= token or auth header.
+  log("info", "[upload] sending", { url: safeUrlForLogging(uploadUrl) });
+
+  // Read + size-check before allocating the base64 string so we can fail fast
+  // on oversize without doubling memory.
+  const buf = await fs.readFile(filePath);
+  const maxBytes = Number(process.env.WRITE_DOC_MAX_BYTES) || 25 * 1024 * 1024;
+  if (buf.length > maxBytes) {
+    throw new Error(`uploadFileToTarget: payload too large: ${buf.length} bytes (limit ${maxBytes})`);
+  }
+
+  const envelope = {
+    data: buf.toString("base64"),
+    filename: filename || path.basename(filePath),
+    mimeType: mimeType || mimeTypeFromExtension(filePath),
+    size: buf.length,
+  };
+
+  const resp = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: uploadAuthHeader,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    redirect: "error",
+    signal: AbortSignal.timeout(60_000),
+    body: JSON.stringify(envelope),
+  });
+
+  if (!resp.ok) {
+    // Do NOT auto-retry — 401 = wrong bearer, 404 = token consumed/expired, 413 = too large, etc.
+    const bodyPreview = await resp.text().catch(() => "");
+    throw new Error(`upload failed: HTTP ${resp.status} ${bodyPreview.slice(0, 200)}`);
+  }
+
+  const ct = resp.headers.get("Content-Type") || "";
+  let parsed = null;
+  if (/json/i.test(ct)) {
+    parsed = await resp.json().catch(() => null);
+  }
+
+  // Receiver SHOULD return { success: true, attachment: {...} } but we tolerate
+  // any 2xx JSON shape — pull out a sensible attachment object if present.
+  const attachment = parsed?.attachment || parsed || null;
+  return { success: true, status: resp.status, attachment, raw: parsed };
+}

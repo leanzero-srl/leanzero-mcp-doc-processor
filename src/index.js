@@ -58,6 +58,13 @@ const SERVER_INSTRUCTIONS = [
   "Output mode (`clientHint` parameter on creation tools):",
   "  • 'interactive' = polished one-line response for human-facing UIs.",
   "  • 'agent' (default) = verbose response with all metadata for AI consumption.",
+  "",
+  "Uploading: if you've been given an `uploadUrl` and `uploadAuthHeader` for a",
+  "target (e.g. a Jira issue exposed via CogniRunner's attachment-upload web",
+  "trigger), pass them to create-doc / create-markdown / create-excel and the",
+  "tool will write the file locally AND POST it as a JSON envelope to the URL",
+  "in the same call. Single-use semantics — DO NOT retry on 404. The URL is",
+  "bound server-side to a specific target; do not reuse it for a different one.",
 ].join("\n");
 
 // Create MCP server
@@ -147,6 +154,28 @@ const CLIENT_HINT = {
   description: "How the response should be shaped. 'interactive' = polished one-line message for end-users (no chatty registry/lineage notes). 'agent' = verbose response with all metadata for AI consumption. 'auto' (default) = detect from input shape or MCP_CLIENT_TYPE env var, falling back to 'agent'.",
 };
 
+// ---------------------------------------------------------------------------
+// UPLOAD shared schema fragments — symmetric with the read-doc URL fetch path.
+// When `uploadUrl` is set, the create handlers POST a JSON envelope
+//   { data:base64, filename, mimeType, size }
+// to that URL with `Authorization: <uploadAuthHeader>` after writing the file
+// locally. Designed for one-shot capabilities (e.g. CogniRunner per-issue
+// attachment-upload tokens). HTTPS only, no redirects, no auto-retry, never
+// log the auth header. Size cap via WRITE_DOC_MAX_BYTES env var (default 25MB).
+// ---------------------------------------------------------------------------
+const UPLOAD_URL_FIELD = {
+  type: "string",
+  description: "Optional HTTPS URL to POST the file to as a JSON envelope after writing it locally. Pair with uploadAuthHeader. Single-use semantics — do not retry on 404. Designed for one-shot upload capabilities like CogniRunner's attachment-upload web trigger.",
+};
+const UPLOAD_AUTH_HEADER_FIELD = {
+  type: "string",
+  description: "Authorization header value for uploadUrl (e.g. 'Bearer abc123'). Required when uploadUrl is set. Never logged.",
+};
+const UPLOAD_FILENAME_FIELD = {
+  type: "string",
+  description: "Optional filename to put in the upload envelope. Defaults to the local file's basename.",
+};
+
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
@@ -210,6 +239,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           tableHeaderFill: { type: "string", description: "Optional override for table header cell fill color (hex)." },
           style: { type: "object", description: "Advanced: fine-grained style overrides merged on top of stylePreset.", additionalProperties: true },
           clientHint: CLIENT_HINT,
+          uploadUrl: UPLOAD_URL_FIELD,
+          uploadAuthHeader: UPLOAD_AUTH_HEADER_FIELD,
+          uploadFilename: UPLOAD_FILENAME_FIELD,
         },
         required: ["title"],
       },
@@ -232,6 +264,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           enforceDocsFolder: { type: "boolean", description: "If false, allow output outside docs/. Default: true." },
           preventDuplicates: { type: "boolean", description: "If false, allow same-title duplicates. Default: true." },
           clientHint: CLIENT_HINT,
+          uploadUrl: UPLOAD_URL_FIELD,
+          uploadAuthHeader: UPLOAD_AUTH_HEADER_FIELD,
+          uploadFilename: UPLOAD_FILENAME_FIELD,
         },
         required: ["title"],
       },
@@ -270,6 +305,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           description: { type: "string", description: "Brief description stored in the registry." },
           docType: DOC_TYPE,
           clientHint: CLIENT_HINT,
+          uploadUrl: UPLOAD_URL_FIELD,
+          uploadAuthHeader: UPLOAD_AUTH_HEADER_FIELD,
+          uploadFilename: UPLOAD_FILENAME_FIELD,
         },
         required: ["sheets"],
       },
