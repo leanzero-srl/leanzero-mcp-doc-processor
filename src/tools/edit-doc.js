@@ -6,6 +6,7 @@ import {
   getStyleConfig,
   getAvailablePresets,
   selectStyleBasedOnCategory,
+  createNumberingConfig,
 } from "./styling.js";
 import {
   appendToDocx,
@@ -387,6 +388,7 @@ export async function editDoc(input) {
       const doc = new Document({
         creator: "MCP Doc Processor",
         title: input.title || "",
+        numbering: createNumberingConfig(),
         sections: [
           {
             children:
@@ -501,6 +503,7 @@ export async function editDoc(input) {
 
     const doc = new Document({
       creator: "MCP Doc Processor",
+      numbering: createNumberingConfig(),
       sections: [
         {
           children:

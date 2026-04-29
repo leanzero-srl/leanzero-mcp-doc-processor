@@ -116,13 +116,12 @@ This is an **MCP (Model Context Protocol) server** that processes PDF, DOCX, and
 npm start
 
 # Test suites
-npm test                    # Markdown format router suite — the only suite whose source file is currently committed
-npm run test:read-doc       # read-doc URL-fetch extension — 14 tests covering fetchToTempFile + handleReadDoc (node:test)
+npm test                    # Markdown format router (custom-assert)
+npm run test:read-doc       # read-doc URL-fetch extension — 14 tests (node:test)
+npm run test:schemas        # MCP schema invariants + detect-format E2E — 6 tests (node:test)
+npm run test:render         # parseMarkdownToDocx + create-doc round-trip — 15 tests (node:test)
+npm run test:all            # Run all four suites in sequence
 npm run lint:no-console-log # Fail if any src/ file uses console.log (corrupts MCP stdio)
-# NOTE: package.json declares additional scripts (test:ocr, test:styling, test:create,
-# test:patch, test:category, test:dna, test:innovations, test:drift, test:auto-blueprint)
-# but their source files are not currently committed — running them fails with
-# "Cannot find module". They are kept for future restoration.
 ```
 
 ---
@@ -376,7 +375,9 @@ The DNA system provides automatic document styling without explicit configuratio
 
 ## STYLING SYSTEM
 
-Seven presets: `minimal`, `professional`, `technical`, `legal`, `business`, `casual`, `colorful`.
+Eight presets: `minimal`, `professional`, `technical`, `legal`, `business`, `casual`, `colorful`, `claude-like`.
+
+The default for create-doc when no category and no explicit preset is `claude-like` — modern blue-accented Calibri-based design with proper rendering of bullet/numbered lists, blockquotes, hyperlinks, horizontal rules, and inline tables (via `parseMarkdownToDocx`).
 
 ### Architecture (Two Systems — Use Only Nested)
 
@@ -618,3 +619,15 @@ The `edit-doc` tool uses XML-level patching (not full document recreation) to pr
 18. **`list-templates` returns BOTH static templates AND learned blueprints** — static templates come from `src/utils/document-tags.js` (claude-like, marketing, technical-docs, business-report, legal). Learned blueprints come from `.document-blueprints.json`. Optional `category` filter substring-matches against name/stylePreset/recommendedFor.
 
 19. **`findMatchingTemplate` returns `null` when nothing matches** — used to fall back to "claude-like" for unknown documents, which masked the no-match case. Now returns `{key, ...template}` on match (with the key included so callers don't have to reverse-lookup) or `null`.
+
+20. **`parseMarkdownToDocx` is the block-level markdown renderer** — defined in `src/tools/doc-utils.js`. Used by `create-doc.js` for any STRING paragraph entry. Handles bullet/numbered lists, blockquotes, horizontal rules, fenced code blocks, hyperlinks (rendered as `ExternalHyperlink`), inline tables, headings, and strikethrough. Object-form paragraphs (`{text, headingLevel}`) still go through the legacy inline path so explicit heading intent is preserved exactly. The OLD `parseInlineMarkdown` is kept as the inline-only helper for object-form paragraphs.
+
+21. **All `new Document()` call sites pass `numbering: createNumberingConfig()`** — REQUIRED for bullet/numbered list paragraphs to render. Without it, list paragraphs reference a numId that isn't defined and render as unindented plain lines. The five call sites are: `create-doc.js`, `edit-doc.js` (×2 — replace and append legacy), `docx-patch.js` (×4 — generateParagraphsXML, generateTablesXML, replaceDocxContent title, applyStylingToDocx).
+
+22. **`claude-like` is the default style preset for create-doc** — replaces the old "professional" default. Uses Calibri (universal Word default — no font installation required), modern blue-on-slate palette, `lineSpacing: 1.5`, and includes block-level config for lists, blockquotes, hr, and link colors. The `professional` preset still exists for executive/serif looks.
+
+23. **`clientHint` parameter on creation tools** — `"agent"` | `"interactive"` | `"auto"`. Default `"auto"` runs `resolveClientHint(params)` in `src/tools/utils.js` which checks `MCP_CLIENT_TYPE` env var, then heuristics on input shape, then falls back to `"agent"`. Interactive mode produces a one-line response message and omits chatty fields (enforcement, styleConfig, lineage, memoriesApplied) — for use in human-facing UIs like CogniRunner. Agent mode is the verbose default.
+
+24. **Server-level `instructions`** — set in `src/index.js` via `new Server({...}, { capabilities, instructions: SERVER_INSTRUCTIONS })`. The instructions reach the calling LLM alongside the tool list and coach format selection, title quality, edit workflow, and clientHint usage. Edit `SERVER_INSTRUCTIONS` near the top of `src/index.js` to update.
+
+25. **The `create-doc` dispatcher in `src/index.js` no longer overwrites the handler's `message` field** — previously every successful create-* call had its message replaced with a hardcoded "DOCX FILE WRITTEN TO DISK..." string. The handlers now produce their own message (interactive vs agent shape) and the dispatcher just relays the result.

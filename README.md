@@ -39,6 +39,16 @@ The server exposes 13 tools via the MCP protocol. Each tool uses an `action` or 
 
 > **Note:** All old tool names from previous versions (`get-doc-summary`, `get-doc-indepth`, `get-doc-focused`, `init-dna`, `get-dna`, `evolve-dna`, `save-memory`, `delete-memory`, `learn-blueprint`, `list-blueprints`, `watch-document`, `check-drift`, `search-registry`) are accepted as backward-compatible aliases.
 
+### Polished output for human-facing UIs (`clientHint`)
+
+`create-doc`, `create-markdown`, and `create-excel` accept an optional `clientHint` parameter:
+
+- `"interactive"` → response message is a single line (`Created: <path>`); chatty fields like `enforcement`, `styleConfig`, `lineage`, `memoriesApplied` are omitted. Use this when an end-user reads the response directly (e.g. CogniRunner showing the result in a Jira comment).
+- `"agent"` → verbose response with all metadata for AI consumption. This is the default behaviour.
+- `"auto"` → run a heuristic on the input shape, fall back to `MCP_CLIENT_TYPE` env var, then to `"agent"`.
+
+Set `MCP_CLIENT_TYPE=interactive` in the MCP server's environment to make `"auto"` resolve to interactive across all calls.
+
 ## Reading from remote URLs
 
 `read-doc` accepts a remote HTTPS URL guarded by a Bearer header in addition to local file paths. This is designed for **one-shot capabilities** -- short-lived, narrowly-scoped tokens that grant exactly one read of one specific resource -- such as the Forge web trigger that [CogniRunner](https://github.com/leanzero-srl/leanzero-cognirunner-forgeapp) (`feature/byok-postfunctions` branch) uses to expose Jira attachments to a local LM Studio instance.
@@ -148,10 +158,11 @@ The server communicates over stdio using the MCP JSON-RPC protocol. It is design
 
 ## Style Presets
 
-Seven built-in presets control document typography, spacing, and table formatting.
+Eight built-in presets control document typography, spacing, and table formatting. The default for general-purpose `create-doc` calls is **`claude-like`**.
 
 | Preset | Font | Body Size | Key Traits |
 |--------|------|-----------|------------|
+| `claude-like` | Calibri | 11pt | **Default.** Modern blue accents, generous whitespace, proper bullet/numbered lists, blockquotes, hyperlinks, inline tables — looks like a polished Claude chat answer rendered as a document |
 | `minimal` | Arial | 11pt | Clean, Swiss-style, subtle borders, light zebra striping |
 | `professional` | Garamond | 11pt | Serif, justified, small caps title, double-spaced headings |
 | `technical` | Arial / Segoe UI | 11pt | Left-aligned, strong hierarchy, high-contrast tables |
@@ -288,12 +299,13 @@ DNA supports three-level inheritance: System defaults (hardcoded) < Project DNA 
 ## Testing
 
 ```bash
-npm test                    # Markdown format router suite
-npm run test:read-doc       # read-doc URL-fetch extension (14 tests, node:test)
+npm test                    # Markdown format router (custom-assert)
+npm run test:read-doc       # read-doc URL-fetch — 14 tests (node:test)
+npm run test:schemas        # MCP schema invariants + detect-format E2E — 6 tests (node:test)
+npm run test:render         # parseMarkdownToDocx + create-doc round-trip — 15 tests (node:test)
+npm run test:all            # Run all four suites in sequence
 npm run lint:no-console-log # Fail if any src/ file uses console.log (corrupts MCP stdio)
 ```
-
-> **Note:** `package.json` declares additional scripts (`test:ocr`, `test:styling`, `test:create`, `test:patch`, `test:category`, `test:dna`, `test:innovations`, `test:drift`, `test:auto-blueprint`) whose source files are not currently committed to the repository -- running them today fails with `Cannot find module`. They are kept as placeholders for future restoration. New work should add tests under matching script names.
 
 ## Generated Files
 

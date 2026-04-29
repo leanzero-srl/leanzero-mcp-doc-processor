@@ -344,6 +344,47 @@ export async function registerDocumentInRegistry(doc) {
 // Duplicate detection lives in src/services/ai-guidance-system.js → checkForExistingDocument.
 
 /**
+ * Resolve a `clientHint` value into a concrete output mode.
+ *
+ * Inputs (priority order):
+ *   1. params.clientHint, if "agent" or "interactive" — explicit caller wins.
+ *   2. params.clientHint === "auto" or absent → run the heuristic.
+ *
+ * Heuristic for "auto":
+ *   a. MCP_CLIENT_TYPE env var if set to "interactive" or "agent".
+ *   b. Input shape: a single huge markdown string suggests a human-style
+ *      paste (lean toward "interactive"); structured paragraph blocks with
+ *      explicit headingLevel suggest agent calls.
+ *   c. Default to "agent" so existing automation keeps its verbose response.
+ *
+ * @param {Object} params - The full caller arguments
+ * @returns {"agent" | "interactive"}
+ */
+export function resolveClientHint(params = {}) {
+  const explicit = params.clientHint;
+  if (explicit === "agent" || explicit === "interactive") return explicit;
+
+  const env = (process.env.MCP_CLIENT_TYPE || "").toLowerCase();
+  if (env === "interactive" || env === "agent") return env;
+
+  // Heuristic: structured input (objects with headingLevel) → agent
+  if (Array.isArray(params.paragraphs)) {
+    const structuredCount = params.paragraphs.filter(
+      (p) => p && typeof p === "object" && (p.headingLevel || p.text),
+    ).length;
+    if (structuredCount > 0) return "agent";
+    // Single string paragraph longer than 1KB suggests a human paste
+    const singleBigString =
+      params.paragraphs.length === 1 &&
+      typeof params.paragraphs[0] === "string" &&
+      params.paragraphs[0].length > 1024;
+    if (singleBigString) return "interactive";
+  }
+
+  return "agent";
+}
+
+/**
  * Classify document content and return category
  * @param {string} title - Document title
  * @param {string} [content] - Document content for analysis
