@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import mammoth from "mammoth";
-import { Document, Packer, Paragraph, AlignmentType, HeadingLevel } from "docx";
+import { Document, Packer, Paragraph, HeadingLevel } from "docx";
 import {
   getStyleConfig,
   getAvailablePresets,
@@ -15,15 +15,13 @@ import {
 } from "./docx-patch.js";
 import { registerDocumentInRegistry } from "./utils.js";
 import { recordWrite } from "../services/lineage-tracker.js";
+import { log } from "../utils/logger.js";
 // Import shared utilities from doc-utils.js (eliminates code duplication)
 import {
   parseInlineMarkdown,
   extractHeadingLevels,
-  createText,
   createParagraph,
   createTableFromData,
-  createDocHeader,
-  createDocFooter,
   createCodeBlock,
 } from "./doc-utils.js";
 
@@ -105,7 +103,7 @@ export async function editDoc(input) {
     // If no preset specified but category is available, automatically select style
     if (!stylePreset && input.category) {
       stylePreset = selectStyleBasedOnCategory(input.category);
-      console.error(
+      log("info",
         `[edit-doc] Automatically selected style preset "${stylePreset}" for category "${input.category}"`,
       );
     }
@@ -150,7 +148,7 @@ export async function editDoc(input) {
               tags: tags,
             });
           } catch (err) {
-            console.warn("Failed to update registry:", err.message);
+            log("warn", "[edit-doc] Failed to update registry:", { error: err.message });
           }
 
           return {
@@ -202,7 +200,7 @@ export async function editDoc(input) {
               tags: tags,
             });
           } catch (err) {
-            console.warn("Failed to update registry:", err.message);
+            log("warn", "[edit-doc] Failed to update registry:", { error: err.message });
           }
 
           return {
@@ -247,7 +245,7 @@ export async function editDoc(input) {
               tags: tags,
             });
           } catch (err) {
-            console.warn("Failed to update registry:", err.message);
+            log("warn", "[edit-doc] Failed to update registry:", { error: err.message });
           }
 
           return {
@@ -294,12 +292,12 @@ export async function editDoc(input) {
       }
     }
 
-    // LEGACY MODE - This is the old approach that loses formatting
-    // Kept for backward compatibility and edge cases
-
-    console.warn(
-      `[edit-doc] Using legacy mode - original formatting will be lost. ` +
-        `Remove useLegacy: true to preserve formatting.`,
+    // LEGACY MODE — recreates the document via mammoth which DESTROYS all
+    // original formatting (fonts, colors, images, headers, footers).
+    // Kept only for emergency cases where XML patching fails.
+    log("warn",
+      `[edit-doc] useLegacy:true is destructive — original formatting (fonts, colors, ` +
+      `images, headers, footers) will be lost. Remove useLegacy:true to preserve formatting.`,
     );
 
     const baseStyle = {

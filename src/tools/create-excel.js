@@ -18,17 +18,13 @@ import {
   getAvailablePresets,
   getPresetDescription,
 } from "./styling.js";
-// Import shared utilities (eliminates code duplication)
-import { stripMarkdownPlain } from "./doc-utils.js";
 import { applyDNAToInput } from "../utils/dna-manager.js";
 import {
-  hexToRgb,
   applyExcelStyling,
   cleanSheetData,
   getZebraColor,
 } from "./excel-utils.js";
-
-// hexToRgb and applyExcelStyling are now imported from excel-utils.js
+import { log } from "../utils/logger.js";
 
 /**
  * Creates an Excel workbook from structured data using xlsx-js-style with full styling support
@@ -46,10 +42,13 @@ import {
  */
 export async function createExcel(input) {
   try {
-    // Inject title into normalized input so filename can be derived from it
-    if (input.title && !input.outputPath) {
-      input = { ...input };  // shallow clone to avoid mutating caller's object
-    }
+    // Shallow clone so we can safely mutate (e.g. apply DNA defaults) without
+    // touching the caller's object.
+    input = { ...input };
+
+    // Apply Document DNA defaults (stylePreset etc.) BEFORE the dry-run preview
+    // so the preview reflects what would actually be written.
+    applyDNAToInput(input);
 
     // Step 1: Validate and normalize input
     const normalized = validateAndNormalizeInput(input, ["sheets"], "xlsx");
@@ -85,17 +84,15 @@ export async function createExcel(input) {
     let category = input.category || null;
     const tags = Array.isArray(input.tags) ? input.tags : [];
 
-    // Auto-classify if no category provided and title available
-    const firstCell = input.sheets?.[0]?.data?.[0]?.[0];
-    const title = firstCell ? String(firstCell) : "";
-    if (!category && title) {
-      const classification = classifyDocumentContent(
-        input.outputPath || "",
-        title,
-      );
+    // Auto-classify using title + description (not the top-left cell, which is
+    // typically just a header label like "Date" and produces fragile guesses).
+    const classifierTitle = input.title || "";
+    const classifierContent = input.description || "";
+    if (!category && (classifierTitle || classifierContent)) {
+      const classification = classifyDocumentContent(classifierTitle, classifierContent);
       if (classification.category !== "misc") {
         category = classification.category;
-        console.error(
+        log("info",
           `[create-excel] Auto-classified document as "${category}" (confidence: ${classification.confidence})`,
         );
       }
@@ -166,9 +163,8 @@ export async function createExcel(input) {
     // Step 2: Ensure output directory exists
     await ensureDirectory(path.dirname(outputPath));
 
-    // Log enforcement actions to teach AI models
     if (docsEnforced) {
-      console.error(
+      log("info",
         `[create-excel] Enforced docs/ folder structure. File placed in: ${path.relative(
           process.cwd(),
           outputPath,
@@ -176,21 +172,18 @@ export async function createExcel(input) {
       );
     }
     if (wasDuplicatePrevented) {
-      console.error(
+      log("info",
         `[create-excel] Prevented duplicate file. Created: ${path.basename(
           outputPath,
         )}`,
       );
     }
 
-    // Apply Document DNA defaults (stylePreset) if not explicitly provided
-    applyDNAToInput(input);
-
-    // Step 3: Validate and apply style preset
+    // Step 3: Validate and apply style preset (DNA defaults already merged in earlier).
     const stylePreset = input.stylePreset || "minimal";
     if (!getAvailablePresets().includes(stylePreset)) {
-      console.warn(
-        `Warning: Style preset "${stylePreset}" not found. Using "minimal" preset.`,
+      log("warn",
+        `[create-excel] Style preset "${stylePreset}" not found. Falling back to "minimal".`,
       );
       input.stylePreset = "minimal";
     }
@@ -305,18 +298,12 @@ export async function createExcel(input) {
       message: `XLSX FILE WRITTEN TO DISK at: ${path.resolve(outputPath)}\n\nIMPORTANT: This tool has created an actual .xlsx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}`,
     };
   } catch (err) {
-    console.error("Excel creation error:", err);
-
-    const errorDetails = {
-      message: err.message,
-      name: err.name,
-      code: err.code,
-    };
+    log("error", "[create-excel] Creation error:", { message: err.message, name: err.name, code: err.code });
 
     return {
       success: false,
       error: err.message,
-      details: errorDetails,
+      details: { message: err.message, name: err.name, code: err.code },
       message: `Failed to create Excel file: ${err.message}`,
     };
   }
