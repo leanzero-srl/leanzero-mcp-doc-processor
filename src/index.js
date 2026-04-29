@@ -11,7 +11,6 @@ import path from "path";
 
 // Import utilities
 import { setupLogging, log } from "./utils/logger.js";
-import { visionService } from "./services/vision-service.js";
 
 // Import tool handlers
 import { handleReadDoc } from "./tools/read-doc-tool.js";
@@ -59,12 +58,12 @@ const DOC_TYPE = {
 };
 const PARA_ITEM = {
   oneOf: [
-    { type: "string", description: "Simple paragraph text" },
+    { type: "string", description: "Plain paragraph text. Markdown formatting inside (e.g. **bold**, *italics*, `code`, [link](url)) is preserved when rendered. Leading '# ', '## ', '### ' is auto-detected as heading." },
     {
       type: "object",
       properties: {
-        text: { type: "string" },
-        headingLevel: { type: "string", enum: ["heading1", "heading2", "heading3"] },
+        text: { type: "string", description: "Paragraph text. Inline markdown is preserved." },
+        headingLevel: { type: "string", enum: ["heading1", "heading2", "heading3"], description: "Use for explicit heading hierarchy. Preferred over inline '#'." },
         bold: { type: "boolean" },
         italics: { type: "boolean" },
         underline: { type: "boolean" },
@@ -73,6 +72,39 @@ const PARA_ITEM = {
       required: ["text"],
     },
   ],
+};
+
+const HEADER_OBJ = {
+  type: "object",
+  description: "Page header: { text, alignment?: 'left'|'center'|'right', color?: '#hex' }. Applies to every page.",
+  properties: {
+    text: { type: "string" },
+    alignment: { type: "string", enum: ["left", "center", "right"] },
+    color: { type: "string", description: "Hex color, e.g. '#666666'." },
+  },
+  required: ["text"],
+};
+
+const FOOTER_OBJ = {
+  type: "object",
+  description: "Page footer: { text, alignment?, color? }. Use {current}/{total} placeholders for page numbers.",
+  properties: {
+    text: { type: "string", description: "Footer text. {current} and {total} are replaced with page numbers." },
+    alignment: { type: "string", enum: ["left", "center", "right"] },
+    color: { type: "string", description: "Hex color, e.g. '#666666'." },
+  },
+  required: ["text"],
+};
+
+const MARGINS_OBJ = {
+  type: "object",
+  description: "Page margins in twips (1440 = 1 inch). Defaults: top/bottom 720 (or 1440 if header/footer set), left/right 1080.",
+  properties: {
+    top: { type: "number" },
+    bottom: { type: "number" },
+    left: { type: "number" },
+    right: { type: "number" },
+  },
 };
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -100,13 +132,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "detect-format",
       description:
-        "Recommend document format and tone. Call BEFORE creating if format/tone not specified. Technical → markdown, Stakeholder → docx, Data → excel.",
+        "Recommend the right document format (markdown / docx / excel) and tone before creating. Call this FIRST when the user didn't specify a format. Returns { format, docType, confidence, reason, matchedKeywords, suggestedTool } — pass `format` to the corresponding create-* tool. Technical/code/API → markdown; stakeholder/business/legal → docx; numeric/budget/data → excel.",
       inputSchema: {
         type: "object",
         properties: {
-          userQuery: { type: "string", description: "The user's original request" },
-          title: { type: "string", description: "Document title if known" },
-          content: { type: "string", description: "Content preview if available" },
+          userQuery: { type: "string", description: "The user's original request, verbatim if possible." },
+          title: { type: "string", description: "Document title if already chosen." },
+          content: { type: "string", description: "Content preview if available — the more context, the better the routing." },
         },
         required: ["userQuery"],
       },
@@ -114,20 +146,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "create-doc",
       description:
-        "Create a Word DOCX with paragraphs, tables, headers, footers, and styling. Title must be descriptive (not 'Document' or 'Untitled'). DNA auto-applies defaults. Use dryRun for preview.",
+        "Create a Word DOCX. Use for stakeholder/business/legal/research documents — NOT for code-heavy technical docs (use create-markdown) or pure tabular data (use create-excel). Title MUST be specific (rejects 'Document', 'Untitled', etc.). On duplicate detection returns { duplicate: true, existingPath } — switch to edit-doc. Document DNA auto-applies project-wide header/footer/style defaults. Use dryRun: true for preview.",
       inputSchema: {
         type: "object",
         properties: {
-          title: { type: "string", description: "Document title. Must be specific and descriptive." },
-          paragraphs: { type: "array", items: PARA_ITEM, description: "Paragraphs with headingLevel for hierarchy." },
-          tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Tables as 2D arrays." },
-          outputPath: { type: "string", description: "Output file path (default: derived from title)." },
+          title: { type: "string", description: "Specific descriptive title (rejected: 'Document', 'Untitled', etc.)." },
+          paragraphs: { type: "array", items: PARA_ITEM, description: "Document body. Each entry is a markdown string OR { text, headingLevel: 'heading1'|'heading2'|'heading3' }. Inline markdown (**bold**, *italic*, `code`) renders correctly." },
+          tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Optional tables as 2D arrays. First row is the header." },
+          outputPath: { type: "string", description: "Optional. Default: derived from title, placed under docs/<category>/." },
           stylePreset: STYLE_PRESET,
           category: CATEGORY,
           tags: TAGS,
-          description: { type: "string", description: "Brief description for registry." },
-          dryRun: { type: "boolean", description: "Preview without writing (default: false)." },
+          description: { type: "string", description: "Brief description stored in the registry." },
+          dryRun: { type: "boolean", description: "Return a preview without writing the file (default: false)." },
           docType: DOC_TYPE,
+          header: HEADER_OBJ,
+          footer: FOOTER_OBJ,
+          margins: MARGINS_OBJ,
+          backgroundColor: { type: "string", description: "Optional page background hex color, e.g. '#FFFFFF'." },
+          blueprint: { type: "string", description: "Optional blueprint name to validate the structure against (see list-templates)." },
+          enforceDocsFolder: { type: "boolean", description: "If false, allow output outside docs/. Default: true (recommended)." },
+          preventDuplicates: { type: "boolean", description: "If false, allow same-title duplicates. Default: true (recommended)." },
+          tableHeaderFill: { type: "string", description: "Optional override for table header cell fill color (hex)." },
+          style: { type: "object", description: "Advanced: fine-grained style overrides merged on top of stylePreset.", additionalProperties: true },
         },
         required: ["title"],
       },
@@ -135,18 +176,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "create-markdown",
       description:
-        "Create implementation-focused markdown files. Copy-paste friendly with code blocks, headings, bullet lists (no tables). No confirmation needed.",
+        "Create a Markdown (.md) file. Use for implementation/technical docs, READMEs, integration guides, code-heavy content. Each `paragraphs` entry is a markdown string OR { text, headingLevel } object. The title becomes the H1; explicit headingLevel becomes H2/H3. Fenced code blocks (```lang ... ```), bullet/task lists, and inline code are passed through. Title MUST be specific. Use dryRun: true for preview.",
       inputSchema: {
         type: "object",
         properties: {
-          title: { type: "string", description: "Document title (becomes H1). Must be specific." },
-          paragraphs: { type: "array", items: PARA_ITEM, description: "Paragraphs with markdown formatting." },
-          outputPath: { type: "string", description: "Output file path." },
+          title: { type: "string", description: "Specific descriptive title (becomes H1; rejected if generic)." },
+          paragraphs: { type: "array", items: PARA_ITEM, description: "Body content. Markdown strings or { text, headingLevel } objects." },
+          outputPath: { type: "string", description: "Optional. Default: derived from title, placed under docs/<category>/." },
           category: CATEGORY,
           tags: TAGS,
-          description: { type: "string", description: "Brief description for registry." },
-          dryRun: { type: "boolean", description: "Preview without writing (default: false)." },
+          description: { type: "string", description: "Brief description stored in the registry." },
+          dryRun: { type: "boolean", description: "Return a preview without writing (default: false)." },
           docType: DOC_TYPE,
+          enforceDocsFolder: { type: "boolean", description: "If false, allow output outside docs/. Default: true." },
+          preventDuplicates: { type: "boolean", description: "If false, allow same-title duplicates. Default: true." },
         },
         required: ["title"],
       },
@@ -154,34 +197,35 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "create-excel",
       description:
-        "Create an Excel XLSX workbook with multiple sheets and styling. Title and sheet names must be descriptive. Use dryRun for preview.",
+        "Create an Excel XLSX workbook. Use for tabular/numeric/financial data, trackers, KPI dashboards. Sheet names MUST be specific (rejects 'Sheet1', 'Data', etc.). First row of each sheet's `data` is treated as the header. Workbook is auto-categorized when `title` is provided. Use dryRun: true for preview.",
       inputSchema: {
         type: "object",
         properties: {
-          title: { type: "string", description: "Workbook title. Must be descriptive." },
+          title: { type: "string", description: "Workbook title (used for filename, registry, and auto-categorization)." },
           sheets: {
             type: "array",
-            items: { type: "object", properties: { name: { type: "string" }, data: { type: "array", items: { type: "array" } } }, required: ["name", "data"] },
-            description: "Sheet definitions with descriptive names.",
+            items: { type: "object", properties: { name: { type: "string", description: "Specific sheet name." }, data: { type: "array", items: { type: "array" }, description: "2D array. First row is the header." } }, required: ["name", "data"] },
+            description: "Array of sheet definitions. At least one is required.",
           },
           stylePreset: STYLE_PRESET,
           style: {
             type: "object",
-            description: "Custom styling overrides",
+            description: "Optional fine-grained overrides merged on top of stylePreset.",
             properties: {
-              font: { type: "object" },
-              columnWidths: { type: "object" },
-              rowHeights: { type: "object" },
+              font: { type: "object", description: "{ family, size, color, bold }" },
+              columnWidths: { type: "object", description: "{ <columnIndex>: width-in-characters }" },
+              rowHeights: { type: "object", description: "{ <rowIndex>: height-in-points }" },
               headerBold: { type: "boolean" },
+              zebraColor: { type: "string", description: "Hex color for zebra-striped rows." },
             },
           },
-          outputPath: { type: "string", description: "Output file path." },
-          enforceDocsFolder: { type: "boolean", description: "Enforce docs/ folder (default: true)." },
-          preventDuplicates: { type: "boolean", description: "Prevent duplicate files (default: true)." },
-          dryRun: { type: "boolean", description: "Preview without writing (default: false)." },
+          outputPath: { type: "string", description: "Optional. Default: derived from title." },
+          enforceDocsFolder: { type: "boolean", description: "If false, allow output outside docs/. Default: true." },
+          preventDuplicates: { type: "boolean", description: "If false, allow same-name duplicates. Default: true." },
+          dryRun: { type: "boolean", description: "Return a preview without writing (default: false)." },
           category: CATEGORY,
           tags: TAGS,
-          description: { type: "string", description: "Brief description for registry." },
+          description: { type: "string", description: "Brief description stored in the registry." },
           docType: DOC_TYPE,
         },
         required: ["sheets"],
@@ -190,19 +234,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "edit-doc",
       description:
-        "Edit existing DOCX. Actions: 'append' (preserve formatting via XML patching), 'replace' (overwrite content), 'style' (apply preset), 'preview'. Title must be descriptive.",
+        "Edit an existing DOCX. Actions: 'append' (XML-patches new content, PRESERVES original formatting/headers/footers/images), 'replace' (overwrites body but keeps section properties), 'style' (apply a stylePreset to existing paragraphs without changing text), 'preview' (show what would change). Always read-doc with mode 'indepth' first so you understand the existing structure.",
       inputSchema: {
         type: "object",
         properties: {
-          filePath: { type: "string", description: "Path to the existing DOCX file" },
-          action: { type: "string", enum: ["append", "replace", "style", "preview"], description: "Edit action type" },
-          title: { type: "string", description: "Document title. Must be specific." },
-          paragraphs: { type: "array", items: PARA_ITEM, description: "Paragraphs to append/replace." },
+          filePath: { type: "string", description: "Absolute or project-relative path to the existing DOCX file." },
+          action: { type: "string", enum: ["append", "replace", "style", "preview"], description: "Edit action." },
+          title: { type: "string", description: "Optional new title (used by 'replace')." },
+          paragraphs: { type: "array", items: PARA_ITEM, description: "Paragraphs to append or replace with." },
           tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Tables as 2D arrays." },
           stylePreset: STYLE_PRESET,
-          category: { type: "string", description: "Document category for registry" },
+          category: { type: "string", description: "Document category for the registry update." },
           tags: TAGS,
           docType: DOC_TYPE,
+          style: { type: "object", description: "Advanced fine-grained style overrides.", additionalProperties: true },
+          addSeparator: { type: "boolean", description: "If true (default for 'append'), insert a blank paragraph before the new content as a visual separator." },
+          useLegacy: { type: "boolean", description: "DANGER: when true, recreates the document via mammoth which DESTROYS all original formatting (fonts, colors, images, headers, footers). Only set this if XML patching fails. Default: false." },
         },
         required: ["filePath", "action"],
       },
@@ -210,17 +257,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "edit-excel",
       description:
-        "Edit existing XLSX. Actions: 'append-rows', 'append-sheet', 'replace-sheet'. Read with read-doc first.",
+        "Edit an existing XLSX workbook. Actions: 'append-rows' (add rows to a sheet, preserves existing styles), 'append-sheet' (add a new sheet — fails if name exists), 'replace-sheet' (overwrite a sheet's data), 'preview' (show what would change). Use read-doc first if you don't know the sheet structure.",
       inputSchema: {
         type: "object",
         properties: {
-          filePath: { type: "string", description: "Path to the existing XLSX file" },
-          action: { type: "string", enum: ["append-rows", "append-sheet", "replace-sheet"], description: "Edit action type" },
-          sheetName: { type: "string", description: "Target sheet name" },
-          rows: { type: "array", items: { type: "array" }, description: "Rows to append" },
-          sheetData: { type: "object", properties: { name: { type: "string" }, data: { type: "array", items: { type: "array" } } }, required: ["data"], description: "Sheet definition" },
+          filePath: { type: "string", description: "Absolute or project-relative path to the existing XLSX file." },
+          action: { type: "string", enum: ["append-rows", "append-sheet", "replace-sheet", "preview"], description: "Edit action." },
+          sheetName: { type: "string", description: "Target sheet name (required for append-rows and replace-sheet)." },
+          rows: { type: "array", items: { type: "array" }, description: "Rows to append (required for append-rows)." },
+          sheetData: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Sheet name (required for append-sheet)." },
+              data: { type: "array", items: { type: "array" }, description: "2D array of cells. First row is the header." },
+            },
+            required: ["name", "data"],
+            description: "Sheet definition (required for append-sheet and replace-sheet).",
+          },
+          style: { type: "object", description: "Optional style overrides (zebraColor, etc.).", additionalProperties: true },
           stylePreset: STYLE_PRESET,
-          category: { type: "string", description: "Document category for registry" },
+          category: { type: "string", description: "Document category for registry update." },
           tags: TAGS,
           docType: DOC_TYPE,
         },
@@ -229,44 +285,46 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "list-documents",
-      description: "Search document registry by category, tags, or title.",
+      description:
+        "Search the document registry. Filters compose with AND-logic: category match AND tag match AND title-substring match. Returns an array of registry entries with { id, title, filePath, category, tags, description, createdAt, updatedAt }. Use this before create-doc to check if a similar document exists.",
       inputSchema: {
         type: "object",
         properties: {
-          category: { type: "string", description: "Filter by category" },
-          tags: { type: "array", items: { type: "string" }, description: "Filter by tags (matches any)" },
-          title: { type: "string", description: "Search by title (partial match)" },
+          category: { type: "string", description: "Filter by exact category match." },
+          tags: { type: "array", items: { type: "string" }, description: "Filter by tags (matches if ANY tag overlaps)." },
+          title: { type: "string", description: "Substring match on title (case-insensitive)." },
         },
       },
     },
     {
       name: "list-templates",
-      description: "List available document templates and blueprints.",
+      description:
+        "List available document templates AND blueprints. Templates are static, named structures (e.g. 'claude-like', 'technical-docs', 'business-report') you can reference via tags on create-doc. Blueprints are auto-learned structures stored in .document-blueprints.json. Use the returned `name` as `blueprint:` in create-doc, or as a tag for create-doc tag-based style detection.",
       inputSchema: {
         type: "object",
         properties: {
-          category: { type: "string", description: "Filter by category" },
+          category: { type: "string", description: "Optional category filter (matches blueprints' learnedFrom category and templates' recommendedFor)." },
         },
       },
     },
     {
       name: "dna",
       description:
-        "Manage Document DNA. Actions: 'init' (create defaults), 'get' (current config), 'evolve' (analyze patterns, auto-learn blueprints), 'save-memory', 'delete-memory'.",
+        "Manage the project's Document DNA — header/footer/style defaults that auto-apply to every create-doc call. Actions: 'init' (one-time setup with companyName/header/footer/stylePreset), 'get' (current config + project profile), 'evolve' (analyze usage trends; with apply:true, MUTATES dna config and may auto-create blueprints — irreversible without manual cleanup), 'save-memory'/'delete-memory' (project-wide preferences keyed by string).",
       inputSchema: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["init", "get", "evolve", "save-memory", "delete-memory"], description: "DNA action" },
-          companyName: { type: "string", description: "Company name for header (init only)" },
+          action: { type: "string", enum: ["init", "get", "evolve", "save-memory", "delete-memory"], description: "DNA action." },
+          companyName: { type: "string", description: "Company name (init only) — used as default header text." },
           stylePreset: STYLE_PRESET,
-          headerText: { type: "string", description: "Default header (init only)" },
-          headerAlignment: { type: "string", enum: ["left", "center", "right"], description: "Header alignment (init only)" },
-          footerText: { type: "string", description: "Default footer (init only). Use {current}/{total} for page numbers." },
-          footerAlignment: { type: "string", enum: ["left", "center", "right"], description: "Footer alignment (init only)" },
-          apply: { type: "boolean", description: "Auto-apply evolution suggestion (evolve only)" },
-          threshold: { type: "number", description: "Min documents before suggesting evolution (evolve only)" },
-          memory: { type: "string", description: "Preference to remember (save-memory only)" },
-          key: { type: "string", description: "Memory key" },
+          headerText: { type: "string", description: "Default header text (init only)." },
+          headerAlignment: { type: "string", enum: ["left", "center", "right"], description: "Default header alignment (init only)." },
+          footerText: { type: "string", description: "Default footer text (init only). Use {current}/{total} for page numbers." },
+          footerAlignment: { type: "string", enum: ["left", "center", "right"], description: "Default footer alignment (init only)." },
+          apply: { type: "boolean", description: "evolve only: when true, AUTO-MUTATES the dna config based on top suggestion. Off by default — review suggestions first." },
+          threshold: { type: "number", description: "evolve only: minimum documents before suggesting a mutation (default 5)." },
+          memory: { type: "string", description: "save-memory only: a short preference statement (e.g. 'Always use 1-inch margins for contracts')." },
+          key: { type: "string", description: "Memory key (save-memory: optional, auto-generated; delete-memory: required)." },
         },
         required: ["action"],
       },
@@ -274,14 +332,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "blueprint",
       description:
-        "Manage structural blueprints. Actions: 'learn' (extract from DOCX/PDF), 'list', 'delete'. Auto-learned during 'dna evolve'.",
+        "Manage structural blueprints — section/heading templates extracted from real documents. Actions: 'learn' (extract from a DOCX or PDF you already have), 'list' (show stored blueprints), 'delete' (remove by name). Blueprints are also auto-learned during 'dna evolve' when recurring structures are detected. Use a blueprint by passing { blueprint: '<name>' } to create-doc — the tool will validate that your paragraphs match the structure.",
       inputSchema: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["learn", "list", "delete"], description: "Blueprint action" },
-          filePath: { type: "string", description: "Source document (learn only)" },
-          name: { type: "string", description: "Blueprint name" },
-          description: { type: "string", description: "Description (learn only)" },
+          action: { type: "string", enum: ["learn", "list", "delete"], description: "Blueprint action." },
+          filePath: { type: "string", description: "Path to source DOCX/PDF (REQUIRED for 'learn'; ignored otherwise)." },
+          name: { type: "string", description: "Blueprint name (required for learn and delete)." },
+          description: { type: "string", description: "Optional description (learn only)." },
         },
         required: ["action"],
       },
@@ -289,25 +347,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "drift-monitor",
       description:
-        "Monitor documents for structural changes. Actions: 'watch' (register baseline), 'check' (compare). Reports heading, word count, content drift.",
+        "Monitor documents for structural drift over time. Actions: 'watch' (compute and store a fingerprint = SHA-256 + heading tree + word counts; capped at 500 paragraphs), 'check' (compare current state against the stored baseline; reports word-count delta, added/removed headings, category shifts, and a similarity score). Omit filePath on 'check' to compare all watched documents.",
       inputSchema: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["watch", "check"], description: "Drift action" },
-          filePath: { type: "string", description: "Document path (required for watch, omit to check all)" },
-          name: { type: "string", description: "Friendly name (watch only)" },
+          action: { type: "string", enum: ["watch", "check"], description: "Drift action." },
+          filePath: { type: "string", description: "Document path (REQUIRED for 'watch'; optional for 'check' — omit to check all watched docs)." },
+          name: { type: "string", description: "Friendly display name for the watched document (watch only)." },
         },
         required: ["action"],
       },
     },
     {
       name: "get-lineage",
-      description: "Trace document provenance — which sources informed it and what was derived from it.",
+      description:
+        "Trace the provenance chain of a document. Returns a tree { sources: [{filePath, ...}], derivatives: [{filePath, ...}] } showing which read documents informed this document (sources, traced upstream) and which created documents derived from it (derivatives, traced downstream). Lineage is recorded automatically when read-doc and create-doc are called within the same session.",
       inputSchema: {
         type: "object",
         properties: {
-          filePath: { type: "string", description: "Document path" },
-          depth: { type: "number", description: "Traversal depth (default: 3)" },
+          filePath: { type: "string", description: "Document path to trace lineage for." },
+          depth: { type: "number", description: "Traversal depth in either direction (default: 3)." },
         },
         required: ["filePath"],
       },
@@ -399,7 +458,45 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "list-templates": {
         const { listBlueprints } = await import("./utils/blueprint-store.js");
-        return { content: [{ type: "text", text: JSON.stringify(listBlueprints(), null, 2) }] };
+        const { getTemplateDescriptions } = await import("./utils/document-tags.js");
+
+        const allBlueprints = listBlueprints();
+        const allTemplates = getTemplateDescriptions();
+
+        const categoryFilter = (params?.category || "").toLowerCase().trim();
+        const matchesCategory = (item, fieldsToCheck) => {
+          if (!categoryFilter) return true;
+          for (const f of fieldsToCheck) {
+            const v = item[f];
+            if (typeof v === "string" && v.toLowerCase().includes(categoryFilter)) return true;
+            if (Array.isArray(v) && v.some(x => typeof x === "string" && x.toLowerCase().includes(categoryFilter))) return true;
+          }
+          return false;
+        };
+
+        const blueprints = allBlueprints.filter(bp => matchesCategory(bp, ["category", "stylePreset", "name"]));
+        const templates = allTemplates.filter(t => matchesCategory(t, ["recommendedFor", "name", "stylePreset", "tag"]));
+
+        const result = {
+          templates: templates.map(t => ({
+            ...t,
+            kind: "static-template",
+            usage: `Pass tags: ["${t.tag}"] to create-doc to apply this template's styling.`,
+          })),
+          blueprints: blueprints.map(bp => ({
+            ...bp,
+            kind: "blueprint",
+            usage: `Pass blueprint: "${bp.name}" to create-doc to validate the structure.`,
+          })),
+          totalTemplates: templates.length,
+          totalBlueprints: blueprints.length,
+          filter: categoryFilter || null,
+          message: blueprints.length === 0 && templates.length === 0
+            ? `No templates or blueprints match filter "${categoryFilter}".`
+            : `${templates.length} static template(s) and ${blueprints.length} learned blueprint(s).`,
+        };
+
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
 
       // DNA (consolidated + backward compat)

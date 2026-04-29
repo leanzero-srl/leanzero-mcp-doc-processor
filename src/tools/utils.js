@@ -2,12 +2,12 @@ import fs from "fs/promises";
 import { constants as fsConstants } from "fs";
 import path from "path";
 
-// Import categorization utilities
 import { classifyDocument, getCategoryInfo, getAvailableCategories as getCategoriesFromClassifier } from "../utils/categorizer.js";
 import {
   registerDocument,
   findDocuments
 } from "../utils/registry.js";
+import { log } from "../utils/logger.js";
 
 /**
  * Enforces docs/ folder structure for file organization
@@ -50,17 +50,14 @@ export function enforceDocsFolder(
     relativePath.split(path.sep)[0] === "docs";
 
   if (alreadyInDocs) {
-    console.error(
-      `[enforceDocsFolder] Path already in docs/: ${outputPath}, no enforcement needed`,
-    );
     return { outputPath: resolvedPath, wasEnforced: false };
   }
 
   // Enforce docs/ folder for paths not already in docs/
   const parsedPath = path.parse(path.basename(resolvedPath));
   const docsPath = path.join(projectRoot, "docs", parsedPath.base);
-  console.error(
-    `[enforceDocsFolder] Input: ${outputPath}, Output: ${docsPath}, Was enforced: true`,
+  log("debug",
+    `[enforceDocsFolder] redirected ${outputPath} → ${docsPath}`,
   );
   return { outputPath: docsPath, wasEnforced: true };
 }
@@ -169,7 +166,7 @@ export async function preventDuplicateFiles(
   }
 
   // Exhausted retries - fall back to timestamp-based unique name
-  console.warn(
+  log("warn",
     `[preventDuplicateFiles] Lock acquisition timed out, using timestamp fallback`,
   );
   const timestamp = Date.now();
@@ -338,25 +335,13 @@ export async function registerDocumentInRegistry(doc) {
       description: doc.description
     });
   } catch (err) {
-    console.warn("Failed to register document:", err.message);
+    log("warn", "Failed to register document:", { error: err.message });
     return null;
   }
 }
 
-/**
- * Check for duplicate documents in registry
- * @param {string} title - Document title to check
- * @param {string} [category] - Expected category
- * @returns {Array} Array of duplicate candidates
- */
-export async function getDuplicateCandidates(title, category) {
-  try {
-    return await findDocuments({ title, category });
-  } catch (err) {
-    console.warn("Failed to check for duplicates:", err.message);
-    return [];
-  }
-}
+// NOTE: getDuplicateCandidates was removed — it was exported but never called.
+// Duplicate detection lives in src/services/ai-guidance-system.js → checkForExistingDocument.
 
 /**
  * Classify document content and return category
@@ -397,7 +382,7 @@ export async function listDocuments(filters = {}) {
       return true;
     });
   } catch (err) {
-    console.warn("Failed to list documents:", err.message);
+    log("warn", "Failed to list documents:", { error: err.message });
     return [];
   }
 }
@@ -443,7 +428,7 @@ export async function searchRegistry(criteria = {}) {
       documents: matches
     };
   } catch (err) {
-    console.warn("Failed to search registry:", err.message);
+    log("warn", "Failed to search registry:", { error: err.message });
     return { query: criteria, totalMatches: 0, byCategory: {}, documents: [] };
   }
 }

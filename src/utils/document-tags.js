@@ -226,14 +226,28 @@ export function getAvailableTemplates() {
 }
 
 /**
- * Find matching template for document based on content analysis
+ * Find a matching template for a document based on content analysis.
+ *
+ * Returns `{ key, ...template }` where `key` is the template identifier
+ * (e.g. "claude-like", "marketing"), or `null` if nothing matched.
+ *
+ * Why include the key on the return value: callers used to do a reverse
+ * lookup over TAG_TO_TEMPLATE → Object.keys(TEMPLATES).find(...) — which
+ * was fragile and depended on `template.name` being a unique string.
+ *
+ * @param {string} title - Document title
+ * @param {string} content - Content (any length)
+ * @param {string[]} tags - Optional array of explicit tags to short-circuit detection
+ * @returns {(null|object)} `{ key, name, description, ... }` or null
  */
 export function findMatchingTemplate(title = "", content = "", tags = []) {
   // First check explicit tags
   if (Array.isArray(tags)) {
     for (const tag of tags) {
       const templateKey = TAG_TO_TEMPLATE[tag?.toLowerCase()];
-      if (templateKey) return TEMPLATES[templateKey];
+      if (templateKey && TEMPLATES[templateKey]) {
+        return { key: templateKey, ...TEMPLATES[templateKey] };
+      }
     }
   }
 
@@ -250,12 +264,14 @@ export function findMatchingTemplate(title = "", content = "", tags = []) {
 
   for (const match of matches) {
     if (match.keywords.some(keyword => combinedText.includes(keyword))) {
-      return TEMPLATES[match.template];
+      return { key: match.template, ...TEMPLATES[match.template] };
     }
   }
 
-  // Default to Claude-like for unknown documents
-  return TEMPLATES["claude-like"];
+  // No match — return null so callers can distinguish "no signal" from
+  // "matched the default". Callers that want a hardcoded fallback should
+  // do that explicitly.
+  return null;
 }
 
 /**

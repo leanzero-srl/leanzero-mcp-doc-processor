@@ -2,12 +2,8 @@ import {
   Document,
   Packer,
   Paragraph,
-  TextRun,
   AlignmentType,
   HeadingLevel,
-  PageBreak,
-  Header,
-  Footer,
 } from "docx";
 
 // ============================================================================
@@ -15,15 +11,15 @@ import {
 // ============================================================================
 
 /**
- * Import document tags system for MCP awareness and template matching.
- * This enables the model to understand what types of beautiful documents to create.
+ * Document Tags System - MCP AI awareness
+ *
+ * Enables tag-based template detection so the model can hint at document type
+ * (e.g. tags: ["claude-like"]) and the tool auto-applies an appropriate preset.
  */
 import {
   getTemplateByTag,
   findMatchingTemplate,
-  generateStyleFromTemplate,
-  TEMPLATES,
-  TAG_TO_TEMPLATE
+  TAG_TO_TEMPLATE,
 } from "../utils/document-tags.js";
 import fs from "fs/promises";
 import path from "path";
@@ -33,30 +29,6 @@ import {
   getPresetDescription,
   selectStyleBasedOnCategory,
   buildDocumentStyles,
-  COLORS,
-  PAGE_WIDTH,
-  CONTENT_WIDTH,
-  createCellBorders,
-  createCellMargins,
-  heading1,
-  heading2,
-  heading3,
-  para,
-  bold,
-  normal,
-  spacer,
-  divider,
-  bulletItem,
-  subBulletItem,
-  statusBadge,
-  infoRow,
-  infoTable,
-  gapTableHeader,
-  gapRow,
-  gapTable,
-  createHeader,
-  createFooter,
-  createPageProperties,
 } from "./styling.js";
 import {
   validateAndNormalizeInput,
@@ -156,38 +128,37 @@ export async function createDoc(input) {
     
     // If no explicit tags, try to detect from template or content analysis
     if (resolvedTags.length === 0 && parsedInput.title) {
-      const title = parsedInput.title || "";
-      const description = parsedInput.description || "";
-      const firstParagraph = Array.isArray(parsedInput.paragraphs) 
+      const docTitle = parsedInput.title || "";
+      const docDescription = parsedInput.description || "";
+      const firstParagraph = Array.isArray(parsedInput.paragraphs)
         ? (typeof parsedInput.paragraphs[0] === "string" ? parsedInput.paragraphs[0] : "")
         : "";
-      
-      // Try to find a matching template based on content
-      const matchedTemplate = findMatchingTemplate(title, description + firstParagraph, []);
-      
-      if (matchedTemplate && TAG_TO_TEMPLATE) {
-        // Add the detected tag for MCP awareness
+
+      // Try to find a matching template based on content (returns null if no match)
+      const matchedTemplate = findMatchingTemplate(docTitle, docDescription + firstParagraph, []);
+
+      if (matchedTemplate && matchedTemplate.key) {
+        // findMatchingTemplate now returns { key, ...template } so the reverse-lookup is gone
         for (const [tag, templateKey] of Object.entries(TAG_TO_TEMPLATE)) {
-          if (templateKey === Object.keys(TEMPLATES).find(k => TEMPLATES[k].name === matchedTemplate.name)) {
+          if (templateKey === matchedTemplate.key) {
             resolvedTags.push(tag);
-            log("error", `[create-doc] Detected document tag: "${tag}" based on content analysis`);
+            log("info", `[create-doc] Detected document tag: "${tag}" based on content analysis`);
             break;
           }
         }
       }
     }
-    
+
     // If tags are specified, use them to determine styling
     if (resolvedTags.length > 0) {
       for (const tag of resolvedTags) {
         const template = getTemplateByTag(tag);
         if (template && !parsedInput.stylePreset) {
-          log("error", `[create-doc] Using template "${tag}" -> "${template.name}"`);
-          
+          log("info", `[create-doc] Using template "${tag}" -> "${template.name}"`);
           // If no explicit style preset, use the template's recommended preset
           if (!userExplicitlySetStyle) {
             parsedInput.stylePreset = template.stylePreset;
-            log("error", `[create-doc] Auto-selected style "${template.stylePreset}" for tag "${tag}"`);
+            log("info", `[create-doc] Auto-selected style "${template.stylePreset}" for tag "${tag}"`);
           }
         }
       }
@@ -246,16 +217,16 @@ export async function createDoc(input) {
     // Auto-extract heading levels from markdown content
     const processedParagraphs = extractHeadingLevels(paragraphs);
 
-    // Get category and tags from input
-    let category = input.category || null;
-    const tags = Array.isArray(input.tags) ? input.tags : [];
+    // Get category and tags from parsedInput (handles both object and JSON-string inputs)
+    let category = parsedInput.category || null;
+    const tags = Array.isArray(parsedInput.tags) ? parsedInput.tags : [];
 
     // Auto-classify if no category provided and title/content available
-    if (!category && input.title) {
-      const classification = classifyDocumentContent(input.title, "");
+    if (!category && parsedInput.title) {
+      const classification = classifyDocumentContent(parsedInput.title, "");
       if (classification.category !== "misc") {
         category = classification.category;
-        log("error",
+        log("info",
           `[create-doc] Auto-classified document as "${category}" (confidence: ${classification.confidence})\n` +
           `Category scores: ${Object.entries(classification.scores || {})
             .filter(([_, score]) => score > 0)
@@ -266,7 +237,7 @@ export async function createDoc(input) {
 
     // Check for existing documents with the same title/category BEFORE creating
     // This prevents the model from creating duplicates
-    if (!input.dryRun && input.preventDuplicates !== false) {
+    if (!parsedInput.dryRun && parsedInput.preventDuplicates !== false) {
       const duplicateCheck = await checkForExistingDocument(title, category);
 
       if (duplicateCheck.action === "augment") {
@@ -340,7 +311,7 @@ export async function createDoc(input) {
     outputPath = categorizedPath;
 
     // Enforce docs/ folder FIRST so duplicate prevention checks the final location
-    const enforceDocs = input.enforceDocsFolder !== false;
+    const enforceDocs = parsedInput.enforceDocsFolder !== false;
     let { outputPath: docsPath, wasEnforced: docsEnforced } = enforceDocsFolder(
       outputPath,
       enforceDocs,
@@ -352,7 +323,7 @@ export async function createDoc(input) {
 
     // Dry run mode: return a preview without writing to disk
     // Must be checked BEFORE preventDuplicateFiles which creates placeholder files
-    if (input.dryRun) {
+    if (parsedInput.dryRun) {
       const paraCount = paragraphs.length;
       const tableCount = tables.length;
       const totalParaChars = paragraphs.reduce((sum, p) => {
@@ -369,9 +340,9 @@ export async function createDoc(input) {
           paragraphCount: paraCount,
           tableCount: tableCount,
           approximateContentLength: totalParaChars,
-          stylePreset: input.stylePreset || "minimal",
-          hasHeader: !!(input.header && input.header.text),
-          hasFooter: !!(input.footer && input.footer.text),
+          stylePreset: parsedInput.stylePreset || "minimal",
+          hasHeader: !!(parsedInput.header && parsedInput.header.text),
+          hasFooter: !!(parsedInput.footer && parsedInput.footer.text),
           category: category || null,
           tags: tags.length > 0 ? tags : null,
           wasCategorized: wasCategorized,
@@ -381,12 +352,12 @@ export async function createDoc(input) {
           categorized: wasCategorized,
           categoryApplied: category || null,
         },
-        message: `DRY RUN - No file written. Preview of document that would be created:\n\nTitle: "${title}"\nPath: ${outputPath}\nParagraphs: ${paraCount}\nTables: ${tableCount}\nStyle: ${input.stylePreset || "minimal"}\n\nCall this tool again without dryRun (or with dryRun: false) to create the file.`,
+        message: `DRY RUN - No file written. Preview of document that would be created:\n\nTitle: "${title}"\nPath: ${outputPath}\nParagraphs: ${paraCount}\nTables: ${tableCount}\nStyle: ${parsedInput.stylePreset || "minimal"}\n\nCall this tool again without dryRun (or with dryRun: false) to create the file.`,
       };
     }
 
     // THEN prevent duplicate files (checks the final docs/ location)
-    const preventDupes = input.preventDuplicates !== false;
+    const preventDupes = parsedInput.preventDuplicates !== false;
     const uniquePath = await preventDuplicateFiles(outputPath, preventDupes);
     const wasDuplicatePrevented = uniquePath !== outputPath;
     outputPath = uniquePath;
@@ -394,9 +365,9 @@ export async function createDoc(input) {
     // Ensure output directory exists
     await ensureDirectory(path.dirname(outputPath));
 
-    // Log enforcement actions to teach AI models
+    // Log enforcement actions for debug visibility (info-level, not error)
     if (docsEnforced) {
-      log("error",
+      log("info",
         `[create-doc] Enforced docs/ folder structure. File placed in: ${path.relative(
           process.cwd(),
           outputPath,
@@ -404,7 +375,7 @@ export async function createDoc(input) {
       );
     }
     if (wasDuplicatePrevented) {
-      log("error",
+      log("info",
         `[create-doc] Prevented duplicate file. Created: ${path.basename(
           outputPath,
         )}`,
@@ -422,7 +393,7 @@ export async function createDoc(input) {
     let styleReason;
 
     if (userExplicitlySetStyle) {
-      stylePreset = input.stylePreset;
+      stylePreset = parsedInput.stylePreset;
       styleReason = "user-specified";
     } else if (resolvedTags.length > 0 && parsedInput.stylePreset) {
       // User provided tags AND style - use the specified style
@@ -438,29 +409,28 @@ export async function createDoc(input) {
       // Category-based selection
       stylePreset = selectStyleBasedOnCategory(category);
       styleReason = `auto-selected for "${category}" category`;
-    } else if (input.stylePreset) {
+    } else if (parsedInput.stylePreset) {
       // DNA default preset
-      stylePreset = input.stylePreset;
+      stylePreset = parsedInput.stylePreset;
       styleReason = "DNA default";
     } else {
-      // DEFAULT: Claude-like professional styling with blue theme
-      // This is the "beautiful Claude-style" that users want by default
+      // DEFAULT: professional preset (will be replaced by claude-like in Phase 2.4)
       stylePreset = "professional";
-      styleReason = "DEFAULT (Claude-like professional with blue theme)";
-      log("error",
-        `[create-doc] Using DEFAULT style "${stylePreset}" - beautiful Claude-like documents with blue accents`,
+      styleReason = "default (professional)";
+      log("info",
+        `[create-doc] Using default style "${stylePreset}"`,
       );
     }
 
     if (!getAvailablePresets().includes(stylePreset)) {
-      console.warn(
-        `Warning: Style preset "${stylePreset}" not found. Using "minimal" preset.`,
+      log("warn",
+        `[create-doc] Style preset "${stylePreset}" not found. Falling back to "minimal".`,
       );
-      input.stylePreset = "minimal";
+      stylePreset = "minimal";
     }
 
     // Get merged style configuration
-    const styleConfig = getStyleConfig(stylePreset, input.style || {});
+    const styleConfig = getStyleConfig(stylePreset, parsedInput.style || {});
 
     // Build section properties with proper headers/footers
     const sectionProps = {};
@@ -468,10 +438,10 @@ export async function createDoc(input) {
     // Add header if specified
     let hasHeader = false;
     let headerObj = undefined;
-    if (input.header && input.header.text) {
-      headerObj = createDocHeader(input.header.text, {
-        alignment: input.header.alignment || "left",
-        color: input.header.color,
+    if (parsedInput.header && parsedInput.header.text) {
+      headerObj = createDocHeader(parsedInput.header.text, {
+        alignment: parsedInput.header.alignment || "left",
+        color: parsedInput.header.color,
       });
       hasHeader = true;
     }
@@ -479,12 +449,12 @@ export async function createDoc(input) {
     // Add footer if specified
     let hasFooter = false;
     let footerObj = undefined;
-    if (input.footer && input.footer.text) {
+    if (parsedInput.footer && parsedInput.footer.text) {
       footerObj = createDocFooter({
-        text: input.footer.text,
-        alignment: input.footer.alignment || "center",
+        text: parsedInput.footer.text,
+        alignment: parsedInput.footer.alignment || "center",
         fontSize: 10,
-        color: input.footer.color,
+        color: parsedInput.footer.color,
       });
       hasFooter = true;
     }
@@ -495,10 +465,10 @@ export async function createDoc(input) {
 
     sectionProps.properties = {
       margin: {
-        top: (input.margins?.top || defaultTopMargin) * 20,
-        bottom: (input.margins?.bottom || defaultBottomMargin) * 20,
-        left: (input.margins?.left || 1080) * 20, // 0.75"
-        right: (input.margins?.right || 1080) * 20, // 0.75"
+        top: (parsedInput.margins?.top || defaultTopMargin) * 20,
+        bottom: (parsedInput.margins?.bottom || defaultBottomMargin) * 20,
+        left: (parsedInput.margins?.left || 1080) * 20, // 0.75"
+        right: (parsedInput.margins?.right || 1080) * 20, // 0.75"
       },
     };
 
@@ -645,7 +615,7 @@ export async function createDoc(input) {
           borderColor: styleConfig.table.borderColor,
           borderStyle: styleConfig.table.borderStyle,
           borderWidth: styleConfig.table.borderWidth,
-          headerFill: input.tableHeaderFill || styleConfig.table.headerFill,
+          headerFill: parsedInput.tableHeaderFill || styleConfig.table.headerFill,
           headerFontColor: styleConfig.table.headerFontColor,
           zebraFill: styleConfig.table.zebraFill,
           zebraInterval: styleConfig.table.zebraInterval,
@@ -661,7 +631,7 @@ export async function createDoc(input) {
 
     // Create document with proper section configuration and embedded styles
     // Auto-generate description from first paragraph if not provided
-    const autoDescription = input.description || (() => {
+    const autoDescription = parsedInput.description || (() => {
       const firstTextPara = paragraphs.find(p => typeof p === "string" ? p.trim() : (p.text && !p.headingLevel));
       const text = typeof firstTextPara === "string" ? firstTextPara : firstTextPara?.text;
       return text ? text.slice(0, 200).trim() : title;
@@ -682,9 +652,9 @@ export async function createDoc(input) {
     });
 
     // Handle background color
-    if (input.backgroundColor) {
+    if (parsedInput.backgroundColor) {
       doc.background = {
-        color: input.backgroundColor.replace("#", "").toUpperCase(),
+        color: parsedInput.backgroundColor.replace("#", "").toUpperCase(),
       };
     }
 
@@ -702,7 +672,7 @@ export async function createDoc(input) {
         description: autoDescription,
       });
     } catch (err) {
-      console.warn("Failed to register document:", err.message);
+      log("warn", "[create-doc] Failed to register document:", { error: err.message });
     }
 
     // Compute structure signature (pure function, no side effects)
@@ -712,8 +682,8 @@ export async function createDoc(input) {
     if (hasDNA) {
       recordUsage(category || "misc", stylePreset, {
         stylePreset: userExplicitlySetStyle,
-        header: !!input.header,
-        footer: !!input.footer,
+        header: !!parsedInput.header,
+        footer: !!parsedInput.footer,
       }, structSig);
     }
 
@@ -790,8 +760,8 @@ export async function createDoc(input) {
         table: styleConfig.table,
       },
       dnaApplied: hasDNA,
-      header: hasHeader ? input.header : null,
-      footer: hasFooter ? input.footer : null,
+      header: hasHeader ? parsedInput.header : null,
+      footer: hasFooter ? parsedInput.footer : null,
       enforcement: {
         docsFolderEnforced: docsEnforced,
         duplicatePrevented: wasDuplicatePrevented,
