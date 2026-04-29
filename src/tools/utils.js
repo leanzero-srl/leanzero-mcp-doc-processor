@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import { constants as fsConstants } from "fs";
 import path from "path";
 
-import { classifyDocument, getCategoryInfo, getAvailableCategories as getCategoriesFromClassifier } from "../utils/categorizer.js";
+import { classifyDocument, getCategoryInfo } from "../utils/categorizer.js";
 import {
   registerDocument,
   findDocuments
@@ -310,18 +310,6 @@ export function applyCategoryToPath(outputPath, category) {
 }
 
 /**
- * Get available categories for AI models to choose from
- * @returns {Array} Array of category objects with name, path, and description
- */
-export function getAvailableCategories() {
-  return getCategoriesFromClassifier().map(cat => ({
-    name: cat.name,
-    path: `docs/${cat.path}/`,
-    description: cat.description
-  }));
-}
-
-/**
  * Register a document in the registry
  * @param {Object} doc - Document info to register
  */
@@ -425,52 +413,6 @@ export async function listDocuments(filters = {}) {
   } catch (err) {
     log("warn", "Failed to list documents:", { error: err.message });
     return [];
-  }
-}
-
-/**
- * Search registry by title, category, or tags
- * @param {Object} criteria - Search parameters
- * @param {string} [criteria.title] - Title to search for (partial match)
- * @param {string} [criteria.category] - Category to filter by
- * @param {Array<string>} [criteria.tags] - Tags to match (any tag)
- * @returns {Object} Search results with matches and metadata
- */
-export async function searchRegistry(criteria = {}) {
-  try {
-    const allDocs = await findDocuments({});
-
-    let matches = allDocs.filter(doc => {
-      if (criteria.title && !doc.title.toLowerCase().includes(criteria.title.toLowerCase())) {
-        return false;
-      }
-      if (criteria.category && doc.category !== criteria.category) {
-        return false;
-      }
-      if (criteria.tags && !doc.tags.some(tag => criteria.tags.includes(tag))) {
-        return false;
-      }
-      return true;
-    });
-
-    // Group by category
-    const byCategory = {};
-    for (const doc of matches) {
-      if (!byCategory[doc.category]) {
-        byCategory[doc.category] = [];
-      }
-      byCategory[doc.category].push(doc);
-    }
-
-    return {
-      query: criteria,
-      totalMatches: matches.length,
-      byCategory,
-      documents: matches
-    };
-  } catch (err) {
-    log("warn", "Failed to search registry:", { error: err.message });
-    return { query: criteria, totalMatches: 0, byCategory: {}, documents: [] };
   }
 }
 

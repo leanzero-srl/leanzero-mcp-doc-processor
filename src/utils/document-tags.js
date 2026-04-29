@@ -216,16 +216,6 @@ export function getTemplateByTag(tag) {
 }
 
 /**
- * Get all available templates
- */
-export function getAvailableTemplates() {
-  return Object.entries(TEMPLATES).map(([key, value]) => ({
-    key,
-    ...value
-  }));
-}
-
-/**
  * Find a matching template for a document based on content analysis.
  *
  * Returns `{ key, ...template }` where `key` is the template identifier
@@ -272,44 +262,6 @@ export function findMatchingTemplate(title = "", content = "", tags = []) {
   // "matched the default". Callers that want a hardcoded fallback should
   // do that explicitly.
   return null;
-}
-
-/**
- * Generate document style configuration from template
- */
-export function generateStyleFromTemplate(templateKey) {
-  const template = TEMPLATES[templateKey];
-
-  if (!template) {
-    return {
-      preset: "minimal",
-      colors: COLORS.PRIMARY,
-      features: []
-    };
-  }
-
-  // Extract color theme
-  let colorTheme = COLORS.PRIMARY;
-  switch (template.colorTheme) {
-    case "brand-orange":
-      colorTheme = { PRIMARY: "E65100", LIGHT: "FF9800" };
-      break;
-    case "corporate-blue":
-      colorTheme = { PRIMARY: "1F4E79", LIGHT: "2B579A" };
-      break;
-    case "black-white":
-      colorTheme = { PRIMARY: "000000", LIGHT: "333333" };
-      break;
-    default:
-      colorTheme = COLORS.PRIMARY;
-  }
-
-  return {
-    preset: template.stylePreset,
-    colors: colorTheme,
-    features: template.features,
-    recommendedFor: template.recommendedFor
-  };
 }
 
 /**
