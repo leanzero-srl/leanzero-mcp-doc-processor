@@ -74,6 +74,10 @@ docs/technical/document-registry.md
 .document-blueprints.json
 .document-user.json
 
+# Tenant bearer store (HTTP transport, src/auth.js) — argon2id hashes; never commit
+tenants.json
+tenants.json.tmp.*
+
 # Compiled Java class files
 *.class
 
