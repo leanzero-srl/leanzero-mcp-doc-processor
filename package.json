@@ -4,19 +4,29 @@
   "description": "MCP server for reading and processing PDF, DOCX, Excel files with intelligent OCR, layout analysis, and document generation capabilities",
   "main": "src/index.js",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/index.js",
+    "start:http": "node src/server.js",
     "test": "node test/test-markdown-format-router.js",
     "test:read-doc": "node --test test/test-read-doc.js",
     "test:schemas": "node --test test/test-tool-schemas.js",
     "test:render": "node --test test/test-render-markdown.js",
     "test:upload": "node --test test/test-upload.js",
-    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload",
+    "test:http": "node --test test/test-http-transport.js",
+    "test:auth": "node --test test/test-auth.js",
+    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload && npm run test:http && npm run test:auth",
     "lint:no-console-log": "! grep -rn 'console\\.log(' src/ --include='*.js'"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
+    "argon2": "^0.41.1",
+    "cors": "^2.8.5",
     "docx": "^9.5.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
     "jszip": "^3.10.1",
     "mammoth": "^1.5.4",
     "marked": "^17.0.2",
