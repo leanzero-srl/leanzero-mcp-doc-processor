@@ -78,6 +78,16 @@ docs/technical/document-registry.md
 tenants.json
 tenants.json.tmp.*
 
+# OAuth state (src/oauth/) — issued access/refresh tokens + registered clients; never commit
+oauth-tokens.json
+oauth-tokens.json.tmp.*
+oauth-clients.json
+oauth-clients.json.tmp.*
+
+# launchd stdout/stderr capture
+launchd.out.log
+launchd.err.log
+
 # Compiled Java class files
 *.class
 
