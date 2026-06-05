@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd job for mcp-doc-processor (HTTP transport) on macOS.
+
+  TEMPLATE — do not put real secrets in this committed copy.
+  Install it as a per-user LaunchAgent:
+
+    1. cp deploy/com.leanzero.docprocessor.plist ~/Library/LaunchAgents/
+    2. Edit ~/Library/LaunchAgents/com.leanzero.docprocessor.plist and fill in the
+       REPLACE_ME values (tailnet hostname, admin token, AI keys).
+    3. chmod 600 ~/Library/LaunchAgents/com.leanzero.docprocessor.plist   # contains secrets
+    4. launchctl load -w ~/Library/LaunchAgents/com.leanzero.docprocessor.plist
+
+  See deploy/README.md for the full runbook.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.leanzero.docprocessor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/node</string>
+        <string>/Users/workhorse/Projects/mcp-doc-processor/src/server.js</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/workhorse/Projects/mcp-doc-processor</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PORT</key>
+        <string>8443</string>
+
+        <!-- The device's MagicDNS name (no scheme) — from `tailscale status`. -->
+        <key>PUBLIC_HOST</key>
+        <string>REPLACE_ME.tailXXXX.ts.net</string>
+
+        <!-- Public HTTPS base URL — enables the OAuth server for claude.ai web. -->
+        <key>ISSUER_URL</key>
+        <string>https://REPLACE_ME.tailXXXX.ts.net</string>
+
+        <!-- Where tenants.json / oauth-*.json live (kept 0600). -->
+        <key>DATA_DIR</key>
+        <string>/Users/workhorse/Projects/mcp-doc-processor</string>
+
+        <!-- Strong random secret for the /v1/admin/* token-minting API. -->
+        <key>DOC_PROCESSOR_ADMIN_TOKEN</key>
+        <string>REPLACE_ME_STRONG_RANDOM</string>
+
+        <key>TENANT_RATE_LIMIT</key>
+        <string>60</string>
+
+        <!-- Vision / AI provider config (from the project's existing .mcp.json). -->
+        <key>Z_AI_API_KEY</key>
+        <string>REPLACE_ME</string>
+        <key>Z_AI_MODE</key>
+        <string>ZAI</string>
+        <key>LM_STUDIO_BASE_URL</key>
+        <string>http://localhost:1234/v1</string>
+        <key>VISION_PROVIDER</key>
+        <string>lm-studio</string>
+
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/workhorse/Projects/mcp-doc-processor/logs/launchd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/workhorse/Projects/mcp-doc-processor/logs/launchd.err.log</string>
+</dict>
+</plist>

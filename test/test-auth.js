@@ -65,6 +65,19 @@ async function callMcpInit(bearer) {
 }
 
 describe("auth — admin Bearer", () => {
+  test("admin route via Funnel (X-Forwarded-For) → 404 even with valid token", async () => {
+    const r = await fetch(`${baseUrl}/v1/admin/tenants`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${ADMIN_TOKEN}`,
+        "Content-Type": "application/json",
+        "X-Forwarded-For": "203.0.113.7", // simulates a public Funnel hop
+      },
+      body: JSON.stringify({ displayName: "should-be-blocked" }),
+    });
+    assert.equal(r.status, 404);
+  });
+
   test("admin route without token → 401", async () => {
     const r = await fetch(`${baseUrl}/v1/admin/tenants`, {
       method: "POST",

@@ -51,32 +51,58 @@ function activeHashes(record) {
   return hashes;
 }
 
+/**
+ * Verify a raw bearer token against the tenant store (argon2, incl. rotation
+ * grace hashes). Returns { id, displayName } for the matching tenant, or null.
+ * Shared by the static-bearer middleware (`requireBearer`) and the OAuth bridge
+ * (src/oauth/provider.js) so both auth paths resolve tenants identically.
+ */
+export async function verifyTenantToken(token) {
+  if (!token) return null;
+  const tenants = await loadTenants();
+  for (const [tenantId, record] of Object.entries(tenants)) {
+    for (const h of activeHashes(record)) {
+      try {
+        if (await argon2.verify(h, token)) {
+          return { id: tenantId, displayName: record.displayName };
+        }
+      } catch { /* malformed hash — skip */ }
+    }
+  }
+  return null;
+}
+
+// When OAuth is enabled, 401s on protected resources advertise where the
+// authorization-server / protected-resource metadata lives, so MCP clients
+// (e.g. claude.ai) can discover the OAuth flow. Left null when OAuth is off.
+let resourceMetadataUrl = null;
+export function setResourceMetadataUrl(url) { resourceMetadataUrl = url; }
+
+function unauthorized(res) {
+  if (resourceMetadataUrl) {
+    res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${resourceMetadataUrl}"`);
+  }
+  return res.status(401).json({ error: "unauthorized" });
+}
+
 export const requireBearer = async (req, res, next) => {
   const auth = req.headers.authorization;
-  if (!auth || !/^Bearer\s+/i.test(auth)) {
-    return res.status(401).json({ error: "unauthorized" });
-  }
+  if (!auth || !/^Bearer\s+/i.test(auth)) return unauthorized(res);
   const token = auth.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return res.status(401).json({ error: "unauthorized" });
+  if (!token) return unauthorized(res);
 
   try {
-    const tenants = await loadTenants();
-    for (const [tenantId, record] of Object.entries(tenants)) {
-      for (const h of activeHashes(record)) {
-        try {
-          if (await argon2.verify(h, token)) {
-            req.tenant = { id: tenantId, displayName: record.displayName };
-            return next();
-          }
-        } catch { /* malformed hash — skip */ }
-      }
+    const tenant = await verifyTenantToken(token);
+    if (tenant) {
+      req.tenant = tenant;
+      return next();
     }
   } catch (err) {
     log("error", "[auth] tenant load failed", { error: err.message });
     return res.status(500).json({ error: "internal error" });
   }
 
-  return res.status(401).json({ error: "unauthorized" });
+  return unauthorized(res);
 };
 
 export const tenantRateLimiter = rateLimit({
@@ -99,12 +125,40 @@ function adminAuth(req, res, next) {
   next();
 }
 
+// Defense-in-depth for the token-minting admin API: it is the highest-value
+// surface (the admin token can mint/revoke any tenant), and the operator only
+// ever calls it from the host itself (curl localhost). Tailscale Funnel publishes
+// the whole server publicly, so we reject admin requests that arrive via Funnel.
+//
+// Funnel proxies through the local tailscaled, which adds X-Forwarded-For (the
+// real public client IP). With `trust proxy: loopback` (set in server.js) req.ip
+// then resolves to that public IP — not loopback. A direct localhost call has no
+// forwarding header and a loopback req.ip. We require BOTH (loopback + no
+// forwarding header) so the check fails closed. Set ALLOW_ADMIN_OVER_FUNNEL=true
+// to opt back in to a publicly reachable admin API.
+function isLocalAdminRequest(req) {
+  const ip = req.ip || "";
+  const isLoopback = ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+  const forwarded = req.get("x-forwarded-for") || req.get("tailscale-funnel-request");
+  return isLoopback && !forwarded;
+}
+
+function restrictAdminToLocal(req, res, next) {
+  if (process.env.ALLOW_ADMIN_OVER_FUNNEL === "true") return next();
+  if (!isLocalAdminRequest(req)) {
+    log("warn", "[admin] blocked non-local admin request", { ip: req.ip, path: req.path });
+    return res.status(404).json({ error: "not found" }); // 404, not 403 — don't reveal the endpoint
+  }
+  next();
+}
+
 function generateBearer() {
   return randomBytes(32).toString("base64url");
 }
 
 export function mountAdminRoutes(app) {
   const router = express.Router();
+  router.use(restrictAdminToLocal);
   router.use(express.json({ limit: "16kb" }));
 
   router.post("/tenants", adminAuth, async (req, res) => {
