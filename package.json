@@ -10,6 +10,8 @@
   "scripts": {
     "start": "node src/index.js",
     "start:http": "node src/server.js",
+    "serve:funnel": "tailscale funnel --bg 8443",
+    "serve:tailnet": "tailscale serve --bg --https=443 localhost:8443",
     "test": "node test/test-markdown-format-router.js",
     "test:read-doc": "node --test test/test-read-doc.js",
     "test:schemas": "node --test test/test-tool-schemas.js",
@@ -17,7 +19,8 @@
     "test:upload": "node --test test/test-upload.js",
     "test:http": "node --test test/test-http-transport.js",
     "test:auth": "node --test test/test-auth.js",
-    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload && npm run test:http && npm run test:auth",
+    "test:oauth": "node test/test-oauth.js",
+    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload && npm run test:http && npm run test:auth && npm run test:oauth",
     "lint:no-console-log": "! grep -rn 'console\\.log(' src/ --include='*.js'"
   },
   "dependencies": {
