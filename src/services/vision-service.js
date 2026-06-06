@@ -9,7 +9,13 @@
  *   Z_AI_BASE_URL - Override base URL (default: auto-detect from Z_AI_MODE)
  *   Z_AI_VISION_MODEL - Model name (default: glm-4.6v)
  *   Z_AI_TIMEOUT - Request timeout ms (default: 300000)
+ *
+ * Over the HTTP transport, a caller may bring their own key per request via the
+ * X-ZAI-Key header (or ?zai_key) — carried through request-context.js and read
+ * here first, before falling back to the process env above.
  */
+
+import { requestContext } from "../utils/request-context.js";
 
 export class VisionService {
   constructor() {
@@ -34,6 +40,10 @@ export class VisionService {
   }
 
   _getApiKey() {
+    // Per-request key (HTTP caller's X-ZAI-Key) wins; otherwise fall back to the
+    // process env (stdio callers / a server-provided default).
+    const perRequest = requestContext.getStore()?.zaiKey;
+    if (perRequest) return perRequest;
     if (process.env.Z_AI_API_KEY) return process.env.Z_AI_API_KEY;
     if (process.env.ZAI_API_KEY) return process.env.ZAI_API_KEY;
     if (process.env.ANTHROPIC_AUTH_TOKEN) return process.env.ANTHROPIC_AUTH_TOKEN;
