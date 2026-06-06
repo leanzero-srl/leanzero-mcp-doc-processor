@@ -20,7 +20,8 @@
     "test:http": "node --test test/test-http-transport.js",
     "test:auth": "node --test test/test-auth.js",
     "test:oauth": "node test/test-oauth.js",
-    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload && npm run test:http && npm run test:auth && npm run test:oauth",
+    "test:pdf": "node --test test/test-pdf-parse.js",
+    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload && npm run test:http && npm run test:auth && npm run test:oauth && npm run test:pdf",
     "lint:no-console-log": "! grep -rn 'console\\.log(' src/ --include='*.js'"
   },
   "dependencies": {
