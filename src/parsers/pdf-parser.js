@@ -37,16 +37,21 @@ export class PdfParser {
       const dataBuffer = await fs.readFile(filePath);
       parser = new PDFParse({ data: dataBuffer });
 
-      // Extract text and images in parallel
-      const [textResult, imagesResult] = await Promise.all([
-        parser.getText(),
-        parser.getImage({ imageThreshold: 0, imageDataUrl: true, imageBuffer: true }),
-      ]);
+      // Extract text then images SEQUENTIALLY. pdf-parse v2 runs each call on a
+      // single per-instance worker; issuing getText() and getImage() concurrently
+      // (Promise.all) collides on the worker's transfer list and throws
+      // "Cannot transfer object of unsupported type." Sequential is required.
+      const textResult = await parser.getText();
+      const imagesResult = await parser.getImage({ imageThreshold: 0, imageDataUrl: true, imageBuffer: true });
 
       const processedImages = this.processImages(imagesResult);
 
       // Inline layout analysis from already-extracted data (no second file read)
       const layoutAnalysis = this._analyzeLayout(textResult, processedImages);
+
+      // pdf-parse v2 reports the page count as `total`; older field names kept as
+      // fallbacks so the value is robust across versions.
+      const pageCount = textResult.total || textResult.numPages || textResult.pages?.length || 0;
 
       const cleanText = (textResult.text || "").replace(/\s+/g, "").replace(/--\d+of\d+--/gi, "");
       const isImageBased =
@@ -57,7 +62,7 @@ export class PdfParser {
         textLength: cleanText.length,
         imageCount: processedImages.length,
         isImageBased,
-        pages: textResult.numPages || 0,
+        pages: pageCount,
       });
 
       let finalText = textResult.text || "";
@@ -99,7 +104,7 @@ export class PdfParser {
       return {
         success: true,
         text: finalText,
-        pages: textResult.numPages || 0,
+        pages: pageCount,
         metadata: this.extractMetadata(textResult),
         images: processedImages,
         isImageBased,

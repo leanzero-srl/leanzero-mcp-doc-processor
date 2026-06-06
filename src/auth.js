@@ -156,6 +156,36 @@ function generateBearer() {
   return randomBytes(32).toString("base64url");
 }
 
+/**
+ * Mint a new tenant + bearer. Shared by the admin API (POST /v1/admin/tenants)
+ * and the self-service provisioning endpoint (POST /v1/provision). Returns the
+ * raw bearer ONCE — only the argon2id hash is persisted.
+ */
+export async function createTenant(displayName) {
+  const tenants = await loadTenants();
+  const tenantId = randomUUID();
+  const bearer = generateBearer();
+  const bearerHash = await argon2.hash(bearer, { type: argon2.argon2id });
+  tenants[tenantId] = {
+    displayName,
+    bearerHash,
+    expiringHashes: [],
+    createdAt: new Date().toISOString(),
+    lastUsedAt: null,
+  };
+  await saveTenants(tenants);
+  return { tenantId, bearer, displayName };
+}
+
+/** Revoke (delete) a tenant by id. Returns false if it did not exist. */
+export async function revokeTenant(tenantId) {
+  const tenants = await loadTenants();
+  if (!tenants[tenantId]) return false;
+  delete tenants[tenantId];
+  await saveTenants(tenants);
+  return true;
+}
+
 export function mountAdminRoutes(app) {
   const router = express.Router();
   router.use(restrictAdminToLocal);
@@ -164,22 +194,9 @@ export function mountAdminRoutes(app) {
   router.post("/tenants", adminAuth, async (req, res) => {
     const displayName = (req.body?.displayName || "").trim();
     if (!displayName) return res.status(400).json({ error: "displayName required" });
-
-    const tenants = await loadTenants();
-    const tenantId = randomUUID();
-    const bearer = generateBearer();
-    const bearerHash = await argon2.hash(bearer, { type: argon2.argon2id });
-
-    tenants[tenantId] = {
-      displayName,
-      bearerHash,
-      expiringHashes: [],
-      createdAt: new Date().toISOString(),
-      lastUsedAt: null,
-    };
-    await saveTenants(tenants);
-    log("info", "[admin] minted tenant", { tenantId, displayName });
-    res.status(201).json({ tenantId, bearer, displayName });
+    const created = await createTenant(displayName);
+    log("info", "[admin] minted tenant", { tenantId: created.tenantId, displayName });
+    res.status(201).json(created);
   });
 
   router.get("/tenants", adminAuth, async (_req, res) => {
@@ -195,10 +212,8 @@ export function mountAdminRoutes(app) {
   });
 
   router.delete("/tenants/:id", adminAuth, async (req, res) => {
-    const tenants = await loadTenants();
-    if (!tenants[req.params.id]) return res.status(404).json({ error: "tenant not found" });
-    delete tenants[req.params.id];
-    await saveTenants(tenants);
+    const ok = await revokeTenant(req.params.id);
+    if (!ok) return res.status(404).json({ error: "tenant not found" });
     log("info", "[admin] revoked tenant", { tenantId: req.params.id });
     res.json({ revoked: req.params.id });
   });
@@ -231,4 +246,57 @@ export function mountAdminRoutes(app) {
   });
 
   app.use("/v1/admin", router);
+}
+
+/**
+ * Gate for the self-service provisioning endpoint. Unlike /v1/admin (localhost
+ * only, full power), /v1/provision is reachable over Funnel but guarded by a
+ * shared secret (PROVISION_SECRET) known ONLY to a trusted backend — e.g. the
+ * LeanZero website's server-side route, after it has authenticated its own user.
+ * End users never see this secret or the admin token. Disabled until the secret
+ * is set. Accepts the secret via X-Provision-Secret or Authorization: Bearer.
+ */
+function provisionAuth(req, res, next) {
+  const expected = process.env.PROVISION_SECRET;
+  if (!expected) return res.status(503).json({ error: "provisioning disabled (set PROVISION_SECRET)" });
+  const presented = req.get("x-provision-secret")
+    || (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+  if (presented !== expected) return res.status(401).json({ error: "unauthorized" });
+  next();
+}
+
+const provisionRateLimiter = rateLimit({
+  windowMs: 60_000,
+  max: () => Number(process.env.PROVISION_RATE_LIMIT) || 10,
+  keyGenerator: (req) => req.ip || "unknown",
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => res.status(429).json({ error: "rate_limit_exceeded" }),
+});
+
+export function mountProvisionRoutes(app) {
+  const router = express.Router();
+  router.use(express.json({ limit: "16kb" }));
+  router.use(provisionAuth);
+  router.use(provisionRateLimiter);
+
+  // Mint a tenant bearer for one self-service user. `label` is a free-text tag
+  // (e.g. the user's email) stored as the tenant displayName for the audit log.
+  router.post("/", async (req, res) => {
+    const label = String(req.body?.label || req.body?.displayName || "self-service")
+      .trim().slice(0, 120) || "self-service";
+    const created = await createTenant(label);
+    log("info", "[provision] minted tenant", { tenantId: created.tenantId, label });
+    res.status(201).json(created);
+  });
+
+  // Revoke a previously-provisioned tenant by id.
+  router.delete("/:id", async (req, res) => {
+    const ok = await revokeTenant(req.params.id);
+    if (!ok) return res.status(404).json({ error: "tenant not found" });
+    log("info", "[provision] revoked tenant", { tenantId: req.params.id });
+    res.json({ revoked: req.params.id });
+  });
+
+  app.use("/v1/provision", router);
 }

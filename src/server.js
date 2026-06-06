@@ -9,14 +9,24 @@ import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from "@modelconte
 
 import { setupLogging, log } from "./utils/logger.js";
 import { registerAllTools, SERVER_INSTRUCTIONS } from "./tool-registry.js";
-import { requireBearer, tenantRateLimiter, mountAdminRoutes, setResourceMetadataUrl } from "./auth.js";
+import { requireBearer, tenantRateLimiter, mountAdminRoutes, mountProvisionRoutes, setResourceMetadataUrl } from "./auth.js";
 import { DocProcessorOAuthProvider } from "./oauth/provider.js";
 import { renderConsentPage } from "./oauth/consent.js";
+import { requestContext } from "./utils/request-context.js";
 
 setupLogging();
 
 const PORT = Number(process.env.PORT) || 8443;
+// Bind loopback only by default. Tailscale Funnel/serve proxies inbound traffic to
+// 127.0.0.1:PORT, so loopback is sufficient — and it avoids colliding with
+// tailscaled's own bind on the tailnet IPs (a wildcard bind would EADDRINUSE once
+// Funnel is enabled) while keeping the server off the tailnet/LAN.
+const BIND_HOST = process.env.BIND_HOST || "127.0.0.1";
 const PUBLIC_HOST = process.env.PUBLIC_HOST;
+// Extra Host values accepted by DNS-rebinding protection (comma-separated). Funnel
+// forwards the client Host including the non-default port (e.g. host:10000), which
+// PUBLIC_HOST should already cover; use this only if a live test shows another Host.
+const ALLOWED_HOSTS = (process.env.ALLOWED_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean);
 // Public HTTPS base URL of this server (e.g. https://works-mac-studio.<tailnet>.ts.net).
 // When set, the OAuth 2.1 authorization server is enabled so claude.ai web — which
 // only supports OAuth, not static bearer headers — can connect. Unset → bearer-only,
@@ -34,6 +44,7 @@ export function buildApp() {
 
   app.use(cors({
     origin: "*",
+    allowedHeaders: ["Authorization", "Content-Type", "Accept", "X-ZAI-Key", "Mcp-Session-Id", "Mcp-Protocol-Version"],
     exposedHeaders: ["WWW-Authenticate", "Mcp-Session-Id", "Mcp-Protocol-Version"],
   }));
 
@@ -116,6 +127,9 @@ export function buildApp() {
   };
 
   mountAdminRoutes(app);
+  // Self-service tenant minting for the website demo-key flow (PROVISION_SECRET-gated,
+  // reachable over Funnel; full admin stays localhost-only).
+  mountProvisionRoutes(app);
 
   const auditOnFinish = (req, res, started, toolName) => {
     res.on("finish", () => {
@@ -151,7 +165,7 @@ export function buildApp() {
     const transportOpts = { sessionIdGenerator: undefined };
     if (PUBLIC_HOST) {
       transportOpts.enableDnsRebindingProtection = true;
-      transportOpts.allowedHosts = [PUBLIC_HOST];
+      transportOpts.allowedHosts = [PUBLIC_HOST, ...ALLOWED_HOSTS];
     }
     const transport = new StreamableHTTPServerTransport(transportOpts);
 
@@ -159,9 +173,19 @@ export function buildApp() {
       transport.close().catch(() => { /* best effort cleanup */ });
     });
 
+    // Per-request vision/OCR key, brought by the caller (never the operator's):
+    // header for header-capable clients, query param for Authorization-only clients
+    // (e.g. claude.ai web). Never logged; carried via AsyncLocalStorage and read by
+    // vision-service.js, falling back to the process env.
+    const zaiKey = req.get("x-zai-key")
+      || (typeof req.query.zai_key === "string" ? req.query.zai_key : undefined)
+      || undefined;
+
     try {
-      await server.connect(transport);
-      await transport.handleRequest(req, res, req.body);
+      await requestContext.run({ zaiKey }, async () => {
+        await server.connect(transport);
+        await transport.handleRequest(req, res, req.body);
+      });
     } catch (err) {
       log("error", "[mcp] handleRequest failed", { error: err.message });
       if (!res.headersSent) {
@@ -183,7 +207,7 @@ if (isDirectRun) {
   if (!ISSUER_URL) {
     log("warn", "[boot] ISSUER_URL not set — OAuth disabled (static bearer only). claude.ai web requires OAuth; set ISSUER_URL to the public https URL to enable it.");
   }
-  app.listen(PORT, () => {
-    log("info", `doc-processor HTTP listening on :${PORT}`);
+  app.listen(PORT, BIND_HOST, () => {
+    log("info", `doc-processor HTTP listening on ${BIND_HOST}:${PORT}`);
   });
 }
