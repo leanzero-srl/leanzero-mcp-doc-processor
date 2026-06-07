@@ -6,6 +6,8 @@ import fs from "fs";
 import path from "path";
 
 import { log } from "./utils/logger.js";
+import { logInsight } from "./utils/insights.js";
+import { resolveClientProfile } from "./utils/client-profile.js";
 
 import { handleReadDoc } from "./tools/read-doc-tool.js";
 import { createDoc } from "./tools/create-doc.js";
@@ -541,8 +543,22 @@ export const TOOL_DEFINITIONS = [
 // download URL, also emit an idiomatic `resource_link` content block so MCP
 // clients render a saveable/clickable artifact (others still see the URL in the
 // JSON text). This is how a remote server delivers the generated file.
-function wrapCreateResult(r) {
+function wrapCreateResult(r, toolName) {
   const content = [{ type: "text", text: JSON.stringify(r, null, 2) }];
+  // Make failures VISIBLE to the learning loop. Successes are logged inside the
+  // create-* handlers themselves (with full detail + memory nudge); here we only
+  // capture the breakage — PLAIN_TEXT rejections, duplicate detection, blueprint
+  // / validation failures — so `npm run insights` reflects what actually fails
+  // for real callers. Best-effort; logInsight never throws.
+  if (r && !r.success) {
+    logInsight({
+      server: "doc-processor",
+      tool: toolName || "create-*",
+      event: r.error === "PLAIN_TEXT" ? "PLAIN_TEXT" : (r.duplicate ? "duplicate" : "failure"),
+      client: resolveClientProfile().clientName,
+      reason: r.error || (r.message ? String(r.message).slice(0, 160) : undefined),
+    });
+  }
   // Emit the resource_link only in agent mode. Interactive/human-facing callers
   // (e.g. CogniRunner via the Anthropic connector, which also gets the file via
   // the upload bridge) get a concise text result with the downloadUrl inline —
@@ -574,6 +590,7 @@ async function dispatchToolCall(request) {
       if (!skipValidation) {
         const resolved = path.resolve(params.filePath);
         if (!fs.existsSync(resolved)) {
+          logInsight({ server: "doc-processor", tool: name, event: "failure", reason: "file-not-found", client: resolveClientProfile(params).clientName });
           return { content: [{ type: "text", text: `Error: File not found: ${params.filePath}` }], isError: true };
         }
         params.filePath = resolved;
@@ -581,8 +598,11 @@ async function dispatchToolCall(request) {
     }
 
     switch (name) {
-      case "read-doc":
-        return await handleReadDoc(params);
+      case "read-doc": {
+        const r = await handleReadDoc(params);
+        if (r?.isError) logInsight({ server: "doc-processor", tool: "read-doc", event: "failure", client: resolveClientProfile(params).clientName, reason: (r.content?.[0]?.text || "").slice(0, 160) });
+        return r;
+      }
 
       case "get-doc-summary": return await handleReadDoc({ ...params, mode: "summary" });
       case "get-doc-indepth": return await handleReadDoc({ ...params, mode: "indepth" });
@@ -590,32 +610,37 @@ async function dispatchToolCall(request) {
 
       case "detect-format": {
         const result = await detectFormat(params);
+        // Log the routing outcome — the `format` mix and especially `unsupported`
+        // (e.g. 'pptx') are direct feature-gap signal for the creator.
+        logInsight({ server: "doc-processor", tool: "detect-format", event: "success", client: resolveClientProfile(params).clientName, format: result?.format, unsupported: result?.unsupported || null });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
 
       case "create-doc": {
-        return wrapCreateResult(await createDoc(params));
+        return wrapCreateResult(await createDoc(params), "create-doc");
       }
 
       case "create-markdown": {
-        return wrapCreateResult(await createMarkdown(params));
+        return wrapCreateResult(await createMarkdown(params), "create-markdown");
       }
 
       case "create-excel": {
-        return wrapCreateResult(await createExcel(params));
+        return wrapCreateResult(await createExcel(params), "create-excel");
       }
 
       case "create-pdf": {
-        return wrapCreateResult(await createPdf(params));
+        return wrapCreateResult(await createPdf(params), "create-pdf");
       }
 
       case "edit-doc": {
         const r = await editDoc(params);
+        if (!r.success) logInsight({ server: "doc-processor", tool: "edit-doc", event: "failure", client: resolveClientProfile(params).clientName, reason: r.error || (r.message ? String(r.message).slice(0, 160) : undefined) });
         return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.success };
       }
 
       case "edit-excel": {
         const r = await editExcel(params);
+        if (!r.success) logInsight({ server: "doc-processor", tool: "edit-excel", event: "failure", client: resolveClientProfile(params).clientName, reason: r.error || (r.message ? String(r.message).slice(0, 160) : undefined) });
         return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.success };
       }
 
@@ -696,6 +721,9 @@ async function dispatchToolCall(request) {
     }
   } catch (error) {
     log("error", "Tool error:", { toolName: name, error: error.message });
+    // This is where weak-model malformed args surface (e.g. "params.paragraphs
+    // is not of a type array"). Capture them so the backlog reflects reality.
+    logInsight({ server: "doc-processor", tool: name, event: "error", client: resolveClientProfile(params || {}).clientName, reason: (error.message || "").slice(0, 200) });
     return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
   }
 }
