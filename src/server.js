@@ -44,7 +44,7 @@ export function buildApp() {
 
   app.use(cors({
     origin: "*",
-    allowedHeaders: ["Authorization", "Content-Type", "Accept", "X-ZAI-Key", "Mcp-Session-Id", "Mcp-Protocol-Version"],
+    allowedHeaders: ["Authorization", "Content-Type", "Accept", "X-ZAI-Key", "X-Output-Dir", "Mcp-Session-Id", "Mcp-Protocol-Version"],
     exposedHeaders: ["WWW-Authenticate", "Mcp-Session-Id", "Mcp-Protocol-Version"],
   }));
 
@@ -181,8 +181,14 @@ export function buildApp() {
       || (typeof req.query.zai_key === "string" ? req.query.zai_key : undefined)
       || undefined;
 
+    // Per-request output sub-directory (X-Output-Dir header or ?output_dir).
+    // Sandboxed server-side in getOutputRoot() — see the note there.
+    const outputDir = req.get("x-output-dir")
+      || (typeof req.query.output_dir === "string" ? req.query.output_dir : undefined)
+      || undefined;
+
     try {
-      await requestContext.run({ zaiKey }, async () => {
+      await requestContext.run({ zaiKey, outputDir }, async () => {
         await server.connect(transport);
         await transport.handleRequest(req, res, req.body);
       });
