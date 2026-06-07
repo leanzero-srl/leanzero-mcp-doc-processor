@@ -15,6 +15,8 @@ import {
 } from "./utils.js";
 import { applyImplementationStyle } from "../utils/markdown-formatter.js";
 import { assessFormattingQuality, shouldRejectPlainText } from "../utils/formatting-quality.js";
+import { resolveClientProfile } from "../utils/client-profile.js";
+import { logInsight, memoryNudge } from "../utils/insights.js";
 import { log } from "../utils/logger.js";
 
 /**
@@ -254,6 +256,16 @@ export async function createMarkdown(input) {
     const clientMode = resolveClientHint(parsedInput);
     const isInteractive = clientMode === "interactive";
 
+    // Learning loop: record the event (for the creator) + nudge memory-capable agents.
+    const profile = resolveClientProfile(parsedInput);
+    logInsight({
+      server: "doc-processor", tool: "create-markdown", event: "success",
+      client: profile.clientName, memoryCapable: profile.canPersistMemory,
+      title, format: "markdown", category: category || null,
+      toc: parsedInput.toc === true, frontmatter: !!parsedInput.frontmatter,
+    });
+    const learning = `For ${category || "technical"} markdown, create-markdown${parsedInput.toc === true ? " with toc:true" : ""}${parsedInput.frontmatter ? " + frontmatter" : ""} and a single \`content\` string worked — reuse for repo/dev docs.`;
+
     // Build message with enforcement information (agent mode only)
     let enforcementMessage = "";
     if (!isInteractive) {
@@ -311,6 +323,7 @@ export async function createMarkdown(input) {
         ? { id: registryEntry.id, category: registryEntry.category }
         : null,
       formattingQuality: isInteractive ? undefined : formattingQuality,
+      memoryNudge: (isInteractive || !profile.canPersistMemory) ? undefined : memoryNudge(learning),
       enforcement: isInteractive ? undefined : {
         docsFolderEnforced: docsEnforced,
         duplicatePrevented: wasDuplicatePrevented,
