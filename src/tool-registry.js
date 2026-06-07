@@ -23,6 +23,7 @@ import { handleDNA } from "./tools/dna-tool.js";
 import { handleBlueprint } from "./tools/blueprint-tool.js";
 import { handleDriftMonitor } from "./tools/drift-tool.js";
 import { handleGetLineage } from "./tools/lineage-tool.js";
+import { factCheck } from "./tools/fact-check.js";
 import { detectFormat } from "./services/format-router.js";
 
 export const SERVER_INSTRUCTIONS = [
@@ -599,6 +600,32 @@ export const TOOL_DEFINITIONS = [
       required: ["filePath"],
     },
   },
+  {
+    name: "fact-check",
+    description:
+      "Fact-check a document (or explicit claims) against the LIVE WEB. CROSS-MCP tool: doc-processor extracts the claims, then CALLS the web-search MCP (get-web-search-summaries) to gather sources per claim, and optionally writes a cited PDF report. " +
+      "Provide `claims` (an array of statements) OR a `filePath`/`content` to auto-extract factual claims from. Because this reaches the web-search MCP you MUST pass `webSearchBearer` (your web-search demo key) and `serperKey` (your Serper key); `webSearchUrl` defaults to the hosted web-search endpoint. " +
+      "Returns, per claim, the retrieved evidence + source URLs + a ROUGH keyword-overlap support score — NOT a verdict; read the evidence and decide support/refute yourself. Set `generateReport: true` for a downloadable cited PDF.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        claims: { type: "array", items: { type: "string" }, description: "Explicit statements to verify. If omitted, claims are auto-extracted from filePath/content." },
+        filePath: { type: "string", description: "A document (PDF/DOCX/Excel/PPTX) to read and extract claims from. Use this OR claims OR content." },
+        content: { type: "string", description: "Raw text to extract claims from. Use this OR claims OR filePath." },
+        maxClaims: { type: "number", description: "Max claims to check (default 8, max 20)." },
+        webSearchBearer: { type: "string", description: "REQUIRED. A web-search MCP tenant bearer (your web-search demo key) — this tool calls that MCP." },
+        serperKey: { type: "string", description: "REQUIRED. Your Serper key — the web-search MCP is keyless and needs it to search." },
+        webSearchUrl: { type: "string", description: "Optional. The web-search MCP /mcp URL. Defaults to the hosted endpoint (or the WEB_SEARCH_MCP_URL env var)." },
+        generateReport: { type: "boolean", description: "If true, also write a cited PDF verification report (returned as a download link)." },
+        reportTitle: { type: "string", description: "Optional title for the generated report." },
+        clientHint: CLIENT_HINT,
+        uploadUrl: UPLOAD_URL_FIELD,
+        uploadAuthHeader: UPLOAD_AUTH_HEADER_FIELD,
+        uploadFilename: UPLOAD_FILENAME_FIELD,
+      },
+      required: [],
+    },
+  },
 ];
 
 // Wrap a create-* result as MCP content. When the server minted a hosted
@@ -783,6 +810,21 @@ async function dispatchToolCall(request) {
 
       case "get-lineage":
         return await handleGetLineage(params);
+
+      case "fact-check": {
+        const r = await factCheck(params);
+        const content = [{ type: "text", text: JSON.stringify(r, null, 2) }];
+        if (r.report?.downloadUrl && r.report?.filePath) {
+          content.push({
+            type: "resource_link",
+            uri: r.report.downloadUrl,
+            name: r.report.filePath.split(/[/\\]/).pop(),
+            mimeType: mimeTypeFromExtension(r.report.filePath),
+            description: "Download the fact-check report (hosted link, valid ~24h).",
+          });
+        }
+        return { content, isError: !r.success };
+      }
 
       default: {
         log("error", "Unknown tool:", { toolName: name });

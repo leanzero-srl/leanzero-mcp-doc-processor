@@ -125,7 +125,7 @@ describe("tool list schemas", () => {
     );
   });
 
-  test("all 16 advertised tools are present", async () => {
+  test("all 17 advertised tools are present", async () => {
     const resp = await client.request("tools/list", {});
     const names = resp.result.tools.map((t) => t.name).sort();
 
@@ -142,6 +142,7 @@ describe("tool list schemas", () => {
       "edit-doc",
       "edit-excel",
       "edit-pptx",
+      "fact-check",
       "get-lineage",
       "list-documents",
       "list-templates",
