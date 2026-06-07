@@ -186,13 +186,16 @@ Return only the markdown table with no additional text.`;
     try {
       const result = await visionService.extractText(tableContent, prompt);
 
-      // Validate the output is a proper table
-      if (!result || result.trim().length === 0) {
+      // visionService.extractText resolves to { success, text } (it never throws),
+      // so the markdown lives on result.text — reading result directly treats the
+      // wrapper object as a string and silently fails every extraction.
+      const extracted = result?.success ? (result.text || "") : "";
+      if (extracted.trim().length === 0) {
         return null;
       }
 
       // Check if it's a proper markdown table
-      const lines = result.split("\n");
+      const lines = extracted.split("\n");
       if (lines.length < 2) return null;
 
       // Check for header separator
@@ -215,7 +218,7 @@ Return only the markdown table with no additional text.`;
 
       return {
         content: tableContent,
-        formattedContent: result.trim(),
+        formattedContent: extracted.trim(),
         confidence: 0.9,
       };
     } catch (error) {
@@ -274,10 +277,14 @@ Do NOT extract non-table content. Only return the table in markdown format.`;
                     `Image table extraction timeout (${this.timeout}ms) - page ${i + 1}, image ${imagesProcessed}`,
                   );
 
-                  if (tableResult && tableResult.length > 10) {
+                  // extractText returns { success, text } — pull the markdown off
+                  // .text; the bare object has no .length so the old check was
+                  // always false and image tables were never captured.
+                  const tableText = tableResult?.success ? (tableResult.text || "") : "";
+                  if (tableText.length > 10) {
                     imageTables.push({
                       type: "image-table",
-                      content: tableResult,
+                      content: tableText,
                       page: i + 1,
                       confidence: 0.85,
                     });
