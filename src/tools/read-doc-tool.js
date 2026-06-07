@@ -165,6 +165,7 @@ async function handleSummary(params) {
     log("warn", "handleSummary failed:", { error: result.error });
     return {
       content: [{ type: "text", text: result.error || "Failed to process document" }],
+      isError: true,
     };
   }
 
@@ -176,7 +177,7 @@ async function handleSummary(params) {
   if (result.ocrApplied) {
     summary += `[OCR Applied: Text extracted via ${result.ocrSource}]\n\n`;
   } else if (result.isImageBased) {
-    summary += `[Note: Image-based PDF detected. OCR with Vision Provider was not applied.\n\n`;
+    summary += `[Note: Image-based PDF detected. OCR with Vision Provider was not applied.]\n\n`;
   }
 
   if (metadata.title) summary += `Title: ${metadata.title}\n`;
@@ -184,8 +185,9 @@ async function handleSummary(params) {
   if (metadata.pageCount) summary += `Page Count: ${metadata.pageCount}\n`;
   if (metadata.sheetCount) summary += `Sheet Count: ${metadata.sheetCount}\n`;
 
-  const previewText = (result.text || "").substring(0, 500);
-  summary += `\nContent Preview:\n${previewText}${result.text.length > 500 ? "..." : ""}`;
+  const fullText = result.text || "";
+  const previewText = fullText.substring(0, 500);
+  summary += `\nContent Preview:\n${previewText}${fullText.length > 500 ? "..." : ""}`;
 
   if (images.length > 0) {
     const imageSummary = imageProcessor.createImageSummary(images);
@@ -233,6 +235,7 @@ async function handleInDepth(params) {
     log("warn", "handleInDepth failed:", { error: result.error });
     return {
       content: [{ type: "text", text: result.error || "Failed to process document" }],
+      isError: true,
     };
   }
 
@@ -241,7 +244,7 @@ async function handleInDepth(params) {
   if (result.ocrApplied) {
     output += `[OCR Applied: Text extracted via ${result.ocrSource}]\n\n`;
   } else if (result.isImageBased) {
-    output += `[Note: Image-based PDF detected. OCR with Vision Provider was not applied.\n\n`;
+    output += `[Note: Image-based PDF detected. OCR with Vision Provider was not applied.]\n\n`;
   }
 
   output += `=== Document Content ===\n${result.text || ""}\n\n`;
@@ -320,6 +323,7 @@ async function handleFocused(params, userQuery, context) {
     logPath("PATH_FOCUSED_PROCESS_FAILED");
     return {
       content: [{ type: "text", text: result.error || "Failed to process document" }],
+      isError: true,
     };
   }
 

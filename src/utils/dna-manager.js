@@ -709,7 +709,7 @@ export function convertSignatureToBlueprint(suggestion) {
     const [level, ...textParts] = h.split(":");
     const text = textParts.join(":");
     return {
-      headingLevel: level.replace("h", "heading"),
+      headingLevel: level.replace(/^h/, "heading"),
       pattern: text,
       required: true,
     };

@@ -208,7 +208,7 @@ export async function editDoc(input) {
             success: true,
             filePath: resolvedPath,
             action: "replace",
-            paragraphsReplaced: newParagraphs.length,
+            paragraphsReplaced: processedParagraphs.length,
             tablesReplaced: newTables.length,
             structurePreserved: true,
             registryEntry: registryEntry
@@ -217,7 +217,7 @@ export async function editDoc(input) {
             message:
               `DOCX file REPLACED at: ${resolvedPath}\n\n` +
               `✓ STRUCTURE PRESERVED: Document headers, footers, and styles remain intact.\n` +
-              `✓ Replaced content with ${newParagraphs.length} paragraph(s) and ${newTables.length} table(s).\n` +
+              `✓ Replaced content with ${processedParagraphs.length} paragraph(s) and ${newTables.length} table(s).\n` +
               `\nNew content uses the "${stylePreset}" style preset.`,
           };
         } else {

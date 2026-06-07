@@ -19,6 +19,7 @@ const VALID_STYLE_PRESETS = [
   "business",
   "casual",
   "colorful",
+  "claude-like",
 ];
 
 // Valid header/footer alignments
@@ -143,7 +144,7 @@ export function validateDNA(dna) {
   }
 
   // Validate version
-  if (!DNA_SCHEMA.version.required || dna.version === undefined) {
+  if (DNA_SCHEMA.version.required && dna.version === undefined) {
     errors.push("version is required");
   } else if (typeof dna.version !== "number") {
     errors.push("version must be a number");
@@ -152,7 +153,7 @@ export function validateDNA(dna) {
   }
 
   // Validate company
-  if (!DNA_SCHEMA.company.required || dna.company === undefined) {
+  if (DNA_SCHEMA.company.required && dna.company === undefined) {
     errors.push("company is required");
   } else if (typeof dna.company !== "object" || dna.company === null) {
     errors.push("company must be an object");
@@ -180,7 +181,7 @@ export function validateDNA(dna) {
   }
 
   // Validate defaults
-  if (!DNA_SCHEMA.defaults.required || dna.defaults === undefined) {
+  if (DNA_SCHEMA.defaults.required && dna.defaults === undefined) {
     errors.push("defaults is required");
   } else if (typeof dna.defaults !== "object" || dna.defaults === null) {
     errors.push("defaults must be an object");
