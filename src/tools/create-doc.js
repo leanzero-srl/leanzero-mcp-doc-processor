@@ -17,7 +17,6 @@ import {
  * (e.g. tags: ["claude-like"]) and the tool auto-applies an appropriate preset.
  */
 import {
-  getTemplateByTag,
   findMatchingTemplate,
   TAG_TO_TEMPLATE,
 } from "../utils/document-tags.js";
@@ -45,6 +44,7 @@ import {
   mimeTypeFromExtension,
 } from "./utils.js";
 import { applyDNAToInput, loadDNA, recordUsage, signatureSimilarity } from "../utils/dna-manager.js";
+import { assessFormattingQuality, shouldRejectPlainText } from "../utils/formatting-quality.js";
 import { log } from "../utils/logger.js";
 import { checkForExistingDocument, cleanupExcessVersions, buildGuidanceMessage } from "../services/ai-guidance-system.js";
 import { recordWrite } from "../services/lineage-tracker.js";
@@ -152,20 +152,13 @@ export async function createDoc(input) {
       }
     }
 
-    // If tags are specified, use them to determine styling
-    if (resolvedTags.length > 0) {
-      for (const tag of resolvedTags) {
-        const template = getTemplateByTag(tag);
-        if (template && !parsedInput.stylePreset) {
-          log("info", `[create-doc] Using template "${tag}" -> "${template.name}"`);
-          // If no explicit style preset, use the template's recommended preset
-          if (!userExplicitlySetStyle) {
-            parsedInput.stylePreset = template.stylePreset;
-            log("info", `[create-doc] Auto-selected style "${template.stylePreset}" for tag "${tag}"`);
-          }
-        }
-      }
-    }
+    // NOTE: tag-based style resolution happens later in the style-priority
+    // chain (see below) via findMatchingTemplate(), which safely returns the
+    // full template object ({key, name, stylePreset}) or null. The previous
+    // early block here used getTemplateByTag() — which returns only a string
+    // key (or null) — and dereferenced it as an object, silently producing
+    // `undefined` styles and crashing on unmapped tags. Resolution is now in
+    // one place to avoid that bug.
 
     // Load document memories from DNA to include in response
     const memories = (dnaConfig && dnaConfig.memories) ? dnaConfig.memories : null;
@@ -195,9 +188,17 @@ export async function createDoc(input) {
       };
     }
     const title = rawTitle;
-    let paragraphs = Array.isArray(parsedInput.paragraphs)
+
+    // Weak-model convenience: accept the entire body as a single markdown string
+    // via `content`. A string paragraph is rendered through the block-level
+    // markdown renderer (parseMarkdownToDocx), so one markdown blob produces a
+    // fully-formatted document — far easier for small models than assembling the
+    // string-or-object `paragraphs` array. Explicit `paragraphs` still win.
+    let paragraphs = Array.isArray(parsedInput.paragraphs) && parsedInput.paragraphs.length > 0
       ? parsedInput.paragraphs
-      : [];
+      : (typeof parsedInput.content === "string" && parsedInput.content.trim()
+          ? [parsedInput.content]
+          : []);
 
     // Parse paragraph objects if they're JSON strings
     paragraphs = paragraphs.map((para) => {
@@ -219,6 +220,26 @@ export async function createDoc(input) {
 
     // Auto-extract heading levels from markdown content
     const processedParagraphs = extractHeadingLevels(paragraphs);
+
+    // Assess structural formatting (headings/lists/emphasis/tables). Returned as
+    // a non-fatal `formattingQuality` field so the model gets a correction signal
+    // when it produced flat text. With REQUIRE_FORMATTING enabled, a wholly
+    // unformatted substantive body is hard-rejected instead of written.
+    const formattingQuality = assessFormattingQuality({
+      paragraphs: processedParagraphs,
+      content: parsedInput.content,
+      tables,
+    });
+    if (!parsedInput.dryRun && shouldRejectPlainText(formattingQuality)) {
+      return {
+        success: false,
+        error: "PLAIN_TEXT",
+        message:
+          `Refusing to create an unformatted plain-text document (REQUIRE_FORMATTING is on). ${formattingQuality.hint}`,
+        hint: formattingQuality.hint,
+        formattingQuality,
+      };
+    }
 
     // Get category and tags from parsedInput (handles both object and JSON-string inputs)
     let category = parsedInput.category || null;
@@ -349,6 +370,7 @@ export async function createDoc(input) {
           category: category || null,
           tags: tags.length > 0 ? tags : null,
           wasCategorized: wasCategorized,
+          formattingQuality,
         },
         enforcement: {
           docsFolderEnforced: docsEnforced,
@@ -402,12 +424,14 @@ export async function createDoc(input) {
       // User provided tags AND style - use the specified style
       stylePreset = parsedInput.stylePreset;
       styleReason = `tag-based with user override (${resolvedTags.join(", ")})`;
-    } else if (resolvedTags.length > 0) {
-      // Tag-based detection found a template - use its recommended preset
-      const firstTag = resolvedTags[0];
-      const template = getTemplateByTag(firstTag);
-      stylePreset = template.stylePreset;
-      styleReason = `tag-based auto-detection ("${firstTag}" → "${template.name}")`;
+    } else if (resolvedTags.length > 0 && findMatchingTemplate(title, "", resolvedTags)) {
+      // Tag-based detection matched a known template - use its recommended
+      // preset. findMatchingTemplate returns {key, name, stylePreset} or null,
+      // so unmapped tags (e.g. ["baboons"]) fall through to category/default
+      // instead of crashing.
+      const matched = findMatchingTemplate(title, "", resolvedTags);
+      stylePreset = matched.stylePreset;
+      styleReason = `tag-based auto-detection ("${matched.key}" → "${matched.name}")`;
     } else if (category) {
       // Category-based selection
       stylePreset = selectStyleBasedOnCategory(category);
@@ -820,6 +844,7 @@ export async function createDoc(input) {
         : null,
       stylePreset: stylePreset,
       styleReason: styleReason,
+      formattingQuality: isInteractive ? undefined : formattingQuality,
       styleConfig: isInteractive ? undefined : {
         preset: stylePreset,
         description: getPresetDescription(stylePreset),

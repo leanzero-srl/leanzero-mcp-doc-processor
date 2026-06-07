@@ -125,7 +125,7 @@ describe("tool list schemas", () => {
     );
   });
 
-  test("all 13 advertised tools are present", async () => {
+  test("all 14 advertised tools are present", async () => {
     const resp = await client.request("tools/list", {});
     const names = resp.result.tools.map((t) => t.name).sort();
 
@@ -134,6 +134,7 @@ describe("tool list schemas", () => {
       "create-doc",
       "create-excel",
       "create-markdown",
+      "create-pdf",
       "detect-format",
       "dna",
       "drift-monitor",

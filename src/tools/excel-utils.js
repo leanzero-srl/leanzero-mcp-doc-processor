@@ -196,6 +196,43 @@ export function cleanSheetData(data) {
 }
 
 /**
+ * Compute auto-fit column widths from sheet data so columns aren't clipped.
+ * Returns the xlsx `!cols` array ([{wch}]) sized to the widest cell per column
+ * (header included), clamped to a sane range so one long cell can't blow out
+ * the layout. Used only when the caller didn't supply explicit columnWidths.
+ *
+ * @param {Array<Array<any>>} data - 2D sheet data
+ * @param {Object} [opts]
+ * @param {number} [opts.min=8] - minimum width in characters
+ * @param {number} [opts.max=60] - maximum width in characters
+ * @param {number} [opts.padding=2] - extra characters of breathing room
+ * @returns {Array<{wch:number}>}
+ */
+export function autoColumnWidths(data, { min = 8, max = 60, padding = 2 } = {}) {
+  if (!Array.isArray(data) || data.length === 0) return [];
+  const colCount = data.reduce(
+    (n, row) => Math.max(n, Array.isArray(row) ? row.length : 0),
+    0,
+  );
+  const widths = [];
+  for (let col = 0; col < colCount; col++) {
+    let widest = 0;
+    for (const row of data) {
+      if (!Array.isArray(row)) continue;
+      const cell = row[col];
+      if (cell === null || cell === undefined) continue;
+      // Measure the longest line within the cell (cells may wrap on \n).
+      const len = String(cell)
+        .split("\n")
+        .reduce((m, line) => Math.max(m, line.length), 0);
+      if (len > widest) widest = len;
+    }
+    widths.push({ wch: Math.max(min, Math.min(max, widest + padding)) });
+  }
+  return widths;
+}
+
+/**
  * Get default zebra colors for different style presets
  * @param {string} preset - Style preset name
  * @returns {string} Hex color for zebra striping

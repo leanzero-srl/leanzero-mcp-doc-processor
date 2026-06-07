@@ -8,7 +8,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from "@modelcontextprotocol/sdk/server/auth/router.js";
 
 import { setupLogging, log } from "./utils/logger.js";
-import { registerAllTools, SERVER_INSTRUCTIONS } from "./tool-registry.js";
+import { registerAllTools, SERVER_INSTRUCTIONS, TOOL_DEFINITIONS } from "./tool-registry.js";
 import { requireBearer, tenantRateLimiter, mountAdminRoutes, mountProvisionRoutes, setResourceMetadataUrl } from "./auth.js";
 import { DocProcessorOAuthProvider } from "./oauth/provider.js";
 import { renderConsentPage } from "./oauth/consent.js";
@@ -51,7 +51,7 @@ export function buildApp() {
   app.use(express.json({ limit: "40mb" }));
 
   app.get("/healthz", (_req, res) => {
-    res.json({ ok: true, version: "1.0.0", tools: 13 });
+    res.json({ ok: true, version: "1.0.0", tools: TOOL_DEFINITIONS.length });
   });
 
   // OAuth 2.1 authorization server (enabled only when ISSUER_URL is set). Mounts
