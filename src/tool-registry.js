@@ -11,6 +11,7 @@ import { handleReadDoc } from "./tools/read-doc-tool.js";
 import { createDoc } from "./tools/create-doc.js";
 import { createExcel } from "./tools/create-excel.js";
 import { createMarkdown } from "./tools/create-markdown.js";
+import { createPdf } from "./tools/create-pdf.js";
 import { editDoc } from "./tools/edit-doc.js";
 import { editExcel } from "./tools/edit-excel.js";
 import { listDocuments } from "./tools/utils.js";
@@ -31,11 +32,23 @@ export const SERVER_INSTRUCTIONS = [
   "",
   "Quality:",
   "  • Titles MUST be specific. 'Document', 'Untitled', 'File' etc. are rejected.",
-  "  • For DOCX, the default style 'claude-like' renders modern blue-accented",
-  "    documents with proper bullet/numbered lists, blockquotes, hyperlinks,",
-  "    and inline tables. You don't need to flatten markdown — pass it through.",
-  "  • For DOCX paragraphs use object form `{text, headingLevel}` for headings.",
-  "  • Inline emphasis (**bold**, *italic*, `code`, [text](url)) renders correctly.",
+  "",
+  "FORMATTING (IMPORTANT — never produce a plain-text document):",
+  "  • EVERY document must use markdown structure: headings plus at least one",
+  "    list or table. Do NOT send a wall of unformatted paragraphs.",
+  "  • EASIEST WAY: pass the whole body as ONE markdown string in `content`",
+  "    (create-doc / create-markdown / create-pdf). The title becomes the H1,",
+  "    so start `content` at '## '.",
+  "  • Supported markdown: '# / ## / ###' headings, '**bold**', '*italic*',",
+  "    '`code`', '- ' and '1. ' lists, '> ' blockquotes, '---' rule, ```fenced```",
+  "    code blocks, '| a | b |' GitHub tables (with a '|---|---|' row), and",
+  "    '[text](url)' links. All of it renders in DOCX and PDF — do not flatten it.",
+  "  • Worked example for `content`:",
+  '      "## Overview\\nResults for **Q2**.\\n\\n### Highlights\\n- Revenue up *18%*\\n\\n| Metric | Value |\\n|---|---|\\n| MRR | $42k |"',
+  "  • Excel: first row of each sheet's `data` is the header (auto-styled); just",
+  "    supply the rows — headers, zebra striping, and column widths are automatic.",
+  "  • Responses carry a `formattingQuality` object. If `isPlainText` is true,",
+  "    re-create the document WITH markdown structure before returning to the user.",
   "",
   "Workflow:",
   "  • Always call `read-doc` with mode 'indepth' BEFORE `edit-doc` so you see",
@@ -79,9 +92,38 @@ const DOC_TYPE = {
   enum: ["concise", "formal", "explanatory", "scientific"],
   description: "Tone and depth of the documentation.",
 };
+// The supported markdown vocabulary, repeated in tool descriptions so even
+// small/local models know exactly what renders. Keep in sync with
+// parseMarkdownToDocx (doc-utils.js) and the PDF renderer's HTML conversion.
+const MARKDOWN_FEATURES =
+  "Supported markdown: '# H1' '## H2' '### H3' headings; '**bold**'; '*italic*'; " +
+  "'`code`'; '- ' or '1. ' lists; '> ' blockquotes; '---' horizontal rule; " +
+  "```fenced code blocks```; '| a | b |' GitHub tables (with a '|---|---|' " +
+  "separator row); '[text](https://url)' links.";
+
+// A complete worked example (one markdown string) the model can copy.
+const CONTENT_EXAMPLE =
+  'EXAMPLE content: "## Overview\\nThis report covers **Q2** results.\\n\\n' +
+  '### Highlights\\n- Revenue up *18%*\\n- Two new markets\\n\\n' +
+  '| Metric | Value |\\n|---|---|\\n| MRR | $42k |\\n| Churn | 1.2% |\\n\\n' +
+  '> Next review: July."';
+
+// PREFERRED input for document bodies: one markdown string. Far easier for weak
+// models than assembling the string-or-object `paragraphs` array, and it renders
+// with full block-level formatting.
+const CONTENT_FIELD = {
+  type: "string",
+  description:
+    "PREFERRED. The entire document body as ONE markdown string. " +
+    MARKDOWN_FEATURES +
+    " The title is added as the document H1 automatically, so start the body at '## '. " +
+    CONTENT_EXAMPLE +
+    " Use this instead of `paragraphs` unless you need per-paragraph style objects.",
+};
+
 const PARA_ITEM = {
   oneOf: [
-    { type: "string", description: "Plain paragraph text. Markdown formatting inside (e.g. **bold**, *italics*, `code`, [link](url)) is preserved when rendered. Leading '# ', '## ', '### ' is auto-detected as heading." },
+    { type: "string", description: "Plain paragraph text. Markdown formatting inside (e.g. **bold**, *italics*, `code`, [link](url), '- ' lists, '| tables |') is preserved when rendered. Leading '# ', '## ', '### ' is auto-detected as heading. (Prefer the single `content` string instead.)" },
     {
       type: "object",
       properties: {
@@ -185,12 +227,16 @@ export const TOOL_DEFINITIONS = [
   {
     name: "create-doc",
     description:
-      "Create a Word DOCX. Use for stakeholder/business/legal/research documents — NOT for code-heavy technical docs (use create-markdown) or pure tabular data (use create-excel). Title MUST be specific (rejects 'Document', 'Untitled', etc.). On duplicate detection returns { duplicate: true, existingPath } — switch to edit-doc. Document DNA auto-applies project-wide header/footer/style defaults. Use dryRun: true for preview.",
+      "Create a styled Word DOCX. Use for stakeholder/business/legal/research documents — NOT for code-heavy technical docs (use create-markdown) or pure tabular data (use create-excel). " +
+      "ALWAYS format the body with markdown — never send a wall of plain text. The simplest way: put the whole body in the `content` string. " +
+      MARKDOWN_FEATURES + " " + CONTENT_EXAMPLE + " " +
+      "Title MUST be specific (rejects 'Document', 'Untitled', etc.). On duplicate detection returns { duplicate: true, existingPath } — switch to edit-doc. The response includes `formattingQuality` — if `isPlainText` is true, re-create with markdown structure. Document DNA auto-applies project-wide header/footer/style defaults. Use dryRun: true for preview.",
     inputSchema: {
       type: "object",
       properties: {
-        title: { type: "string", description: "Specific descriptive title (rejected: 'Document', 'Untitled', etc.)." },
-        paragraphs: { type: "array", items: PARA_ITEM, description: "Document body. Each entry is a markdown string OR { text, headingLevel: 'heading1'|'heading2'|'heading3' }. Inline markdown (**bold**, *italic*, `code`) renders correctly." },
+        title: { type: "string", description: "Specific descriptive title (rejected: 'Document', 'Untitled', etc.). Becomes the document H1." },
+        content: CONTENT_FIELD,
+        paragraphs: { type: "array", items: PARA_ITEM, description: "ALTERNATIVE to `content`. Document body as an array — each entry a markdown string OR { text, headingLevel: 'heading1'|'heading2'|'heading3' }. Prefer the single `content` string." },
         tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Optional tables as 2D arrays. First row is the header." },
         outputPath: { type: "string", description: "Optional. Default: derived from title, placed under docs/<category>/." },
         stylePreset: STYLE_PRESET,
@@ -219,12 +265,16 @@ export const TOOL_DEFINITIONS = [
   {
     name: "create-markdown",
     description:
-      "Create a Markdown (.md) file. Use for implementation/technical docs, READMEs, integration guides, code-heavy content. Each `paragraphs` entry is a markdown string OR { text, headingLevel } object. The title becomes the H1; explicit headingLevel becomes H2/H3. Fenced code blocks (```lang ... ```), bullet/task lists, and inline code are passed through. Title MUST be specific. Use dryRun: true for preview.",
+      "Create a Markdown (.md) file. Use for implementation/technical docs, READMEs, integration guides, code-heavy content. " +
+      "Simplest usage: put the whole body in the `content` string. " +
+      MARKDOWN_FEATURES + " The title becomes the H1, so start `content` at '## '. " +
+      "Fenced code blocks (```lang ... ```), task lists, and inline code are passed through. Title MUST be specific. The response includes `formattingQuality`. Use dryRun: true for preview.",
     inputSchema: {
       type: "object",
       properties: {
         title: { type: "string", description: "Specific descriptive title (becomes H1; rejected if generic)." },
-        paragraphs: { type: "array", items: PARA_ITEM, description: "Body content. Markdown strings or { text, headingLevel } objects." },
+        content: CONTENT_FIELD,
+        paragraphs: { type: "array", items: PARA_ITEM, description: "ALTERNATIVE to `content`. Body as markdown strings or { text, headingLevel } objects. Prefer the single `content` string." },
         outputPath: { type: "string", description: "Optional. Default: derived from title, placed under docs/<category>/." },
         category: CATEGORY,
         tags: TAGS,
@@ -244,7 +294,10 @@ export const TOOL_DEFINITIONS = [
   {
     name: "create-excel",
     description:
-      "Create an Excel XLSX workbook. Use for tabular/numeric/financial data, trackers, KPI dashboards. Sheet names MUST be specific (rejects 'Sheet1', 'Data', etc.). First row of each sheet's `data` is treated as the header. Workbook is auto-categorized when `title` is provided. Use dryRun: true for preview.",
+      "Create a styled Excel XLSX workbook. Use for tabular/numeric/financial data, trackers, KPI dashboards. " +
+      "Each sheet's `data` is a 2D array; the FIRST row is the header and is auto-styled (bold, filled, centered, bordered), body rows get zebra striping, and columns auto-fit their content — so you only supply the values. " +
+      'EXAMPLE: sheets: [{ name: "Q2 Revenue", data: [["Month","MRR","Churn"],["Apr",42000,0.012],["May",45500,0.009]] }]. ' +
+      "Sheet names MUST be specific (rejects 'Sheet1', 'Data', etc.). Workbook is auto-categorized when `title` is provided. Use dryRun: true for preview.",
     inputSchema: {
       type: "object",
       properties: {
@@ -280,6 +333,41 @@ export const TOOL_DEFINITIONS = [
         uploadFilename: UPLOAD_FILENAME_FIELD,
       },
       required: ["sheets"],
+    },
+  },
+  {
+    name: "create-pdf",
+    description:
+      "Create a styled PDF. Use when the user explicitly wants a PDF (reports, proposals, letters, handouts). Rendered from markdown with the same 8 style presets as create-doc, via headless Chromium. " +
+      "ALWAYS format the body with markdown — never a wall of plain text. Easiest: put the whole body in the `content` string. " +
+      MARKDOWN_FEATURES + " " + CONTENT_EXAMPLE + " " +
+      "Title MUST be specific. Supports headers/footers ({current}/{total} page numbers) and margins. The response includes `formattingQuality`. Use dryRun: true for preview. (To READ a PDF, use read-doc.)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Specific descriptive title (rejected: 'Document', 'Untitled', etc.). Rendered as the top H1." },
+        content: CONTENT_FIELD,
+        paragraphs: { type: "array", items: PARA_ITEM, description: "ALTERNATIVE to `content`. Body as an array of markdown strings or { text, headingLevel } objects. Prefer the single `content` string." },
+        tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Optional tables as 2D arrays. First row is the header. Rendered as styled tables after the body." },
+        outputPath: { type: "string", description: "Optional. Default: derived from title, placed under docs/<category>/." },
+        stylePreset: STYLE_PRESET,
+        category: CATEGORY,
+        tags: TAGS,
+        description: { type: "string", description: "Brief description stored in the registry." },
+        dryRun: { type: "boolean", description: "Return a preview without writing the file (default: false)." },
+        docType: DOC_TYPE,
+        header: HEADER_OBJ,
+        footer: FOOTER_OBJ,
+        margins: MARGINS_OBJ,
+        style: { type: "object", description: "Advanced: fine-grained style overrides merged on top of stylePreset.", additionalProperties: true },
+        enforceDocsFolder: { type: "boolean", description: "If false, allow output outside docs/. Default: true (recommended)." },
+        preventDuplicates: { type: "boolean", description: "If false, allow same-title duplicates. Default: true (recommended)." },
+        clientHint: CLIENT_HINT,
+        uploadUrl: UPLOAD_URL_FIELD,
+        uploadAuthHeader: UPLOAD_AUTH_HEADER_FIELD,
+        uploadFilename: UPLOAD_FILENAME_FIELD,
+      },
+      required: ["title"],
     },
   },
   {
@@ -470,6 +558,11 @@ async function dispatchToolCall(request) {
 
       case "create-excel": {
         const r = await createExcel(params);
+        return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.success };
+      }
+
+      case "create-pdf": {
+        const r = await createPdf(params);
         return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.success };
       }
 

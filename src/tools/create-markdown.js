@@ -14,6 +14,7 @@ import {
   mimeTypeFromExtension,
 } from "./utils.js";
 import { applyImplementationStyle } from "../utils/markdown-formatter.js";
+import { assessFormattingQuality, shouldRejectPlainText } from "../utils/formatting-quality.js";
 import { log } from "../utils/logger.js";
 
 /**
@@ -60,10 +61,14 @@ export async function createMarkdown(input) {
     }
     const title = rawTitle;
 
-    // Process paragraphs - parse JSON strings if needed
-    let paragraphs = Array.isArray(parsedInput.paragraphs)
+    // Process paragraphs - parse JSON strings if needed. Weak-model convenience:
+    // accept the whole body as a single markdown string via `content` when no
+    // explicit paragraphs array is given.
+    let paragraphs = Array.isArray(parsedInput.paragraphs) && parsedInput.paragraphs.length > 0
       ? parsedInput.paragraphs
-      : [];
+      : (typeof parsedInput.content === "string" && parsedInput.content.trim()
+          ? [parsedInput.content]
+          : []);
 
     // Parse paragraph objects if they're JSON strings
     paragraphs = paragraphs.map((para) => {
@@ -80,6 +85,21 @@ export async function createMarkdown(input) {
       }
       return para;
     });
+
+    // Assess structural formatting for the correction signal / optional guard.
+    const formattingQuality = assessFormattingQuality({
+      paragraphs,
+      content: parsedInput.content,
+    });
+    if (!parsedInput.dryRun && shouldRejectPlainText(formattingQuality)) {
+      return {
+        success: false,
+        error: "PLAIN_TEXT",
+        message: `Refusing to create an unformatted plain-text document (REQUIRE_FORMATTING is on). ${formattingQuality.hint}`,
+        hint: formattingQuality.hint,
+        formattingQuality,
+      };
+    }
 
     // Get category and tags from parsedInput (handles JSON-string inputs)
     let category = parsedInput.category || null;
@@ -141,6 +161,7 @@ export async function createMarkdown(input) {
           category: category || null,
           tags: tags.length > 0 ? tags : null,
           wasCategorized: wasCategorized,
+          formattingQuality,
         },
         enforcement: {
           docsFolderEnforced: docsEnforced,
@@ -282,6 +303,7 @@ export async function createMarkdown(input) {
       registryEntry: registryEntry
         ? { id: registryEntry.id, category: registryEntry.category }
         : null,
+      formattingQuality: isInteractive ? undefined : formattingQuality,
       enforcement: isInteractive ? undefined : {
         docsFolderEnforced: docsEnforced,
         duplicatePrevented: wasDuplicatePrevented,

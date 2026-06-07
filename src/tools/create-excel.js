@@ -24,6 +24,7 @@ import {
 import { applyDNAToInput } from "../utils/dna-manager.js";
 import {
   applyExcelStyling,
+  autoColumnWidths,
   cleanSheetData,
   getZebraColor,
 } from "./excel-utils.js";
@@ -211,12 +212,16 @@ export async function createExcel(input) {
       // Convert 2D array to worksheet
       const ws = XLSX.utils.aoa_to_sheet(data);
 
-      // Apply column widths
+      // Apply column widths — explicit overrides win; otherwise auto-fit to
+      // content so columns aren't clipped (a readability win, especially for
+      // weak models that don't set widths).
       if (
         styleConfig.columnWidths &&
         Object.keys(styleConfig.columnWidths).length > 0
       ) {
         ws["!cols"] = createExcelColumnWidths(styleConfig.columnWidths);
+      } else {
+        ws["!cols"] = autoColumnWidths(data);
       }
 
       // Apply row heights
