@@ -323,7 +323,7 @@ export async function createMarkdown(input) {
         ? { id: registryEntry.id, category: registryEntry.category }
         : null,
       formattingQuality: isInteractive ? undefined : formattingQuality,
-      memoryNudge: (isInteractive || !profile.canPersistMemory) ? undefined : memoryNudge(learning),
+      memoryNudge: (isInteractive || !profile.canPersistMemory) ? undefined : memoryNudge(learning, `create-markdown:${category || "technical"}`),
       enforcement: isInteractive ? undefined : {
         docsFolderEnforced: docsEnforced,
         duplicatePrevented: wasDuplicatePrevented,

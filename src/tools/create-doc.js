@@ -857,7 +857,7 @@ export async function createDoc(input) {
       styleReason: styleReason,
       formattingQuality: isInteractive ? undefined : formattingQuality,
       formatSuggestion: isInteractive ? undefined : suggestBetterFormat({ paragraphs: processedParagraphs, content: parsedInput.content, tables }, "docx"),
-      memoryNudge: (isInteractive || !profile.canPersistMemory) ? undefined : memoryNudge(learning),
+      memoryNudge: (isInteractive || !profile.canPersistMemory) ? undefined : memoryNudge(learning, `create-doc:${category || "general"}:${stylePreset}`),
       styleConfig: isInteractive ? undefined : {
         preset: stylePreset,
         description: getPresetDescription(stylePreset),
