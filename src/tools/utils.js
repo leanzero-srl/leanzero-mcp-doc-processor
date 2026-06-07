@@ -10,16 +10,41 @@ import {
 import { log } from "../utils/logger.js";
 
 /**
+ * Root directory for all generated files.
+ *
+ * Defaults to the MCP process's current working directory. For a stdio MCP
+ * launched by an agent (e.g. Claude Code), cwd is the workspace/project the
+ * agent was opened from — so files land THERE, on the caller's machine, not on
+ * a remote host. Set the DOC_OUTPUT_DIR env var to pin a fixed location instead
+ * (e.g. an LM Studio config that should always write to ~/Documents/...).
+ *
+ * NOTE: this only puts files on the caller's machine when the server runs
+ * locally (stdio). A REMOTE/hosted server writes to the HOST's disk — that is a
+ * hard client/server boundary, not a setting.
+ *
+ * @returns {string} absolute output root
+ */
+export function getOutputRoot() {
+  const override = process.env.DOC_OUTPUT_DIR;
+  if (override && override.trim()) {
+    return path.isAbsolute(override)
+      ? override
+      : path.resolve(process.cwd(), override);
+  }
+  return process.cwd();
+}
+
+/**
  * Enforces docs/ folder structure for file organization
  * @param {string} outputPath - The requested output path
  * @param {boolean} enforceDocsFolder - Whether to enforce docs/ folder (default: true)
- * @param {string} projectRoot - Project root directory (default: process.cwd())
+ * @param {string} projectRoot - Project root directory (default: getOutputRoot())
  * @returns {Object} { outputPath, wasEnforced }
  */
 export function enforceDocsFolder(
   outputPath,
   enforceDocsFolder = true,
-  projectRoot = process.cwd(),
+  projectRoot = getOutputRoot(),
 ) {
   if (!enforceDocsFolder) {
     return { outputPath, wasEnforced: false };
@@ -212,7 +237,7 @@ export function validateAndNormalizeInput(
     const defaultFilename = slug
       ? `${slug}.${defaultExtension}`
       : `document.${defaultExtension}`;
-    normalized.outputPath = path.join(process.cwd(), "output", defaultFilename);
+    normalized.outputPath = path.join(getOutputRoot(), "output", defaultFilename);
   } else {
     // Force correct extension on provided path
     // This handles .md → .docx, .txt → .xlsx conversions automatically
@@ -280,10 +305,10 @@ export function applyCategoryToPath(outputPath, category) {
 
   const resolvedPath = path.isAbsolute(outputPath)
     ? outputPath
-    : path.resolve(process.cwd(), outputPath);
+    : path.resolve(getOutputRoot(), outputPath);
 
   const categoryInfo = getCategoryPath(category);
-  const docsRoot = path.join(process.cwd(), "docs");
+  const docsRoot = path.join(getOutputRoot(), "docs");
 
   // If already in docs/, check if it's in the correct subfolder
   let relativePath;

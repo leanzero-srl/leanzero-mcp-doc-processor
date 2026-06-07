@@ -100,7 +100,7 @@ Once you have confirmed your understanding (and any necessary clarifications), p
 
 ## PROJECT OVERVIEW
 
-This is an **MCP (Model Context Protocol) server** that processes PDF, DOCX, and Excel files. It exposes **13 active tools** advertised via `ListToolsRequestSchema` (plus 13 backward-compatible aliases dispatched in `CallToolRequestSchema`) over **stdio transport**, enabling AI models to read, create, edit, and manage documents with intelligent styling, categorization, and lineage tracking.
+This is an **MCP (Model Context Protocol) server** that processes PDF, DOCX, and Excel files. It exposes **14 active tools** advertised via `ListToolsRequestSchema` (plus backward-compatible aliases dispatched in `CallToolRequestSchema`) over **stdio transport**, enabling AI models to read, create, edit, and manage documents with intelligent styling, categorization, and lineage tracking.
 
 **Server identity:** `mcp-doc-processor` v1.0.0
 **SDK:** `@modelcontextprotocol/sdk ^1.25.2`
@@ -121,7 +121,9 @@ npm run test:read-doc       # read-doc URL-fetch extension — 14 tests (node:te
 npm run test:schemas        # MCP schema invariants + detect-format E2E — 6 tests (node:test)
 npm run test:render         # parseMarkdownToDocx + create-doc round-trip — 15 tests (node:test)
 npm run test:upload         # uploadFileToTarget + create-doc upload integration — 18 tests (node:test)
-npm run test:all            # Run all five suites in sequence
+npm run test:create-tags    # create-doc tag-based style resolution (getTemplateByTag crash regression)
+npm run test:create-pdf     # create-pdf render + read-doc round-trip (Puppeteer)
+npm run test:all            # Run all suites in sequence
 npm run lint:no-console-log # Fail if any src/ file uses console.log (corrupts MCP stdio)
 ```
 
@@ -187,6 +189,7 @@ mcp-doc-processor/
 │   │   ├── read-doc-tool.js        # Unified read-doc handler: summary/indepth/focused modes
 │   │   ├── create-doc.js           # create-doc handler — most complex tool
 │   │   ├── create-excel.js         # create-excel handler
+│   │   ├── create-pdf.js           # create-pdf handler — markdown → PDF via pdf-renderer
 │   │   ├── edit-doc.js             # edit-doc handler — append/replace via XML patching
 │   │   ├── edit-excel.js           # edit-excel handler
 │   │   ├── dna-tool.js             # dna tool handler — init/get/evolve/save-memory/delete-memory
@@ -233,7 +236,7 @@ mcp-doc-processor/
 └── package.json                    # ES module, no devDependencies
 ```
 
-### Tool Inventory (13 Active Tools)
+### Tool Inventory (14 Active Tools)
 
 | Tool | Handler File | Purpose |
 |------|-------------|---------|
@@ -241,7 +244,8 @@ mcp-doc-processor/
 | `detect-format` | `services/format-router.js` (called from `src/index.js`, MUST be awaited) | Recommend document format and tone (markdown/docx/excel) based on user query, title, content preview |
 | `create-doc` | `create-doc.js` | Create DOCX with styling, headers, footers, margins, DNA, blueprint validation. Schema advertises: header, footer, margins, backgroundColor, blueprint, enforceDocsFolder, preventDuplicates, tableHeaderFill, style. |
 | `create-markdown` | `create-markdown.js` | Create Markdown documents (no tables; for code-heavy/technical content) |
-| `create-excel` | `create-excel.js` | Create XLSX workbook with styling. DNA defaults are merged BEFORE the dryRun preview so the preview reflects what would be written. |
+| `create-excel` | `create-excel.js` | Create XLSX workbook with styling. DNA defaults are merged BEFORE the dryRun preview so the preview reflects what would be written. Columns auto-fit content when no explicit widths given. |
+| `create-pdf` | `create-pdf.js` | Create a styled PDF from markdown via `services/pdf-renderer.js` (marked → HTML → CSS-from-preset → Puppeteer/Chromium). Same input shape as create-doc (title, content/paragraphs, tables, stylePreset, header/footer/margins, upload*). Reading PDFs stays on read-doc. |
 | `edit-doc` | `edit-doc.js` | Append/replace/style/preview DOCX. `useLegacy:true` is destructive (loses formatting) and emits a runtime warning. |
 | `edit-excel` | `edit-excel.js` | Append rows/sheets, replace sheets, preview. Validation errors return structured `{success:false, error}` (not throws). |
 | `list-documents` | `utils.js` | Search/filter document registry (filters compose with AND-logic) |
@@ -577,8 +581,9 @@ The `edit-doc` tool uses XML-level patching (not full document recreation) to pr
 | `docx` | DOCX generation (Document, Packer, Paragraph, TextRun, etc.) |
 | `jszip` | ZIP manipulation for DOCX XML patching and image extraction |
 | `mammoth` | DOCX text extraction |
-| `marked` | Markdown tokenization for inline formatting in paragraphs |
+| `marked` | Markdown tokenization for inline formatting in paragraphs; also markdown→HTML for create-pdf |
 | `pdf-parse` | PDF text and image extraction (async, single-pass) |
+| `puppeteer` | Headless Chromium for create-pdf (markdown→HTML→PDF). Ships its own Chromium — run `npx puppeteer browsers install chrome` once at deploy. |
 | `xlsx` | Excel reading |
 | `xlsx-js-style` | Excel writing with cell styling |
 
@@ -646,3 +651,13 @@ The `edit-doc` tool uses XML-level patching (not full document recreation) to pr
     - Interactive `clientHint` mode collapses the message: `Created and uploaded: <path> → <attachment-content-url>` on success, `Created locally at <path>; upload failed: <error>` on failure.
     - Helper `uploadFileToTarget()` in `src/tools/utils.js`. MIME helper `mimeTypeFromExtension()` maps `.docx` / `.xlsx` / `.md` / `.pdf` / `.txt` / `.csv` to their MIME (default `application/octet-stream`).
     - Tests: `test/test-upload.js` (18 tests covering the helper, create-doc end-to-end, clientHint × upload, backward-compat-when-no-upload, partial-params guard, all error codes 401 / 404 / 413 / 415, redirect rejection, oversized rejection, missing-arg validations).
+
+27. **`content` param on create-doc / create-markdown / create-pdf** — accepts the ENTIRE body as one markdown string. When present and `paragraphs` is empty/absent, it's fed straight through the block renderer (string paragraph → `parseMarkdownToDocx`, or marked→HTML for PDF). Far easier for weak/local models than the `oneOf` `paragraphs` array, which they frequently emit malformed (the "params.paragraphs is not of a type(s) array" failure). `paragraphs` still works and wins when both are given.
+
+28. **`formattingQuality` response field + `REQUIRE_FORMATTING` toggle** — `src/utils/formatting-quality.js` (`assessFormattingQuality`, `shouldRejectPlainText`). All three create-* tools attach a non-fatal `formattingQuality` ({headings, lists, emphasis, tables, blockquotes, isPlainText, hint}) so the model gets a correction signal when it produced flat text (omitted in `interactive` clientHint mode like other chatty fields). When env `REQUIRE_FORMATTING` is truthy (1/true/yes/on) AND the body is wholly unformatted above ~200 chars, the tool hard-rejects with `{success:false, error:"PLAIN_TEXT", hint}` BEFORE writing. Default is warn-only (off) to avoid retry loops with weak models. `SERVER_INSTRUCTIONS` (in `src/tool-registry.js`) carries a FORMATTING section + worked `content` example reaching the model alongside the tool list.
+
+29. **create-pdf crash fix — getTemplateByTag is a STRING, not a template** — `getTemplateByTag()` (`src/utils/document-tags.js`) returns a template KEY string (or null), NOT a `{name, stylePreset}` object. create-doc's style-priority chain must resolve via `findMatchingTemplate(title, "", tags)` (returns `{key, name, stylePreset}` or null) and null-guard; dereferencing `getTemplateByTag()` as an object crashed on unmapped tags (e.g. `tags:["baboons"]` → "Cannot read properties of null (reading 'stylePreset')"). Guarded by `test/test-create-doc-tags.js`.
+
+31. **Output location follows the CALLER, via `getOutputRoot()` (`src/tools/utils.js`)** — all generated files are rooted at `DOC_OUTPUT_DIR` (env override, absolute or cwd-relative) ELSE `process.cwd()`. For a **stdio** MCP launched by an agent (Claude Code), cwd is the workspace, so files land in the project the agent was opened from. For LM Studio, set `DOC_OUTPUT_DIR` in the mcp.json `env`. `enforceDocsFolder`, `validateAndNormalizeInput`, and `applyCategoryToPath` all use it. **Hard truth: a REMOTE/hosted server writes to the HOST's disk** — it cannot write to the calling client's machine (client/server boundary). To get files on the caller's machine, run the MCP **locally over stdio** there. The hosted instance is for remote consumers (website demo, claude.ai, CogniRunner) whose files legitimately live server-side or get pushed via the upload bridge.
+
+30. **create-pdf uses a SINGLETON headless Chromium** — `src/services/pdf-renderer.js` launches one Puppeteer browser lazily and reuses it across requests (pages are created/closed per call); it registers SIGTERM/SIGINT handlers to `closeBrowser()` on shutdown. Tests MUST call `closeBrowser()` in teardown or the process won't exit. CSS is derived from the same `getStyleConfig(preset)` as DOCX; preset fonts map to web-safe stacks (Calibri→Helvetica, Garamond→Georgia, Consolas→monospace) since bundled Chromium lacks those fonts. Margins are twips (1440=1in) converted to inches. Deploy step: `npx puppeteer browsers install chrome` once; under the launchd LaunchAgent it finds Chromium via `$HOME` / `PUPPETEER_CACHE_DIR`.

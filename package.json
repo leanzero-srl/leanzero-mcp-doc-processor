@@ -21,7 +21,9 @@
     "test:auth": "node --test test/test-auth.js",
     "test:oauth": "node test/test-oauth.js",
     "test:pdf": "node --test test/test-pdf-parse.js",
-    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload && npm run test:http && npm run test:auth && npm run test:oauth && npm run test:pdf",
+    "test:create-tags": "node --test test/test-create-doc-tags.js",
+    "test:create-pdf": "node --test test/test-create-pdf.js",
+    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload && npm run test:http && npm run test:auth && npm run test:oauth && npm run test:pdf && npm run test:create-tags && npm run test:create-pdf",
     "lint:no-console-log": "! grep -rn 'console\\.log(' src/ --include='*.js'"
   },
   "dependencies": {
@@ -35,6 +37,7 @@
     "mammoth": "^1.5.4",
     "marked": "^17.0.2",
     "pdf-parse": "^2.4.5",
+    "puppeteer": "^25.1.0",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0"
   }

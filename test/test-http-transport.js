@@ -63,7 +63,7 @@ describe("HTTP transport — health probe", () => {
     assert.equal(r.status, 200);
     const body = await r.json();
     assert.equal(body.ok, true);
-    assert.equal(body.tools, 13);
+    assert.equal(body.tools, 14);
     assert.ok(body.version);
   });
 });
@@ -111,7 +111,7 @@ describe("HTTP transport — MCP protocol over SDK Client", () => {
     }
   });
 
-  test("tools/list returns all 13 advertised tools", async () => {
+  test("tools/list returns all 14 advertised tools", async () => {
     const { client, transport } = await newMcpClient();
     try {
       const result = await client.listTools();
@@ -121,6 +121,7 @@ describe("HTTP transport — MCP protocol over SDK Client", () => {
         "create-doc",
         "create-excel",
         "create-markdown",
+        "create-pdf",
         "detect-format",
         "dna",
         "drift-monitor",
