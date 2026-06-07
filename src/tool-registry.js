@@ -543,7 +543,11 @@ export const TOOL_DEFINITIONS = [
 // JSON text). This is how a remote server delivers the generated file.
 function wrapCreateResult(r) {
   const content = [{ type: "text", text: JSON.stringify(r, null, 2) }];
-  if (r && r.downloadUrl && r.filePath) {
+  // Emit the resource_link only in agent mode. Interactive/human-facing callers
+  // (e.g. CogniRunner via the Anthropic connector, which also gets the file via
+  // the upload bridge) get a concise text result with the downloadUrl inline —
+  // no extra content block to risk connector incompatibility.
+  if (r && r.downloadUrl && r.filePath && r.clientMode !== "interactive") {
     content.push({
       type: "resource_link",
       uri: r.downloadUrl,
