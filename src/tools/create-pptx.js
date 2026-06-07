@@ -179,16 +179,30 @@ function parseBlocks(lines) {
       if (rows.length) blocks.push({ type: "table", rows });
       continue;
     }
-    // fenced code block
-    if (/^\s*```/.test(line)) {
+    // fenced block — a ```chart fence becomes a native chart; anything else is code.
+    const fence = /^\s*```\s*([A-Za-z][\w-]*)?/.exec(line);
+    if (fence) {
       flushPara();
+      const lang = (fence[1] || "").toLowerCase();
       i++;
-      const code = [];
-      while (i < lines.length && !/^\s*```/.test(lines[i])) { code.push(lines[i]); i++; }
+      const body = [];
+      while (i < lines.length && !/^\s*```/.test(lines[i])) { body.push(lines[i]); i++; }
       i++;  // closing fence
-      blocks.push({ type: "code", text: code.join("\n") });
+      if (lang === "chart") {
+        const chart = parseChartSpec(body);
+        if (chart) { blocks.push(chart); continue; }
+        // unparseable chart spec → fall through and show the raw text as code
+      } else if (lang === "notes") {
+        const txt = body.join("\n").trim();
+        if (txt) { blocks.push({ type: "notes", text: txt }); continue; }
+      }
+      blocks.push({ type: "code", text: body.join("\n") });
       continue;
     }
+    // speaker notes — "Notes: ..." (or "> Notes: ...") on a line → slide notes
+    const notesLine = /^>?\s*notes:\s*(.+)$/i.exec(line);
+    if (notesLine) { flushPara(); blocks.push({ type: "notes", text: stripInline(notesLine[1].trim()) }); i++; continue; }
+
     // sub-heading (### or deeper, or a stray # inside a section)
     const sh = /^(#{1,6})\s+(.+)/.exec(line);
     if (sh) { flushPara(); blocks.push({ type: "subheading", text: stripInline(sh[2].trim()) }); i++; continue; }
@@ -209,6 +223,56 @@ function parseBlocks(lines) {
   }
   flushPara();
   return blocks;
+}
+
+/**
+ * Parse a ```chart fenced block into a chart spec. Format: optional
+ * `type: bar|column|line|pie|doughnut|area` and `title: ...` lines, then a
+ * markdown table whose first column is the category and each remaining column
+ * is a data series. Returns null if there's no usable table.
+ *
+ *   type: bar
+ *   title: Revenue by Region
+ *   | Region | 2025 | 2026 |
+ *   |--------|------|------|
+ *   | North  | 120  | 180  |
+ *   | South  | 90   | 110  |
+ */
+function parseChartSpec(lines) {
+  let chartType = "bar";
+  let title = "";
+  const tableLines = [];
+  for (const raw of lines) {
+    const line = String(raw).trim();
+    if (!line) continue;
+    const t = /^type\s*:\s*([A-Za-z]+)/i.exec(line);
+    if (t) { chartType = t[1].toLowerCase(); continue; }
+    const ti = /^title\s*:\s*(.+)/i.exec(line);
+    if (ti) { title = stripInline(ti[1].trim()); continue; }
+    if (/^\|.*\|$/.test(line)) {
+      if (/^\|[\s:|-]+\|$/.test(line)) continue;  // separator row
+      tableLines.push(line);
+    }
+  }
+  if (tableLines.length < 2) return null;  // need a header + at least one data row
+  const rows = tableLines.map((l) =>
+    l.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => stripInline(c.trim())),
+  );
+  const header = rows[0];
+  const dataRows = rows.slice(1);
+  const categories = dataRows.map((r) => r[0]);
+  const seriesNames = header.slice(1);
+  if (!seriesNames.length) return null;
+  const toNum = (v) => {
+    const n = parseFloat(String(v ?? "").replace(/[$,%\s]/g, ""));
+    return isNaN(n) ? 0 : n;
+  };
+  const series = seriesNames.map((name, ci) => ({
+    name: name || `Series ${ci + 1}`,
+    labels: categories,
+    values: dataRows.map((r) => toNum(r[ci + 1])),
+  }));
+  return { type: "chart", chartType, title, series };
 }
 
 /** Build text-run objects (one auto-flowing text box) from non-table blocks. */
@@ -235,7 +299,7 @@ function textRunsFromBlocks(blocks, colors) {
  * presets as DOCX/PDF (hex without '#', which is exactly what pptxgenjs wants).
  * @returns {Promise<{ buffer: Buffer, slideCount: number }>}
  */
-async function buildPptxBuffer({ title, markdown, styleConfig, fallbackSubtitle }) {
+export async function buildPptxBuffer({ title, markdown, styleConfig, fallbackSubtitle }) {
   const colors = {
     body: styleConfig.font?.color || "1F2937",
     title: styleConfig.title?.color || "0F172A",
@@ -251,6 +315,12 @@ async function buildPptxBuffer({ title, markdown, styleConfig, fallbackSubtitle 
   pptx.layout = "LZ_WIDE";
   pptx.author = "mcp-doc-processor";
   pptx.title = title;
+
+  const CHART_TYPES = {
+    bar: pptx.ChartType.bar, column: pptx.ChartType.bar, line: pptx.ChartType.line,
+    pie: pptx.ChartType.pie, doughnut: pptx.ChartType.doughnut, donut: pptx.ChartType.doughnut,
+    area: pptx.ChartType.area, scatter: pptx.ChartType.scatter, radar: pptx.ChartType.radar,
+  };
 
   const { subtitle, sections } = splitSections(title, markdown, fallbackSubtitle);
 
@@ -271,15 +341,34 @@ async function buildPptxBuffer({ title, markdown, styleConfig, fallbackSubtitle 
     slide.addShape(pptx.ShapeType.line, { x: 0.6, y: 1.28, w: SLIDE_W - 1.2, h: 0, line: { color: colors.accent, width: 1.5 } });
 
     const blocks = parseBlocks(section.lines);
+    const noteBlocks = blocks.filter((b) => b.type === "notes");
+    const chartBlocks = blocks.filter((b) => b.type === "chart");
     const tableBlocks = blocks.filter((b) => b.type === "table");
-    const textBlocks = blocks.filter((b) => b.type !== "table");
-    const hasTable = tableBlocks.length > 0;
+    const textBlocks = blocks.filter((b) => !["table", "chart", "notes"].includes(b.type));
+    const hasVisual = chartBlocks.length > 0 || tableBlocks.length > 0;
+    if (noteBlocks.length) slide.addNotes(noteBlocks.map((b) => b.text).join("\n"));
 
     const runs = textRunsFromBlocks(textBlocks, colors);
     if (runs.length) {
-      slide.addText(runs, { x: 0.6, y: 1.5, w: SLIDE_W - 1.2, h: hasTable ? 2.7 : 5.4, fontFace: colors.font, valign: "top" });
+      slide.addText(runs, { x: 0.6, y: 1.5, w: SLIDE_W - 1.2, h: hasVisual ? 2.4 : 5.4, fontFace: colors.font, valign: "top" });
     }
-    if (hasTable) {
+    if (chartBlocks.length) {
+      // A chart takes the slide's visual slot — a native, editable PowerPoint chart.
+      const c = chartBlocks[0];
+      const ct = CHART_TYPES[c.chartType] || pptx.ChartType.bar;
+      const pieish = c.chartType === "pie" || c.chartType === "doughnut" || c.chartType === "donut";
+      const data = pieish ? c.series.slice(0, 1) : c.series;
+      const opts = {
+        x: 0.6, y: runs.length ? 4.0 : 1.5, w: SLIDE_W - 1.2, h: runs.length ? 3.0 : 5.5,
+        chartColors: ["1E40AF", "059669", "D97706", "DC2626", "7C3AED", "0891B2", "DB2777", "65A30D"],
+        showLegend: data.length > 1 || pieish, legendPos: "b", legendColor: colors.body,
+        showTitle: !!c.title, title: c.title, titleColor: colors.heading, titleFontFace: colors.font, titleFontSize: 16,
+        catAxisLabelColor: colors.body, valAxisLabelColor: colors.body,
+        showValue: pieish, showPercent: pieish, dataLabelColor: pieish ? "FFFFFF" : colors.body,
+      };
+      if (c.chartType === "bar" || c.chartType === "column") opts.barDir = "col";
+      slide.addChart(ct, data, opts);
+    } else if (tableBlocks.length) {
       // Render the first table natively; extra tables (rare) are skipped to keep
       // the layout clean — the section heading still groups the content.
       const t = tableBlocks[0];

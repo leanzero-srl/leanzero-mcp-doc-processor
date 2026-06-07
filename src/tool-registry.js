@@ -15,6 +15,7 @@ import { createExcel } from "./tools/create-excel.js";
 import { createMarkdown } from "./tools/create-markdown.js";
 import { createPdf } from "./tools/create-pdf.js";
 import { createPptx } from "./tools/create-pptx.js";
+import { editPptx } from "./tools/edit-pptx.js";
 import { editDoc } from "./tools/edit-doc.js";
 import { editExcel } from "./tools/edit-excel.js";
 import { listDocuments, mimeTypeFromExtension } from "./tools/utils.js";
@@ -213,7 +214,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "read-doc",
     description:
-      "Read and analyze PDF, DOCX, or Excel files. Modes: 'summary' (overview with preview), 'indepth' (full text, structure, metadata), 'focused' (query-based search). Source: either local filePath OR a remote https url whose response is {data:base64, filename, mimeType, size} JSON guarded by authHeader (used for one-shot capabilities like CogniRunner attachment fetches). Always read before editing; use 'indepth' before edit-doc.",
+      "Read and analyze PDF, DOCX, Excel, or PowerPoint (.pptx) files. Modes: 'summary' (overview with preview), 'indepth' (full text, structure, metadata), 'focused' (query-based search). For a .pptx it returns a per-slide transcript (titles, bullets, speaker notes) and the slide count. Source: either local filePath OR a remote https url whose response is {data:base64, filename, mimeType, size} JSON guarded by authHeader (used for one-shot capabilities like CogniRunner attachment fetches). Always read before editing; use 'indepth' before edit-doc.",
     inputSchema: {
       type: "object",
       properties: {
@@ -404,7 +405,7 @@ export const TOOL_DEFINITIONS = [
     description:
       "Create an EDITABLE PowerPoint presentation (.pptx) you can open in PowerPoint / Keynote / Google Slides. USE when the user asks for slides / a deck / a presentation / a pitch deck / 'powerpoint' / 'keynote'. " +
       "NOT for a flowing document (→ create-doc / create-pdf), code/repo docs (→ create-markdown), or pure tabular data (→ create-excel). " +
-      "SLIDE STRUCTURE: the title becomes a centered title slide; EACH '## ' heading starts a NEW slide whose body is the markdown beneath it. Inside a slide, '### ' is a sub-heading, '- '/'1. ' are bullets, '| a | b |' GitHub tables render as native slide tables, and ```fenced``` blocks render as monospace. Keep each slide focused — a few bullets, not a wall of text. " +
+      "SLIDE STRUCTURE: the title becomes a centered title slide; EACH '## ' heading starts a NEW slide whose body is the markdown beneath it. Inside a slide, '### ' is a sub-heading, '- '/'1. ' are bullets, '| a | b |' GitHub tables render as native slide tables, a ```chart``` fenced block (first line 'type: bar|column|line|pie|doughnut|area', optional 'title:', then a markdown table whose first column is the category and each other column is a data series) becomes a NATIVE editable chart, and ```fenced``` code blocks render as monospace. Keep each slide focused — a few bullets, not a wall of text. " +
       "Styled from the same 8 presets as create-doc (colors/fonts map onto the slides). " +
       MARKDOWN_FEATURES + " " +
       'EXAMPLE content: "## Problem\\n- Manual steps are slow\\n- Errors slip through\\n\\n## Our Solution\\n- One-click automation\\n- Built-in checks\\n\\n## Results\\n| Metric | Before | After |\\n|---|---|---|\\n| Time | 2h | 5m |". ' +
@@ -432,6 +433,30 @@ export const TOOL_DEFINITIONS = [
         uploadFilename: UPLOAD_FILENAME_FIELD,
       },
       required: ["title"],
+    },
+  },
+  {
+    name: "edit-pptx",
+    description:
+      "Edit an existing PowerPoint (.pptx). Actions: 'preview' (show the current slide outline), 'append-slides' (add new slides from markdown — one '## ' heading per slide), 'replace-slide' (replace one content slide by 1-based index with new markdown). " +
+      "IMPORTANT: edit-pptx REBUILDS the deck from the existing slides' extracted TEXT + speaker notes, normalized to a style preset — charts, images, and exact original formatting on pre-existing slides are NOT preserved (best for the text/bullet decks create-pptx makes). To author a brand-new deck use create-pptx; to read a deck use read-doc.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        filePath: { type: "string", description: "Path to the existing .pptx file." },
+        action: { type: "string", enum: ["preview", "append-slides", "replace-slide"], description: "Edit action." },
+        content: { type: "string", description: "New slide markdown ('## ' per slide). Required for append-slides and replace-slide." },
+        slideIndex: { type: "number", description: "1-based index among CONTENT slides (the title slide is excluded). Required for replace-slide." },
+        title: { type: "string", description: "Optional heading to use when replace-slide content has no leading '## '." },
+        stylePreset: STYLE_PRESET,
+        style: { type: "object", description: "Advanced style overrides merged on top of stylePreset.", additionalProperties: true },
+        outputPath: { type: "string", description: "Optional. Write the result here instead of overwriting the input file." },
+        clientHint: CLIENT_HINT,
+        uploadUrl: UPLOAD_URL_FIELD,
+        uploadAuthHeader: UPLOAD_AUTH_HEADER_FIELD,
+        uploadFilename: UPLOAD_FILENAME_FIELD,
+      },
+      required: ["filePath", "action"],
     },
   },
   {
@@ -671,6 +696,10 @@ async function dispatchToolCall(request) {
 
       case "create-pptx": {
         return wrapCreateResult(await createPptx(params), "create-pptx");
+      }
+
+      case "edit-pptx": {
+        return wrapCreateResult(await editPptx(params), "edit-pptx");
       }
 
       case "edit-doc": {

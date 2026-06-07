@@ -21,6 +21,7 @@ export class FileTypeDetector {
       'docx': 'docx',
       'xlsx': 'excel',
       'xls': 'excel',
+      'pptx': 'pptx',
       // Support legacy .doc format as docx
       'doc': 'docx'
     };
