@@ -39,11 +39,18 @@ describe("format-router semantic planner", () => {
     assert.strictEqual(r.suggestedTool, "create-markdown");
   });
 
-  test("presentation has no native tool → flags pptx, recommends closest fit", async () => {
+  test("presentation → pptx, routed to create-pptx (editable deck)", async () => {
     const r = await fmt("make a pitch deck for investors");
-    assert.strictEqual(r.unsupported, "pptx");
-    assert.ok(r.note && /pptx|slide|deck/i.test(r.note));
-    assert.ok(["pdf", "docx"].includes(r.format));
+    assert.strictEqual(r.format, "pptx");
+    assert.strictEqual(r.suggestedTool, "create-pptx");
+    assert.strictEqual(r.unsupported, undefined, "pptx is supported now — no unsupported flag");
+    assert.ok(r.note && /pptx|slide|deck|create-pdf/i.test(r.note));
+  });
+
+  test("explicit PDF beats a slides mention (a PDF of the deck → pdf)", async () => {
+    const r = await fmt("export the slide deck as a PDF to print");
+    assert.strictEqual(r.format, "pdf");
+    assert.strictEqual(r.suggestedTool, "create-pdf");
   });
 
   test("data terms → excel with data/spreadsheet reason (schema-test contract)", async () => {
