@@ -28,6 +28,7 @@ const DocumentFormat = {
   DOCX: "docx",
   EXCEL: "excel",
   PDF: "pdf",
+  PPTX: "pptx",
 };
 
 // Document type (tone/depth) constants
@@ -44,6 +45,7 @@ const LABEL = {
   [DocumentFormat.DOCX]: "stakeholder/business",
   [DocumentFormat.EXCEL]: "data/spreadsheet",
   [DocumentFormat.PDF]: "final/printable deliverable",
+  [DocumentFormat.PPTX]: "presentation/slides",
 };
 
 // Explicit format mentions — decisive (the user named the format).
@@ -235,19 +237,15 @@ export async function detectFormat(params) {
   let winner = ranked[0];
   const runnerUp = ranked[1];
 
-  // Presentation handling: there is no native slide/PPTX tool. If the user
-  // clearly wants slides and nothing stronger points elsewhere, recommend the
-  // best available substitute (PDF for a visual/printable deck) and say so.
+  // Presentation handling: editable slide decks are now a first-class format
+  // (create-pptx). If the user clearly wants slides and didn't explicitly name
+  // another format (score >= 100), route to create-pptx.
   const presHits = countHits(text, PRESENTATION_CUES);
   let note;
-  let unsupported;
   if (presHits.length && winner.score < 100) {
-    unsupported = "pptx";
     note =
-      "No native slide/PowerPoint (.pptx) output exists yet. Recommending a PDF laid out as a deck (one '## ' heading per slide). For an editable deck, ask for DOCX instead.";
-    if (winner.format !== DocumentFormat.EXCEL) {
-      winner = { format: DocumentFormat.PDF, score: Math.max(winner.score, 5), signals: [...signals[DocumentFormat.PDF], "presentation→pdf"] };
-    }
+      "Routing to create-pptx — an editable .pptx (one '## ' heading per slide; the title becomes the title slide). For a fixed, non-editable deck use create-pdf instead.";
+    winner = { format: DocumentFormat.PPTX, score: Math.max(winner.score, 12), signals: ["presentation", ...presHits.slice(0, 3)] };
   }
 
   // No signal at all → general document. DOCX (claude-like) is the most useful
@@ -301,7 +299,6 @@ export async function detectFormat(params) {
   };
   if (outputFormat) plan.outputFormat = outputFormat; // "csv"
   if (note) plan.note = note;
-  if (unsupported) plan.unsupported = unsupported;
   return plan;
 }
 
@@ -318,6 +315,8 @@ function getToolForFormat(format) {
       return "create-excel";
     case DocumentFormat.PDF:
       return "create-pdf";
+    case DocumentFormat.PPTX:
+      return "create-pptx";
     case DocumentFormat.DOCX:
     default:
       return "create-doc";

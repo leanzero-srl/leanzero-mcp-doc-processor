@@ -14,6 +14,7 @@ import { createDoc } from "./tools/create-doc.js";
 import { createExcel } from "./tools/create-excel.js";
 import { createMarkdown } from "./tools/create-markdown.js";
 import { createPdf } from "./tools/create-pdf.js";
+import { createPptx } from "./tools/create-pptx.js";
 import { editDoc } from "./tools/edit-doc.js";
 import { editExcel } from "./tools/edit-excel.js";
 import { listDocuments, mimeTypeFromExtension } from "./tools/utils.js";
@@ -35,8 +36,9 @@ export const SERVER_INSTRUCTIONS = [
   "    pdf (`create-pdf`). Key nuance: DOCX = editable; PDF = final, fixed-layout.",
   "  • Any tabular/numeric data (budget, tracker, dataset, even a table in a",
   "    'report') → excel (`create-excel`).",
-  "  • No native slides/PowerPoint tool yet — detect-format flags it and suggests",
-  "    the closest fit (usually a PDF deck). Don't pretend you made a .pptx.",
+  "  • Slides / presentation / pitch deck → pptx (`create-pptx`): one '## '",
+  "    heading per slide, the title becomes the title slide. Real editable .pptx",
+  "    (PowerPoint / Keynote / Google Slides). For a fixed PDF deck use create-pdf.",
   "  • Heed `formatSuggestion` in a create response — it means another format fits.",
   "",
   "Per-format superpowers (use them):",
@@ -398,6 +400,41 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "create-pptx",
+    description:
+      "Create an EDITABLE PowerPoint presentation (.pptx) you can open in PowerPoint / Keynote / Google Slides. USE when the user asks for slides / a deck / a presentation / a pitch deck / 'powerpoint' / 'keynote'. " +
+      "NOT for a flowing document (→ create-doc / create-pdf), code/repo docs (→ create-markdown), or pure tabular data (→ create-excel). " +
+      "SLIDE STRUCTURE: the title becomes a centered title slide; EACH '## ' heading starts a NEW slide whose body is the markdown beneath it. Inside a slide, '### ' is a sub-heading, '- '/'1. ' are bullets, '| a | b |' GitHub tables render as native slide tables, and ```fenced``` blocks render as monospace. Keep each slide focused — a few bullets, not a wall of text. " +
+      "Styled from the same 8 presets as create-doc (colors/fonts map onto the slides). " +
+      MARKDOWN_FEATURES + " " +
+      'EXAMPLE content: "## Problem\\n- Manual steps are slow\\n- Errors slip through\\n\\n## Our Solution\\n- One-click automation\\n- Built-in checks\\n\\n## Results\\n| Metric | Before | After |\\n|---|---|---|\\n| Time | 2h | 5m |". ' +
+      "Title MUST be specific. Use dryRun: true to preview the slide breakdown. (To make a fixed, non-editable deck use create-pdf instead.)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Specific descriptive title (rejected: 'Document', 'Untitled', etc.). Becomes the title slide." },
+        content: CONTENT_FIELD,
+        paragraphs: { type: "array", items: PARA_ITEM, description: "ALTERNATIVE to `content`. Body as an array of markdown strings or { text, headingLevel } objects. Prefer the single `content` string. Each '## ' heading starts a new slide." },
+        tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Optional tables as 2D arrays. First row is the header. Rendered as native slide tables, appended after the body." },
+        outputPath: { type: "string", description: "Optional. Default: derived from title, placed under docs/<category>/." },
+        stylePreset: STYLE_PRESET,
+        category: CATEGORY,
+        tags: TAGS,
+        description: { type: "string", description: "Brief description stored in the registry; also used as the title-slide subtitle when the body has no preamble." },
+        dryRun: { type: "boolean", description: "Return a preview (title, slide count, section headings) without writing the file (default: false)." },
+        docType: DOC_TYPE,
+        style: { type: "object", description: "Advanced: fine-grained style overrides merged on top of stylePreset.", additionalProperties: true },
+        enforceDocsFolder: { type: "boolean", description: "If false, allow output outside docs/. Default: true (recommended)." },
+        preventDuplicates: { type: "boolean", description: "If false, allow same-title duplicates. Default: true (recommended)." },
+        clientHint: CLIENT_HINT,
+        uploadUrl: UPLOAD_URL_FIELD,
+        uploadAuthHeader: UPLOAD_AUTH_HEADER_FIELD,
+        uploadFilename: UPLOAD_FILENAME_FIELD,
+      },
+      required: ["title"],
+    },
+  },
+  {
     name: "edit-doc",
     description:
       "Edit an existing DOCX. Actions: 'append' (XML-patches new content, PRESERVES original formatting/headers/footers/images), 'replace' (overwrites body but keeps section properties), 'style' (apply a stylePreset to existing paragraphs without changing text), 'preview' (show what would change). Always read-doc with mode 'indepth' first so you understand the existing structure.",
@@ -630,6 +667,10 @@ async function dispatchToolCall(request) {
 
       case "create-pdf": {
         return wrapCreateResult(await createPdf(params), "create-pdf");
+      }
+
+      case "create-pptx": {
+        return wrapCreateResult(await createPptx(params), "create-pptx");
       }
 
       case "edit-doc": {

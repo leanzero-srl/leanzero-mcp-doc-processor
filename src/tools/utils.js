@@ -478,6 +478,7 @@ const MIME_BY_EXT = {
   ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ".md":   "text/markdown",
   ".pdf":  "application/pdf",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ".txt":  "text/plain",
   ".csv":  "text/csv",
 };
