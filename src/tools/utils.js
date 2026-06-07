@@ -8,6 +8,7 @@ import {
   findDocuments
 } from "../utils/registry.js";
 import { log } from "../utils/logger.js";
+import { requestContext } from "../utils/request-context.js";
 
 /**
  * Root directory for all generated files.
@@ -25,12 +26,31 @@ import { log } from "../utils/logger.js";
  * @returns {string} absolute output root
  */
 export function getOutputRoot() {
+  // 1) Per-request override from the hosted HTTP layer (X-Output-Dir header),
+  //    carried via AsyncLocalStorage. SANDBOXED under a server base so a remote
+  //    tenant can only organize files within an allowed area — it can NOT write
+  //    to arbitrary server paths, and (being server-side) it does NOT reach the
+  //    caller's own machine. For files on your machine, self-host over stdio.
+  const ctx = requestContext.getStore && requestContext.getStore();
+  if (ctx && ctx.outputDir && String(ctx.outputDir).trim()) {
+    const base = process.env.CLIENT_OUTPUT_BASE
+      || path.join(process.env.DATA_DIR || process.cwd(), "client-output");
+    const sub = path.normalize(String(ctx.outputDir))
+      .replace(/^([./\\]|\.\.[/\\]?)+/, "")  // strip leading ./ ../ and slashes
+      .replace(/^[/\\]+/, "");
+    const resolved = path.resolve(base, sub);
+    return resolved.startsWith(path.resolve(base)) ? resolved : path.resolve(base);
+  }
+
+  // 2) Operator/self-host env (trusted — your own machine), unsandboxed.
   const override = process.env.DOC_OUTPUT_DIR;
   if (override && override.trim()) {
     return path.isAbsolute(override)
       ? override
       : path.resolve(process.cwd(), override);
   }
+
+  // 3) Default: the launch dir (stdio agents → their workspace).
   return process.cwd();
 }
 

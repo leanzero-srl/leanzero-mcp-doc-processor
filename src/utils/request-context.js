@@ -19,6 +19,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 /**
  * @typedef {Object} RequestCtx
  * @property {string} [zaiKey] Per-request Z.AI vision key (X-ZAI-Key header or ?zai_key).
+ * @property {string} [outputDir] Per-request output sub-dir (X-Output-Dir header or
+ *   ?output_dir), sandboxed under the server output base by getOutputRoot().
  */
 
 /** @type {AsyncLocalStorage<RequestCtx>} */
