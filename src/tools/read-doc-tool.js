@@ -184,6 +184,7 @@ async function handleSummary(params) {
   if (metadata.author) summary += `Author: ${metadata.author}\n`;
   if (metadata.pageCount) summary += `Page Count: ${metadata.pageCount}\n`;
   if (metadata.sheetCount) summary += `Sheet Count: ${metadata.sheetCount}\n`;
+  if (metadata.slideCount) summary += `Slide Count: ${metadata.slideCount}\n`;
 
   const fullText = result.text || "";
   const previewText = fullText.substring(0, 500);

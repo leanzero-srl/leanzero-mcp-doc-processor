@@ -1,6 +1,7 @@
 import { PdfParser } from "../parsers/pdf-parser.js";
 import { DocxParser } from "../parsers/docx-parser.js";
 import { ExcelParser } from "../parsers/excel-parser.js";
+import { PptxParser } from "../parsers/pptx-parser.js";
 import { FileTypeDetector } from "../utils/file-detector.js";
 import { log, logFunctionCall, logPath } from "../utils/logger.js";
 
@@ -15,6 +16,7 @@ export class DocumentProcessor {
     this.pdfParser = new PdfParser();
     this.docxParser = new DocxParser();
     this.excelParser = new ExcelParser();
+    this.pptxParser = new PptxParser();
     this.fileDetector = new FileTypeDetector();
   }
 
@@ -36,6 +38,9 @@ export class DocumentProcessor {
 
         case "excel":
           return this.excelParser;
+
+        case "pptx":
+          return this.pptxParser;
 
         default:
           log("warn", "No parser available for file type:", { fileType });
