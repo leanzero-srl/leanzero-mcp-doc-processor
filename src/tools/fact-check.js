@@ -53,7 +53,9 @@ export function extractClaims(text, max = 8) {
 /** From a web-search summaries blob, pull source URLs + a rough support score. */
 export function evidenceFromText(claim, evidenceText) {
   const text = String(evidenceText || "");
-  const urls = [...new Set((text.match(/https?:\/\/[^\s)\]]+/g) || []).map((u) => u.replace(/[.,;]+$/, "")))].slice(0, 6);
+  const urls = [...new Set(
+    (text.match(/https?:\/\/[^\s)\]"'<>]+/g) || []).map((u) => u.replace(/["'.,;:>)\]]+$/, "")),
+  )].slice(0, 6);
   const words = significantWords(claim);
   const lower = text.toLowerCase();
   const hits = words.filter((w) => lower.includes(w)).length;
