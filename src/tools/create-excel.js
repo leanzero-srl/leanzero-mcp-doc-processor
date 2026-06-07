@@ -392,7 +392,7 @@ export async function createExcel(input) {
         },
         zebraColor: styleConfig.zebraColor,
       },
-      memoryNudge: (isInteractive || !profile.canPersistMemory) ? undefined : memoryNudge(learning),
+      memoryNudge: (isInteractive || !profile.canPersistMemory) ? undefined : memoryNudge(learning, `create-excel:${category || "data"}:${isCsv ? "csv" : "xlsx"}`),
       enforcement: isInteractive ? undefined : {
         docsFolderEnforced: docsEnforced,
         duplicatePrevented: wasDuplicatePrevented,
