@@ -22,7 +22,7 @@ import {
 } from "./styling.js";
 import { findMatchingTemplate } from "../utils/document-tags.js";
 import { applyDNAToInput, loadDNA } from "../utils/dna-manager.js";
-import { assessFormattingQuality, shouldRejectPlainText } from "../utils/formatting-quality.js";
+import { assessFormattingQuality, shouldRejectPlainText, suggestBetterFormat } from "../utils/formatting-quality.js";
 import { renderMarkdownToPdf } from "../services/pdf-renderer.js";
 import { log } from "../utils/logger.js";
 import { recordWrite } from "../services/lineage-tracker.js";
@@ -214,6 +214,7 @@ export async function createPdf(input) {
       title,
       markdown,
       styleConfig,
+      toc: parsedInput.toc === true,
       header: parsedInput.header && parsedInput.header.text ? parsedInput.header : null,
       footer: parsedInput.footer && parsedInput.footer.text ? parsedInput.footer : null,
       margins: parsedInput.margins || null,
@@ -298,6 +299,7 @@ export async function createPdf(input) {
       stylePreset,
       styleReason,
       formattingQuality: isInteractive ? undefined : formattingQuality,
+      formatSuggestion: isInteractive ? undefined : suggestBetterFormat({ paragraphs: parsedInput.paragraphs, content: markdown, tables: parsedInput.tables }, "pdf"),
       styleConfig: isInteractive ? undefined : {
         preset: stylePreset,
         description: getPresetDescription(stylePreset),

@@ -44,7 +44,7 @@ import {
   mimeTypeFromExtension,
 } from "./utils.js";
 import { applyDNAToInput, loadDNA, recordUsage, signatureSimilarity } from "../utils/dna-manager.js";
-import { assessFormattingQuality, shouldRejectPlainText } from "../utils/formatting-quality.js";
+import { assessFormattingQuality, shouldRejectPlainText, suggestBetterFormat } from "../utils/formatting-quality.js";
 import { log } from "../utils/logger.js";
 import { checkForExistingDocument, cleanupExcessVersions, buildGuidanceMessage } from "../services/ai-guidance-system.js";
 import { recordWrite } from "../services/lineage-tracker.js";
@@ -845,6 +845,7 @@ export async function createDoc(input) {
       stylePreset: stylePreset,
       styleReason: styleReason,
       formattingQuality: isInteractive ? undefined : formattingQuality,
+      formatSuggestion: isInteractive ? undefined : suggestBetterFormat({ paragraphs: processedParagraphs, content: parsedInput.content, tables }, "docx"),
       styleConfig: isInteractive ? undefined : {
         preset: stylePreset,
         description: getPresetDescription(stylePreset),

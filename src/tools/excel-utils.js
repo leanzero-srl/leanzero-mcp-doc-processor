@@ -181,7 +181,9 @@ export function applyExcelStylingToNewRows(ws, newData, styleConfig, startRow) {
 }
 
 /**
- * Strip markdown from all cells in a 2D data array
+ * Strip markdown from all cells in a 2D data array. Formula cells (strings that
+ * start with "=") are preserved verbatim — stripMarkdownPlain would eat the
+ * `*` in `=A1*B1` and corrupt the formula.
  * @param {Array<Array<any>>} data - 2D array of cell values
  * @returns {Array<Array<any>>} Data with markdown stripped from string cells
  */
@@ -189,10 +191,83 @@ export function cleanSheetData(data) {
   return data.map((row) =>
     Array.isArray(row)
       ? row.map((cell) =>
-          typeof cell === "string" ? stripMarkdownPlain(cell) : cell,
+          typeof cell === "string"
+            ? (cell.startsWith("=") ? cell : stripMarkdownPlain(cell))
+            : cell,
         )
       : row,
   );
+}
+
+/**
+ * Turn string cells that start with "=" into real Excel formula cells, so a
+ * model can write live spreadsheets (e.g. "=SUM(B2:B9)", "=B2*C2") instead of
+ * dead numbers. Excel computes the value when the file is opened.
+ * @param {Object} ws - worksheet
+ * @param {Array<Array<any>>} data - the source 2D data
+ */
+export function applyFormulas(ws, data) {
+  if (!ws || !Array.isArray(data)) return;
+  for (let r = 0; r < data.length; r++) {
+    const row = data[r];
+    if (!Array.isArray(row)) continue;
+    for (let c = 0; c < row.length; c++) {
+      const v = row[c];
+      if (typeof v === "string" && v.length > 1 && v[0] === "=") {
+        ws[encodeCell(r, c)] = { t: "n", f: v.slice(1) };
+      }
+    }
+  }
+}
+
+// Conservative header-name heuristics for number formats. Kept tight so we don't
+// mangle years/counts: percent only on explicit %/percent headers; currency only
+// on clearly monetary headers.
+const PERCENT_HEADER = /%|percent|\bpct\b/i;
+const MONEY_HEADER = /\$|€|£|\bprice\b|\bcost\b|\bamount\b|\brevenue\b|\bbudget\b|\bsalary\b|\bwage\b|\bfee\b|\bbalance\b|\bincome\b|\bprofit\b|\bspend\b|usd|eur|gbp/i;
+
+/**
+ * Apply number formats to numeric body cells based on the column header:
+ * "$#,##0.00" for money columns, "0.0%" for percent columns. Leaves other
+ * numbers untouched (so years/counts don't get spurious separators).
+ * @param {Object} ws - worksheet
+ * @param {Array<Array<any>>} data - source 2D data (row 0 = header)
+ */
+export function applyAutoNumberFormats(ws, data) {
+  if (!ws || !Array.isArray(data) || data.length < 2) return;
+  const header = Array.isArray(data[0]) ? data[0] : [];
+  const colCount = data.reduce(
+    (n, row) => Math.max(n, Array.isArray(row) ? row.length : 0),
+    0,
+  );
+  for (let c = 0; c < colCount; c++) {
+    const h = String(header[c] ?? "");
+    let z = null;
+    if (PERCENT_HEADER.test(h)) z = "0.0%";
+    else if (MONEY_HEADER.test(h)) z = "$#,##0.00";
+    if (!z) continue;
+    for (let r = 1; r < data.length; r++) {
+      const cell = ws[encodeCell(r, c)];
+      if (!cell) continue;
+      const isNumeric = cell.t === "n" || typeof data[r]?.[c] === "number";
+      if (isNumeric) cell.z = z;
+    }
+  }
+}
+
+/**
+ * Build the A1-style range string for an autofilter covering the whole table.
+ * @param {Array<Array<any>>} data
+ * @returns {string|null}
+ */
+export function buildAutoFilterRef(data) {
+  if (!Array.isArray(data) || data.length === 0) return null;
+  const cols = data.reduce(
+    (n, row) => Math.max(n, Array.isArray(row) ? row.length : 0),
+    0,
+  );
+  if (cols === 0) return null;
+  return `${encodeCell(0, 0)}:${encodeCell(data.length - 1, cols - 1)}`;
 }
 
 /**
