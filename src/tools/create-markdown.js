@@ -197,8 +197,15 @@ export async function createMarkdown(input) {
       );
     }
 
-    // Build markdown content with implementation style formatting
-    const markdownContent = buildMarkdownContent(title, paragraphs);
+    // Build markdown content with implementation style formatting. Markdown-only
+    // superpowers: auto Table of Contents (anchor links) and YAML frontmatter.
+    const markdownContent = buildMarkdownContent(title, paragraphs, {
+      toc: parsedInput.toc === true,
+      frontmatter:
+        parsedInput.frontmatter && typeof parsedInput.frontmatter === "object"
+          ? parsedInput.frontmatter
+          : null,
+    });
 
     // Write the markdown file directly (no user confirmation required)
     await fs.writeFile(outputPath, markdownContent, "utf-8");
@@ -322,21 +329,99 @@ export async function createMarkdown(input) {
 }
 
 /**
- * Build markdown content from title and paragraphs with implementation style formatting
+ * GitHub-style anchor slug for a heading (lowercase, spaces→-, punctuation
+ * stripped). Mirrors how GitHub/most static-site renderers generate anchors so
+ * the TOC links actually resolve.
+ */
+function slugify(text) {
+  return String(text)
+    .toLowerCase()
+    .replace(/[`*_~]/g, "")        // strip inline markdown markers
+    .replace(/[^\w\s-]/g, "")      // drop punctuation
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+/**
+ * Build a Markdown Table of Contents from the H2/H3 headings in a body.
+ * Skips headings inside fenced code blocks and de-dupes slugs the GitHub way
+ * (foo, foo-1, foo-2). Returns "" when there are no sub-headings.
+ */
+function generateToc(body) {
+  const noCode = body.replace(/```[\s\S]*?```/g, "");
+  const re = /^(#{2,3})\s+(.+?)\s*#*$/gm;
+  const items = [];
+  const seen = Object.create(null);
+  let m;
+  while ((m = re.exec(noCode)) !== null) {
+    const depth = m[1].length; // 2 or 3
+    const text = m[2].replace(/[`*_~]/g, "").trim();
+    let slug = slugify(text);
+    if (slug in seen) { seen[slug] += 1; slug = `${slug}-${seen[slug]}`; }
+    else { seen[slug] = 0; }
+    const indent = depth === 3 ? "  " : "";
+    items.push(`${indent}- [${text}](#${slug})`);
+  }
+  return items.join("\n");
+}
+
+/** Serialize a flat/array YAML frontmatter object into a --- block. */
+function serializeFrontmatter(fm) {
+  const yamlValue = (v) => {
+    const s = String(v);
+    return /[:#[\]{}",]|^\s|\s$/.test(s) ? JSON.stringify(s) : s;
+  };
+  const out = ["---"];
+  for (const [k, v] of Object.entries(fm)) {
+    if (Array.isArray(v)) {
+      out.push(`${k}:`);
+      for (const item of v) out.push(`  - ${yamlValue(item)}`);
+    } else if (v !== null && typeof v === "object") {
+      out.push(`${k}:`);
+      for (const [ik, iv] of Object.entries(v)) out.push(`  ${ik}: ${yamlValue(iv)}`);
+    } else {
+      out.push(`${k}: ${yamlValue(v)}`);
+    }
+  }
+  out.push("---", "");
+  return out.join("\n");
+}
+
+/**
+ * Build markdown content from title and paragraphs with implementation style
+ * formatting, plus markdown-native extras: optional YAML frontmatter and an
+ * auto-generated, anchor-linked Table of Contents.
+ *
  * @param {string} title - Document title (becomes H1)
- * @param {Array<string|Object>} paragraphs - Array of paragraph objects or strings
+ * @param {Array<string|Object>} paragraphs - Paragraph objects or strings
+ * @param {Object} [opts]
+ * @param {boolean} [opts.toc] - Prepend an auto TOC of the H2/H3 headings
+ * @param {Object|null} [opts.frontmatter] - YAML frontmatter key/values
  * @returns {string} Formatted markdown content
  */
-function buildMarkdownContent(title, paragraphs) {
+function buildMarkdownContent(title, paragraphs, opts = {}) {
   const lines = [];
 
-  // Add title as H1 heading
+  // YAML frontmatter first (must be the very top of the file).
+  if (opts.frontmatter && typeof opts.frontmatter === "object") {
+    lines.push(serializeFrontmatter(opts.frontmatter));
+  }
+
+  // Title as H1 heading
   lines.push(`# ${title}`);
   lines.push(""); // Blank line after title
 
-  // Apply implementation style formatting to paragraphs
-  const formattedContent = applyImplementationStyle(paragraphs);
-  
+  const formattedContent = applyImplementationStyle(paragraphs) || "";
+
+  // Auto Table of Contents (markdown-only superpower) from the body headings.
+  if (opts.toc) {
+    const toc = generateToc(formattedContent);
+    if (toc) {
+      lines.push("## Table of Contents", "", toc, "");
+    }
+  }
+
   if (formattedContent) {
     lines.push(formattedContent);
   }

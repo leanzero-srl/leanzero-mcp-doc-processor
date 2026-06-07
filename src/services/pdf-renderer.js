@@ -78,6 +78,42 @@ function escapeHtml(str = "") {
     .replace(/"/g, "&quot;");
 }
 
+// GitHub-style anchor slug, used for clickable in-PDF TOC links.
+function slugify(text) {
+  return String(text)
+    .toLowerCase()
+    .replace(/<[^>]+>/g, "")
+    .replace(/[`*_~]/g, "")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+/**
+ * Add id="slug" anchors to h1/h2/h3 in the rendered HTML and, when requested,
+ * build a clickable Table of Contents (rendered as internal links — clickable
+ * in the PDF). Returns { html, tocHtml }.
+ */
+function injectAnchorsAndToc(bodyHtml, withToc) {
+  const headings = [];
+  const seen = Object.create(null);
+  const html = bodyHtml.replace(/<h([123])([^>]*)>([\s\S]*?)<\/h\1>/g, (m, lvl, attrs, inner) => {
+    const text = inner.replace(/<[^>]+>/g, "").trim();
+    let slug = slugify(text);
+    if (slug in seen) { seen[slug] += 1; slug = `${slug}-${seen[slug]}`; }
+    else { seen[slug] = 0; }
+    if (Number(lvl) <= 3) headings.push({ lvl: Number(lvl), text, slug });
+    return `<h${lvl}${attrs} id="${slug}">${inner}</h${lvl}>`;
+  });
+  if (!withToc || headings.length === 0) return { html, tocHtml: "" };
+  const items = headings
+    .map((h) => `<li class="toc-l${h.lvl}"><a href="#${h.slug}">${escapeHtml(h.text)}</a></li>`)
+    .join("");
+  const tocHtml = `<nav class="doc-toc"><div class="toc-title">Contents</div><ul>${items}</ul></nav>`;
+  return { html, tocHtml };
+}
+
 // styleConfig stores colors as bare hex ("1F2937"); CSS needs a leading '#'.
 function color(hex, fallback) {
   const v = hex || fallback;
@@ -200,6 +236,20 @@ function buildCss(styleConfig) {
     }
     tbody tr:nth-child(${(table.zebraInterval || 2)}n) { background: ${color(table.zebraFill, "F8FAFC")}; }
     img { max-width: 100%; }
+    nav.doc-toc {
+      margin: 6pt 0 16pt;
+      padding: 10pt 14pt;
+      background: ${color(table.headerFill, "F8FAFC")};
+      border: 1px solid ${color(table.borderColor, "E2E8F0")};
+      border-radius: 8px;
+      page-break-after: avoid;
+    }
+    nav.doc-toc .toc-title { font-family: ${headingFamily}; font-weight: bold; font-size: ${Math.max(11, (h3.size || 13))}pt; color: ${color(h2.color, "1E293B")}; margin-bottom: 4pt; }
+    nav.doc-toc ul { list-style: none; margin: 0; padding: 0; }
+    nav.doc-toc li { margin: 1.5pt 0; }
+    nav.doc-toc li.toc-l2 { padding-left: 0; }
+    nav.doc-toc li.toc-l3 { padding-left: 16pt; font-size: ${Math.max(9, (font.size || 11) - 1)}pt; }
+    nav.doc-toc a { color: ${color(link.color, "2563EB")}; text-decoration: none; }
   `;
 }
 
@@ -241,13 +291,14 @@ function twipsToIn(twips, fallbackIn) {
  * @param {Object} [opts.margins] - {top,bottom,left,right} in twips
  * @returns {Promise<Buffer>}
  */
-export async function renderMarkdownToPdf({ title, markdown, styleConfig, header, footer, margins } = {}) {
-  const bodyHtml = marked.parse(markdown || "", { async: false });
+export async function renderMarkdownToPdf({ title, markdown, styleConfig, header, footer, margins, toc } = {}) {
+  const rawBody = marked.parse(markdown || "", { async: false });
+  const { html: bodyHtml, tocHtml } = injectAnchorsAndToc(rawBody, toc === true);
   const css = buildCss(styleConfig);
   const titleHtml = title ? `<h1 class="doc-title">${escapeHtml(title)}</h1>` : "";
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head>` +
-    `<body>${titleHtml}${bodyHtml}</body></html>`;
+    `<body>${titleHtml}${tocHtml}${bodyHtml}</body></html>`;
 
   const hasHeader = !!(header && header.text);
   const hasFooter = !!(footer && footer.text);
