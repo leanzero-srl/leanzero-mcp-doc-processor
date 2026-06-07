@@ -23,6 +23,8 @@ import {
 import { findMatchingTemplate } from "../utils/document-tags.js";
 import { applyDNAToInput, loadDNA } from "../utils/dna-manager.js";
 import { assessFormattingQuality, shouldRejectPlainText, suggestBetterFormat } from "../utils/formatting-quality.js";
+import { resolveClientProfile } from "../utils/client-profile.js";
+import { logInsight, memoryNudge } from "../utils/insights.js";
 import { renderMarkdownToPdf } from "../services/pdf-renderer.js";
 import { log } from "../utils/logger.js";
 import { recordWrite } from "../services/lineage-tracker.js";
@@ -261,6 +263,16 @@ export async function createPdf(input) {
     const clientMode = resolveClientHint(parsedInput);
     const isInteractive = clientMode === "interactive";
 
+    // Learning loop: log the event for the creator, and nudge memory-capable
+    // agents to save what worked.
+    const profile = resolveClientProfile(parsedInput);
+    logInsight({
+      server: "doc-processor", tool: "create-pdf", event: "success",
+      client: profile.clientName, memoryCapable: profile.canPersistMemory,
+      title, format: "pdf", stylePreset, category: category || null, toc: parsedInput.toc === true,
+    });
+    const learning = `For ${category || "general"} PDFs, create-pdf with the "${stylePreset}" preset${parsedInput.toc === true ? " and toc:true" : ""} and a single markdown \`content\` string worked well — reuse it for similar final/printable requests.`;
+
     let enforcementMessage = "";
     if (!isInteractive) {
       if (docsEnforced) enforcementMessage += `NOTE: File placed in docs/ folder. Set enforceDocsFolder: false to disable.\n`;
@@ -300,6 +312,7 @@ export async function createPdf(input) {
       styleReason,
       formattingQuality: isInteractive ? undefined : formattingQuality,
       formatSuggestion: isInteractive ? undefined : suggestBetterFormat({ paragraphs: parsedInput.paragraphs, content: markdown, tables: parsedInput.tables }, "pdf"),
+      memoryNudge: (isInteractive || !profile.canPersistMemory) ? undefined : memoryNudge(learning),
       styleConfig: isInteractive ? undefined : {
         preset: stylePreset,
         description: getPresetDescription(stylePreset),

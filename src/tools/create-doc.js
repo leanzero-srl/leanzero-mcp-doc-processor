@@ -45,6 +45,8 @@ import {
 } from "./utils.js";
 import { applyDNAToInput, loadDNA, recordUsage, signatureSimilarity } from "../utils/dna-manager.js";
 import { assessFormattingQuality, shouldRejectPlainText, suggestBetterFormat } from "../utils/formatting-quality.js";
+import { resolveClientProfile } from "../utils/client-profile.js";
+import { logInsight, memoryNudge } from "../utils/insights.js";
 import { log } from "../utils/logger.js";
 import { checkForExistingDocument, cleanupExcessVersions, buildGuidanceMessage } from "../services/ai-guidance-system.js";
 import { recordWrite } from "../services/lineage-tracker.js";
@@ -780,6 +782,15 @@ export async function createDoc(input) {
     const clientMode = resolveClientHint(parsedInput);
     const isInteractive = clientMode === "interactive";
 
+    // Learning loop: record the event (for the creator) + nudge memory-capable agents.
+    const profile = resolveClientProfile(parsedInput);
+    logInsight({
+      server: "doc-processor", tool: "create-doc", event: "success",
+      client: profile.clientName, memoryCapable: profile.canPersistMemory,
+      title, format: "docx", stylePreset, category: category || null,
+    });
+    const learning = `For ${category || "general"} Word docs, create-doc with the "${stylePreset}" preset and a single markdown \`content\` string worked well — reuse this combo for similar editable deliverables.`;
+
     // Build message with enforcement information (agent mode only)
     let enforcementMessage = "";
     if (!isInteractive) {
@@ -846,6 +857,7 @@ export async function createDoc(input) {
       styleReason: styleReason,
       formattingQuality: isInteractive ? undefined : formattingQuality,
       formatSuggestion: isInteractive ? undefined : suggestBetterFormat({ paragraphs: processedParagraphs, content: parsedInput.content, tables }, "docx"),
+      memoryNudge: (isInteractive || !profile.canPersistMemory) ? undefined : memoryNudge(learning),
       styleConfig: isInteractive ? undefined : {
         preset: stylePreset,
         description: getPresetDescription(stylePreset),
