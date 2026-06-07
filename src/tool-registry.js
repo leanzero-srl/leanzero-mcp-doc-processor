@@ -14,7 +14,7 @@ import { createMarkdown } from "./tools/create-markdown.js";
 import { createPdf } from "./tools/create-pdf.js";
 import { editDoc } from "./tools/edit-doc.js";
 import { editExcel } from "./tools/edit-excel.js";
-import { listDocuments } from "./tools/utils.js";
+import { listDocuments, mimeTypeFromExtension } from "./tools/utils.js";
 import { handleDNA } from "./tools/dna-tool.js";
 import { handleBlueprint } from "./tools/blueprint-tool.js";
 import { handleDriftMonitor } from "./tools/drift-tool.js";
@@ -537,6 +537,24 @@ export const TOOL_DEFINITIONS = [
   },
 ];
 
+// Wrap a create-* result as MCP content. When the server minted a hosted
+// download URL, also emit an idiomatic `resource_link` content block so MCP
+// clients render a saveable/clickable artifact (others still see the URL in the
+// JSON text). This is how a remote server delivers the generated file.
+function wrapCreateResult(r) {
+  const content = [{ type: "text", text: JSON.stringify(r, null, 2) }];
+  if (r && r.downloadUrl && r.filePath) {
+    content.push({
+      type: "resource_link",
+      uri: r.downloadUrl,
+      name: r.filePath.split(/[/\\]/).pop(),
+      mimeType: mimeTypeFromExtension(r.filePath),
+      description: "Download the generated file (hosted link, valid ~24h).",
+    });
+  }
+  return { content, isError: !r.success };
+}
+
 async function dispatchToolCall(request) {
   const { name, arguments: params } = request.params;
 
@@ -572,23 +590,19 @@ async function dispatchToolCall(request) {
       }
 
       case "create-doc": {
-        const r = await createDoc(params);
-        return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.success };
+        return wrapCreateResult(await createDoc(params));
       }
 
       case "create-markdown": {
-        const r = await createMarkdown(params);
-        return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.success };
+        return wrapCreateResult(await createMarkdown(params));
       }
 
       case "create-excel": {
-        const r = await createExcel(params);
-        return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.success };
+        return wrapCreateResult(await createExcel(params));
       }
 
       case "create-pdf": {
-        const r = await createPdf(params);
-        return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.success };
+        return wrapCreateResult(await createPdf(params));
       }
 
       case "edit-doc": {

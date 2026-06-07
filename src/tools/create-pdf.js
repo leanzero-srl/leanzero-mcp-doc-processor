@@ -25,6 +25,7 @@ import { applyDNAToInput, loadDNA } from "../utils/dna-manager.js";
 import { assessFormattingQuality, shouldRejectPlainText, suggestBetterFormat } from "../utils/formatting-quality.js";
 import { resolveClientProfile } from "../utils/client-profile.js";
 import { logInsight, memoryNudge } from "../utils/insights.js";
+import { buildDownloadUrl } from "../utils/download-registry.js";
 import { renderMarkdownToPdf } from "../services/pdf-renderer.js";
 import { log } from "../utils/logger.js";
 import { recordWrite } from "../services/lineage-tracker.js";
@@ -273,6 +274,9 @@ export async function createPdf(input) {
     });
     const learning = `For ${category || "general"} PDFs, create-pdf with the "${stylePreset}" preset${parsedInput.toc === true ? " and toc:true" : ""} and a single markdown \`content\` string worked well — reuse it for similar final/printable requests.`;
 
+    // Hosted download link (null on stdio/self-host, where the file is already local).
+    const downloadUrl = buildDownloadUrl(outputPath);
+
     let enforcementMessage = "";
     if (!isInteractive) {
       if (docsEnforced) enforcementMessage += `NOTE: File placed in docs/ folder. Set enforceDocsFolder: false to disable.\n`;
@@ -291,17 +295,20 @@ export async function createPdf(input) {
         }
       : {};
 
-    const interactiveMessage = uploadResult
+    const downloadLine = downloadUrl ? ` Download it: ${downloadUrl} (link valid ~24h).` : "";
+    const interactiveMessage = (uploadResult
       ? `Created and uploaded: ${outputPath}`
       : uploadError
         ? `Created locally at ${outputPath}; upload failed: ${uploadError}`
-        : `Created: ${outputPath}`;
+        : `Created: ${outputPath}`) + downloadLine;
     const agentMessage = `PDF FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool created an actual .pdf file. Do NOT create any additional files. The document is at the absolute path above.\n\n${enforcementMessage}` +
+      (downloadUrl ? `\nDOWNLOAD (hosted; valid ~24h): ${downloadUrl}\nTo save it on the user's machine, fetch that URL (or share it with the user to click).\n` : "") +
       (uploadResult ? `\nUPLOADED (status ${uploadResult.status}).\n` : uploadError ? `\nUPLOAD FAILED: ${uploadError}\n` : "");
 
     return {
       success: true,
       filePath: outputPath,
+      downloadUrl: downloadUrl || undefined,
       clientMode,
       ...uploadFields,
       category: category || null,

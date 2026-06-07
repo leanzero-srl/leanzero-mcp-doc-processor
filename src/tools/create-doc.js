@@ -47,6 +47,7 @@ import { applyDNAToInput, loadDNA, recordUsage, signatureSimilarity } from "../u
 import { assessFormattingQuality, shouldRejectPlainText, suggestBetterFormat } from "../utils/formatting-quality.js";
 import { resolveClientProfile } from "../utils/client-profile.js";
 import { logInsight, memoryNudge } from "../utils/insights.js";
+import { buildDownloadUrl } from "../utils/download-registry.js";
 import { log } from "../utils/logger.js";
 import { checkForExistingDocument, cleanupExcessVersions, buildGuidanceMessage } from "../services/ai-guidance-system.js";
 import { recordWrite } from "../services/lineage-tracker.js";
@@ -791,6 +792,9 @@ export async function createDoc(input) {
     });
     const learning = `For ${category || "general"} Word docs, create-doc with the "${stylePreset}" preset and a single markdown \`content\` string worked well — reuse this combo for similar editable deliverables.`;
 
+    // Hosted download link (null on stdio/self-host, where the file is already local).
+    const downloadUrl = buildDownloadUrl(outputPath);
+
     // Build message with enforcement information (agent mode only)
     let enforcementMessage = "";
     if (!isInteractive) {
@@ -823,8 +827,10 @@ export async function createDoc(input) {
         ? `\nUPLOAD FAILED: ${uploadError}\nThe local file is still available at ${outputPath}.\n`
         : "";
 
-    const interactiveMessage = uploadInteractiveMsg;
+    const downloadLine = downloadUrl ? ` Download it: ${downloadUrl} (link valid ~24h).` : "";
+    const interactiveMessage = uploadInteractiveMsg + downloadLine;
     const agentMessage = `DOCX FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .docx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
+      (downloadUrl ? `\nDOWNLOAD (hosted; valid ~24h): ${downloadUrl}\nTo save it on the user's machine, fetch that URL (or share it with the user to click).\n` : "") +
       (blueprintMatch ? `\nBLUEPRINT MATCH: ${blueprintMatch.message}\n` : "") +
       (memories ? `\nDocument memories active (${Object.keys(memories).length}): ${Object.values(memories).map(m => m.text).join("; ")}` : "") +
       uploadAgentNote;
@@ -845,6 +851,7 @@ export async function createDoc(input) {
     return {
       success: true,
       filePath: outputPath,
+      downloadUrl: downloadUrl || undefined,
       clientMode,
       ...uploadFields,
       category: category || null,
