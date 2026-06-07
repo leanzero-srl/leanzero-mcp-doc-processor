@@ -24,6 +24,7 @@ import {
 import { applyDNAToInput } from "../utils/dna-manager.js";
 import { resolveClientProfile } from "../utils/client-profile.js";
 import { logInsight, memoryNudge } from "../utils/insights.js";
+import { buildDownloadUrl } from "../utils/download-registry.js";
 import {
   applyExcelStyling,
   applyFormulas,
@@ -319,6 +320,9 @@ export async function createExcel(input) {
     });
     const learning = `For ${category || "data"} ${isCsv ? "CSV exports" : "spreadsheets"}, create-excel with a header row + values${isCsv ? "" : " (and '=' formula cells where useful)"} worked — reuse for tabular/numeric requests.`;
 
+    // Hosted download link (null on stdio/self-host).
+    const downloadUrl = buildDownloadUrl(path.resolve(outputPath));
+
     // Build message with enforcement information (agent mode only)
     let enforcementMessage = "";
     if (!isInteractive) {
@@ -350,8 +354,10 @@ export async function createExcel(input) {
         ? `\nUPLOAD FAILED: ${uploadError}\nThe local file is still available at ${path.resolve(outputPath)}.\n`
         : "";
 
-    const interactiveMessage = uploadInteractiveMsg;
-    const agentMessage = `XLSX FILE WRITTEN TO DISK at: ${path.resolve(outputPath)}\n\nIMPORTANT: This tool has created an actual .xlsx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` + uploadAgentNote;
+    const downloadLine = downloadUrl ? ` Download it: ${downloadUrl} (link valid ~24h).` : "";
+    const interactiveMessage = uploadInteractiveMsg + downloadLine;
+    const agentMessage = `XLSX FILE WRITTEN TO DISK at: ${path.resolve(outputPath)}\n\nIMPORTANT: This tool has created an actual .xlsx file on your filesystem. Do NOT create any additional markdown or text files. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
+      (downloadUrl ? `\nDOWNLOAD (hosted; valid ~24h): ${downloadUrl}\nTo save it on the user's machine, fetch that URL (or share it with the user to click).\n` : "") + uploadAgentNote;
 
     // Only surface upload fields when the caller opted into the upload path.
     const uploadAttempted = !!uploadResult || !!uploadError;
@@ -367,6 +373,7 @@ export async function createExcel(input) {
     return {
       success: true,
       filePath: path.resolve(outputPath),
+      downloadUrl: downloadUrl || undefined,
       clientMode,
       ...uploadFields,
       category: category || null,

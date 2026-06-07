@@ -17,6 +17,7 @@ import { applyImplementationStyle } from "../utils/markdown-formatter.js";
 import { assessFormattingQuality, shouldRejectPlainText } from "../utils/formatting-quality.js";
 import { resolveClientProfile } from "../utils/client-profile.js";
 import { logInsight, memoryNudge } from "../utils/insights.js";
+import { buildDownloadUrl } from "../utils/download-registry.js";
 import { log } from "../utils/logger.js";
 
 /**
@@ -266,6 +267,9 @@ export async function createMarkdown(input) {
     });
     const learning = `For ${category || "technical"} markdown, create-markdown${parsedInput.toc === true ? " with toc:true" : ""}${parsedInput.frontmatter ? " + frontmatter" : ""} and a single \`content\` string worked — reuse for repo/dev docs.`;
 
+    // Hosted download link (null on stdio/self-host).
+    const downloadUrl = buildDownloadUrl(outputPath);
+
     // Build message with enforcement information (agent mode only)
     let enforcementMessage = "";
     if (!isInteractive) {
@@ -297,8 +301,10 @@ export async function createMarkdown(input) {
         ? `\nUPLOAD FAILED: ${uploadError}\nThe local file is still available at ${outputPath}.\n`
         : "";
 
-    const interactiveMessage = uploadInteractiveMsg;
-    const agentMessage = `MARKDOWN FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .md file on your filesystem. The document is available at the absolute path shown above.\n\n${enforcementMessage}` + uploadAgentNote;
+    const downloadLine = downloadUrl ? ` Download it: ${downloadUrl} (link valid ~24h).` : "";
+    const interactiveMessage = uploadInteractiveMsg + downloadLine;
+    const agentMessage = `MARKDOWN FILE WRITTEN TO DISK at: ${outputPath}\n\nIMPORTANT: This tool has created an actual .md file on your filesystem. The document is available at the absolute path shown above.\n\n${enforcementMessage}` +
+      (downloadUrl ? `\nDOWNLOAD (hosted; valid ~24h): ${downloadUrl}\nTo save it on the user's machine, fetch that URL (or share it with the user to click).\n` : "") + uploadAgentNote;
 
     // Only surface upload fields when the caller opted into the upload path.
     const uploadAttempted = !!uploadResult || !!uploadError;
@@ -314,6 +320,7 @@ export async function createMarkdown(input) {
     return {
       success: true,
       filePath: outputPath,
+      downloadUrl: downloadUrl || undefined,
       clientMode,
       ...uploadFields,
       category: category || null,

@@ -12,7 +12,9 @@ import { registerAllTools, SERVER_INSTRUCTIONS, TOOL_DEFINITIONS } from "./tool-
 import { requireBearer, tenantRateLimiter, mountAdminRoutes, mountProvisionRoutes, setResourceMetadataUrl } from "./auth.js";
 import { DocProcessorOAuthProvider } from "./oauth/provider.js";
 import { renderConsentPage } from "./oauth/consent.js";
+import path from "path";
 import { requestContext } from "./utils/request-context.js";
+import { verifyDownloadToken } from "./utils/download-registry.js";
 
 setupLogging();
 
@@ -52,6 +54,15 @@ export function buildApp() {
 
   app.get("/healthz", (_req, res) => {
     res.json({ ok: true, version: "1.0.0", tools: TOOL_DEFINITIONS.length });
+  });
+
+  // Signed, time-limited file downloads. Public but token-gated (HMAC + expiry),
+  // so a hosted client can fetch a file the server created — the proper way to
+  // deliver generated documents to the caller's machine. See download-registry.js.
+  app.get("/files/download", (req, res) => {
+    const v = verifyDownloadToken(req.query.token);
+    if (!v) return res.status(403).send("Invalid or expired download link.");
+    res.download(v.path, path.basename(v.path));
   });
 
   // OAuth 2.1 authorization server (enabled only when ISSUER_URL is set). Mounts
