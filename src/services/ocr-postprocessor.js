@@ -61,6 +61,13 @@ export class OcrPostProcessor {
       // Use vision service to process text with AI
       const result = await visionService.extractText(ocrText, prompt);
 
+      // extractText returns { success, text } and does NOT throw on API failure,
+      // so check success explicitly — otherwise result.text is undefined and the
+      // analysis below crashes into the catch instead of cleanly falling back.
+      if (!result || !result.success || typeof result.text !== "string") {
+        throw new Error(result?.error || "Vision service returned no text");
+      }
+
       // Analyze the improvements made
       const improvements = this.analyzeImprovements(ocrText, result.text);
 

@@ -537,7 +537,7 @@ export async function replaceDocxContent(filePath, options = {}) {
     // Add title if provided
     if (title) {
       const titlePara = createParagraph(title, {
-        heading: "title",
+        heading: HeadingLevel.TITLE,
         alignment: styleConfig.title?.alignment || "center",
         size: styleConfig.title?.size || 48,
         bold: styleConfig.title?.bold !== false,
