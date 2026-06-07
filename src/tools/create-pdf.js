@@ -312,7 +312,7 @@ export async function createPdf(input) {
       styleReason,
       formattingQuality: isInteractive ? undefined : formattingQuality,
       formatSuggestion: isInteractive ? undefined : suggestBetterFormat({ paragraphs: parsedInput.paragraphs, content: markdown, tables: parsedInput.tables }, "pdf"),
-      memoryNudge: (isInteractive || !profile.canPersistMemory) ? undefined : memoryNudge(learning),
+      memoryNudge: (isInteractive || !profile.canPersistMemory) ? undefined : memoryNudge(learning, `create-pdf:${category || "general"}:${stylePreset}`),
       styleConfig: isInteractive ? undefined : {
         preset: stylePreset,
         description: getPresetDescription(stylePreset),
