@@ -100,6 +100,48 @@ export function assessFormattingQuality(parts = {}) {
 }
 
 /**
+ * Self-correcting format check: when a DOCX/PDF body is really the WRONG shape
+ * for the format, suggest the better tool. Conservative — only fires on clear
+ * dominance so it isn't noisy. Returns null when the format fits.
+ *
+ * @param {Object} parts - see collectBodyText
+ * @param {string} currentFormat - "docx" | "pdf" | "markdown" | "excel"
+ * @returns {({format:string, tool:string, reason:string})|null}
+ */
+export function suggestBetterFormat(parts = {}, currentFormat) {
+  if (currentFormat !== "docx" && currentFormat !== "pdf") return null;
+  const { text, hasTableInput } = collectBodyText(parts);
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const tableLines = lines.filter((l) => /^\|.*\|/.test(l)).length;
+  const codeFences = (text.match(/```/g) || []).length;
+  const headingLines = lines.filter((l) => /^#{1,6}\s/.test(l)).length;
+
+  // Body is almost entirely tabular → Excel.
+  const tableHeavy =
+    (hasTableInput && lines.length <= 2) ||
+    (tableLines >= 4 && tableLines >= lines.length * 0.6 && headingLines <= 1);
+  if (tableHeavy) {
+    return {
+      format: "excel",
+      tool: "create-excel",
+      reason:
+        "This body is almost entirely a table. create-excel gives sortable columns, live formulas, number formats, and autofilter — far more useful for tabular data.",
+    };
+  }
+
+  // Body is dominated by code blocks → Markdown.
+  if (codeFences >= 4 && headingLines <= 2) {
+    return {
+      format: "markdown",
+      tool: "create-markdown",
+      reason:
+        "This body is mostly code blocks. create-markdown is the natural home for code-heavy docs (and it lives well in a git repo).",
+    };
+  }
+  return null;
+}
+
+/**
  * Whether the "never plain text" guard should hard-reject this body.
  * Controlled by the REQUIRE_FORMATTING env toggle (default: warn-only / off).
  * Only rejects substantive bodies so a one-line note doesn't get blocked.

@@ -1,299 +1,326 @@
 /**
- * Format Router Service
- * 
- * Analyzes user prompts for keywords to recommend the appropriate document format
- * (markdown, docx, or excel) based on detected intent.
+ * Format Router — the semantic "which format?" brain behind `detect-format`.
+ *
+ * Given the user's request (and optional title/content), it picks the best
+ * OUTPUT FORMAT and hands back a ready-to-use creation plan: the tool to call,
+ * a style preset, a category, tone, confidence, and the runner-up. The model
+ * can call detect-format once and pass the plan straight into a create-* tool.
+ *
+ * Design notes (why it's not a flat keyword bag):
+ *  - Four formats, not three: PDF is first-class (it was missing entirely).
+ *  - WEIGHTED signals: an explicit format word ("as a PDF") decides outright;
+ *    strong intent phrases ("send to the client", "budget") outweigh generic
+ *    context words. Generic verbs (create/write/make) carry no weight — they
+ *    don't tell us anything about format.
+ *  - DOCX vs PDF is a real distinction: DOCX = editable/collaborative/Word;
+ *    PDF = final/print/send/sign/fixed-layout. They're separated explicitly.
+ *  - Content STRUCTURE is a signal: a body that's mostly a table leans Excel; a
+ *    body full of fenced code leans Markdown — even with no keywords.
+ *  - Presentations (slides/deck/pptx) have no native tool yet; we say so and
+ *    recommend the closest fit instead of silently mis-routing to DOCX.
  */
+
+import { classifyDocumentContent } from "../utils/categorizer.js";
 
 // Document format constants
 const DocumentFormat = {
-  MARKDOWN: 'markdown',
-  DOCX: 'docx',
-  EXCEL: 'excel'
+  MARKDOWN: "markdown",
+  DOCX: "docx",
+  EXCEL: "excel",
+  PDF: "pdf",
 };
 
 // Document type (tone/depth) constants
 const DocumentType = {
-  CONCISE: 'concise',
-  FORMAL: 'formal',
-  EXPLANATORY: 'explanatory',
-  SCIENTIFIC: 'scientific'
+  CONCISE: "concise",
+  FORMAL: "formal",
+  EXPLANATORY: "explanatory",
+  SCIENTIFIC: "scientific",
 };
 
-// Keyword patterns for each format category
-const KEYWORDS = {
-  // Implementation/Technical keywords → markdown
-  implementation: [
-    'implementation', 'developer', 'dev', 'api', 'integration', 'spec', 'specification',
-    'guide', 'tutorial', 'how-to', 'how to', 'code', 'build', 'create', 'write',
-    'develop', 'deploy', 'configure', 'setup', 'install', 'use', 'practical',
-    'hands-on', 'reference', 'documentation', 'technical details', 'architecture',
-    'design', 'schema', 'endpoint', 'function', 'method', 'class', 'module',
-    'library', 'sdk', 'instructions', 'steps', 'process', 'workflow', 'procedure',
-    'explain', 'describe', 'show me how', 'technical', 'engineering', 'software',
-    'programming', 'script', 'command', 'terminal', 'cli', 'shell', 'bash',
-    'javascript', 'python', 'typescript', 'node', 'react', 'vue', 'angular',
-    'docker', 'kubernetes', 'aws', 'azure', 'gcp', 'database', 'sql', 'nosql',
-    'frontend', 'backend', 'fullstack', 'web', 'mobile', 'app', 'application',
-    'server', 'client', 'rest', 'graphql', 'microservice', 'monolith', 'ci/cd',
-    'pipeline', 'testing', 'unit test', 'integration test', 'e2e', 'debugging',
-    'refactor', 'optimize', 'performance', 'security', 'authentication', 'oauth',
-    'jwt', 'session', 'cookie', 'cache', 'redis', 'elasticsearch', 'mongodb',
-    'postgresql', 'mysql', 'sqlite', 'prisma', 'typeorm', 'orm', 'migration',
-    'seed', 'fixture', 'mock', 'stub', 'spy', 'jest', 'mocha', 'chai', 'vitest',
-    'webpack', 'vite', 'rollup', 'esbuild', 'babel', 'transpile', 'bundle',
-    'npm', 'yarn', 'pnpm', 'package.json', 'dependency', 'import', 'export',
-    'module', 'component', 'hook', 'state', 'props', 'context', 'redux', 'mobx',
-    'vuex', 'pinia', 'signalr', 'websocket', 'sse', 'polling', 'async', 'await',
-    'promise', 'callback', 'event', 'observer', 'reactive', 'immutable', 'functional'
-  ],
-  
-  // High-Level/Stakeholder keywords → docx
-  stakeholder: [
-    'high level', 'executive', 'stakeholder', 'management', 'overview', 'summary',
-    'presentation', 'report', 'proposal', 'business case', 'strategy', 'planning',
-    'email', 'attach', 'attachment', 'confluence', 'share', 'distribute', 'formal',
-    'official', 'document', 'board', 'c-level', 'leadership', 'senior', 'summary deck',
-    'briefing', 'memo', 'memorandum', 'whitepaper', 'case study', 'roadmap',
-    'milestone', 'deliverable', 'stakeholder update', 'status report', 'progress',
-    'quarterly', 'annual', 'monthly review', 'kpi', 'metric', 'dashboard', 'chart',
-    'graph', 'visualization', 'infographic', 'slide', 'powerpoint', 'deck',
-    'pitch', 'investor', 'funding', 'startup', 'venture', 'cap table', 'equity',
-    'revenue model', 'business plan', 'market analysis', 'competitor', 'swot',
-    'risk assessment', 'compliance', 'regulatory', 'audit', 'governance', 'policy',
-    'procedure document', 'standard operating procedure', 'sop', 'handbook',
-    'employee', 'hr', 'onboarding', 'training', 'orientation', 'benefits',
-    'compensation', 'performance review', 'goal setting', 'okr', 'kpi tracking'
-  ],
-  
-  // Data/Spreadsheet keywords → excel
-  data: [
-    'budget', 'financial', 'numbers', 'data', 'spreadsheet', 'table', 'costs',
-    'pricing', 'revenue', 'forecast', 'expenses', 'income', 'profit', 'loss',
-    'quarter', 'q1', 'q2', 'q3', 'q4', 'ytd', 'monthly', 'weekly', 'tracker',
-    'log', 'record', 'database', 'csv', 'import', 'export', 'calculation',
-    'formula', 'sum', 'average', 'total', 'subtotal', 'pivot table', 'chart',
-    'graph', 'trend', 'analysis', 'variance', 'actual vs budget', 'variance analysis',
-    'cash flow', 'balance sheet', 'income statement', 'p&l', 'general ledger',
-    'accounts payable', 'accounts receivable', 'invoicing', 'payment', 'transaction',
-    'reconciliation', 'journal entry', 'chart of accounts', 'tax', 'vat', 'sales tax',
-    'payroll', 'timesheet', 'hours', 'overtime', 'bonus', 'commission', 'expense report',
-    'mileage', 'travel expenses', 'per diem', 'procurement', 'purchase order', 'vendor',
-    'supplier', 'inventory', 'stock', 'warehouse', 'shipping', 'fulfillment', 'order',
-    'sales pipeline', 'crm', 'lead', 'opportunity', 'deal', 'conversion rate',
-    'customer acquisition cost', 'lifetime value', 'churn rate', 'retention'
-  ],
-  
-  // Explicit format keywords → that format
-  explicit: {
-    markdown: ['markdown', '.md', 'md file'],
-    docx: ['docx', 'word', 'document', '.docx', 'ms word', 'microsoft word'],
-    excel: ['excel', 'xlsx', 'spreadsheet', '.xlsx', 'xls', '.xls']
-  }
+// Human label per format, used in `reason` strings (kept stable for tests).
+const LABEL = {
+  [DocumentFormat.MARKDOWN]: "implementation/technical",
+  [DocumentFormat.DOCX]: "stakeholder/business",
+  [DocumentFormat.EXCEL]: "data/spreadsheet",
+  [DocumentFormat.PDF]: "final/printable deliverable",
 };
 
-/**
- * Check if text contains implementation/technical keywords
- * @param {string} text - Text to analyze  
- * @returns {{ match: boolean, keywords: string[] }} Match result with matched keywords
- */
-function hasImplementationKeywords(text) {
-  const lowerText = text.toLowerCase();
-  const matched = [];
-  
-  for (const keyword of KEYWORDS.implementation) {
-    if (lowerText.includes(keyword.toLowerCase())) {
-      matched.push(keyword);
-    }
+// Explicit format mentions — decisive (the user named the format).
+const EXPLICIT = {
+  [DocumentFormat.PDF]: ["as a pdf", "to pdf", "in pdf", " pdf", ".pdf", "pdf file", "pdf format"],
+  [DocumentFormat.DOCX]: ["docx", ".docx", "word document", "word doc", "ms word", "microsoft word", "in word", "as a word"],
+  [DocumentFormat.EXCEL]: ["excel", ".xlsx", "xlsx", ".xls", "as a spreadsheet", "spreadsheet", "workbook", "google sheet", "google sheets"],
+  // CSV is Excel's tool with csv output — handled specially so we can set outputFormat.
+  csv: ["csv", ".csv", "comma-separated", "comma separated"],
+  [DocumentFormat.MARKDOWN]: ["markdown", ".md", "md file", "as markdown", " mdx"],
+};
+
+// Strong INTENT phrases (weight 10) — what the user wants to DO with the file.
+const INTENT = {
+  [DocumentFormat.PDF]: [
+    "print", "printable", "to print", "for printing", "hard copy", "hardcopy",
+    "read-only", "read only", "non-editable", "noneditable", "fixed layout",
+    "final version", "final copy", "finalize", "finalized", "ready to send",
+    "for distribution", "distribute", "send to the client", "send to client",
+    "send to a client", "send to the customer", "email to", "deliver to",
+    "hand out", "handout", "for the client", "to the customer", "sign", "signature",
+    "invoice", "receipt", "quote", "quotation", "flyer", "brochure", "poster",
+    "certificate", "diploma", "resume", "cv", "curriculum vitae", "cover letter",
+    "official letter", "letter to", "newsletter", "one-pager", "one pager", "datasheet",
+  ],
+  [DocumentFormat.DOCX]: [
+    "editable", "edit later", "edit it later", "keep editing", "further edit",
+    "draft", "work in progress", "collaborate", "collaboration", "track changes",
+    "fill in", "fill out", "template", "redline", "i can edit", "we can edit",
+    "so i can change", "in word so",
+  ],
+  [DocumentFormat.EXCEL]: [
+    "budget", "financial model", "ledger", "balance sheet", "income statement",
+    "cash flow", "p&l", "tracker", "dataset", "data set", "table of", "list of",
+    "inventory", "timesheet", "pivot", "rows and columns", "columns", "row per",
+    "one row per", "calculation", "sum", "totals", "kpi table", "metrics table",
+    "price list", "catalog", "schedule of",
+  ],
+  [DocumentFormat.MARKDOWN]: [
+    "readme", "read me", "changelog", "change log", "runbook", "api docs",
+    "api documentation", "technical spec", "design doc", "rfc", "adr",
+    "for the repo", "in the repo", "for github", "on github", "for developers",
+    "dev docs", "code documentation", "docstring", "wiki page", "knowledge base article",
+  ],
+};
+
+// Low-weight CONTEXT bags (weight 1) — topical hints. Generic verbs removed so
+// "create/write/make a report" doesn't get mis-scored as technical.
+const CONTEXT = {
+  [DocumentFormat.MARKDOWN]: [
+    "developer", "api", "integration", "spec", "specification", "tutorial",
+    "how-to", "how to", "code", "deploy", "configure", "setup", "install",
+    "reference", "documentation", "architecture", "schema", "endpoint",
+    "function", "method", "class", "module", "library", "sdk", "cli", "shell",
+    "javascript", "python", "typescript", "node", "react", "docker", "kubernetes",
+    "database", "sql", "backend", "frontend", "rest", "graphql", "microservice",
+    "pipeline", "testing", "refactor", "authentication", "oauth", "webhook",
+  ],
+  [DocumentFormat.DOCX]: [
+    "executive", "stakeholder", "management", "overview", "summary", "report",
+    "proposal", "business case", "strategy", "plan", "memo", "memorandum",
+    "whitepaper", "case study", "roadmap", "deliverable", "status report",
+    "briefing", "board", "leadership", "policy", "handbook", "sop", "onboarding",
+    "agreement", "contract", "nda", "terms", "letter", "research", "findings",
+    "analysis", "minutes", "agenda", "meeting notes", "review",
+  ],
+  [DocumentFormat.EXCEL]: [
+    "financial", "numbers", "data", "costs", "pricing", "revenue", "forecast",
+    "expenses", "income", "profit", "quarter", "q1", "q2", "q3", "q4", "ytd",
+    "monthly", "weekly", "log", "record", "formula", "average", "total",
+    "variance", "cash flow", "payroll", "invoicing", "transaction", "vendor",
+    "supplier", "stock", "order", "pipeline", "lead", "deal", "churn", "retention",
+  ],
+};
+
+// Presentation cues — no native PPTX tool yet; surfaced as a limitation.
+const PRESENTATION_CUES = [
+  "presentation", "slides", "slide deck", "slide-deck", "deck", "pitch deck",
+  "powerpoint", "ppt", "pptx", "keynote", "google slides",
+];
+
+function countHits(text, phrases) {
+  const hits = [];
+  for (const p of phrases) {
+    if (text.includes(p)) hits.push(p.trim());
   }
-  
-  return { match: matched.length > 0, keywords: matched };
+  return hits;
+}
+
+// Category → style preset (mirrors selectStyleBasedOnCategory in styling.js).
+const CATEGORY_PRESET = {
+  contracts: "legal",
+  legal: "legal",
+  technical: "technical",
+  business: "business",
+  meeting: "professional",
+  research: "professional",
+};
+
+function planStyle(format, category) {
+  if (format === DocumentFormat.MARKDOWN) return null; // markdown has no presets
+  const byCat = CATEGORY_PRESET[category];
+  if (byCat) return byCat;
+  if (format === DocumentFormat.EXCEL) return "business";
+  return "claude-like"; // docx / pdf default
+}
+
+function planDocType(format, confidence) {
+  if (format === DocumentFormat.DOCX || format === DocumentFormat.PDF) return DocumentType.FORMAL;
+  if (format === DocumentFormat.EXCEL) return DocumentType.SCIENTIFIC;
+  return confidence === "high" ? DocumentType.EXPLANATORY : DocumentType.CONCISE;
 }
 
 /**
- * Check if text contains high-level/stakeholder keywords
- * @param {string} text - Text to analyze
- * @returns {{ match: boolean, keywords: string[] }} Match result with matched keywords
- */
-function hasStakeholderKeywords(text) {
-  const lowerText = text.toLowerCase();
-  const matched = [];
-  
-  for (const keyword of KEYWORDS.stakeholder) {
-    if (lowerText.includes(keyword.toLowerCase())) {
-      matched.push(keyword);
-    }
-  }
-  
-  return { match: matched.length > 0, keywords: matched };
-}
-
-/**
- * Check if text contains data/spreadsheet keywords  
- * @param {string} text - Text to analyze
- * @returns {{ match: boolean, keywords: string[] }} Match result with matched keywords
- */
-function hasDataKeywords(text) {
-  const lowerText = text.toLowerCase();
-  const matched = [];
-  
-  for (const keyword of KEYWORDS.data) {
-    if (lowerText.includes(keyword.toLowerCase())) {
-      matched.push(keyword);
-    }
-  }
-  
-  return { match: matched.length > 0, keywords: matched };
-}
-
-/**
- * Check for explicit format mentions in text
- * @param {string} text - Text to analyze
- * @returns {{ match: boolean, format?: string, keywords: string[] }} Match result
- */
-function hasExplicitFormat(text) {
-  const lowerText = text.toLowerCase();
-  
-  // Check markdown
-  for (const keyword of KEYWORDS.explicit.markdown) {
-    if (lowerText.includes(keyword)) {
-      return { match: true, format: DocumentFormat.MARKDOWN, keywords: [keyword] };
-    }
-  }
-  
-  // Check docx
-  for (const keyword of KEYWORDS.explicit.docx) {
-    if (lowerText.includes(keyword)) {
-      return { match: true, format: DocumentFormat.DOCX, keywords: [keyword] };
-    }
-  }
-  
-  // Check excel
-  for (const keyword of KEYWORDS.explicit.excel) {
-    if (lowerText.includes(keyword)) {
-      return { match: true, format: DocumentFormat.EXCEL, keywords: [keyword] };
-    }
-  }
-  
-  return { match: false, keywords: [] };
-}
-
-/**
- * Detect the appropriate document format based on user intent keywords
- * @param {Object} params - Detection parameters
- * @param {string} params.userQuery - Original user prompt/query
- * @param {string} [params.title] - Document title if known
- * @param {string} [params.content] - Content preview if available
- * @returns {{format: string, confidence: string, reason: string, matchedKeywords: string[], suggestedTool: string}} Format recommendation
+ * Detect the best document format and return a creation plan.
+ *
+ * @param {Object} params
+ * @param {string} params.userQuery - The user's original request.
+ * @param {string} [params.title] - Title if already chosen.
+ * @param {string} [params.content] - Content preview if available.
+ * @returns {Promise<Object>} { format, suggestedTool, outputFormat?, stylePreset,
+ *   category, docType, confidence, reason, signals, alternativeFormat, note?,
+ *   unsupported?, matchedKeywords }
  */
 export async function detectFormat(params) {
-  // Combine all text sources for analysis
-  const userQuery = (params.userQuery || '').toLowerCase();
-  const title = (params.title || '').toLowerCase();
-  const content = (params.content || '').toLowerCase();
-  
-  const combinedText = `${userQuery} ${title} ${content}`;
-  
-  // First check for explicit format mentions (highest priority)
-  const explicitMatch = hasExplicitFormat(combinedText);
-  if (explicitMatch.match) {
-    return {
-      format: explicitMatch.format,
-      confidence: 'high',
-      reason: `User explicitly mentioned "${explicitMatch.keywords[0]}" which indicates ${explicitMatch.format} format`,
-      matchedKeywords: explicitMatch.keywords,
-      suggestedTool: getToolForFormat(explicitMatch.format)
-    };
-  }
-  
-  // Check each category and count matches
-  const implementationResult = hasImplementationKeywords(combinedText);
-  const stakeholderResult = hasStakeholderKeywords(combinedText);
-  const dataResult = hasDataKeywords(combinedText);
-  
-  // Determine the winning category based on match count
-  const results = [
-    { format: DocumentFormat.MARKDOWN, ...implementationResult },
-    { format: DocumentFormat.DOCX, ...stakeholderResult },
-    { format: DocumentFormat.EXCEL, ...dataResult }
+  const userQuery = (params.userQuery || "").toLowerCase();
+  const title = (params.title || "").toLowerCase();
+  const content = (params.content || "").toLowerCase();
+  const text = `${userQuery} ${title} ${content}`;
+
+  const formats = [
+    DocumentFormat.MARKDOWN,
+    DocumentFormat.DOCX,
+    DocumentFormat.EXCEL,
+    DocumentFormat.PDF,
   ];
-  
-  // Find the category with most matches
-  const winner = results.reduce((best, current) => {
-    if (current.keywords.length > best.keywords.length) {
-      return current;
-    }
-    return best;
-  });
-  
-  // Calculate confidence based on number of matched keywords
-  let confidence = 'low';
-  let reason = '';
+  const scores = Object.fromEntries(formats.map((f) => [f, 0]));
+  const signals = Object.fromEntries(formats.map((f) => [f, []]));
+  let outputFormat; // set to "csv" if the user asked for CSV specifically
 
-  // Category-aware label so the reason text matches the winning format.
-  const labelByFormat = {
-    [DocumentFormat.MARKDOWN]: 'implementation/technical',
-    [DocumentFormat.DOCX]: 'stakeholder/business',
-    [DocumentFormat.EXCEL]: 'data/spreadsheet',
-  };
-  const label = labelByFormat[winner.format] || 'format';
-
-  if (winner.keywords.length >= 3) {
-    confidence = 'high';
-    reason = `Multiple ${label} keywords detected: ${winner.keywords.slice(0, 5).join(', ')}`;
-  } else if (winner.keywords.length >= 2) {
-    confidence = 'medium';
-    reason = `Several ${label} keywords suggest this format: ${winner.keywords.join(', ')}`;
-  } else if (winner.keywords.length === 1) {
-    confidence = 'low';
-    reason = `Single ${label} keyword "${winner.keywords[0]}" suggests this format`;
+  // 1) Explicit format words (decisive: weight 100).
+  let explicit = null;
+  // CSV first — it's an Excel sub-format we want to remember.
+  if (countHits(text, EXPLICIT.csv).length) {
+    explicit = DocumentFormat.EXCEL;
+    outputFormat = "csv";
+    scores[DocumentFormat.EXCEL] += 100;
+    signals[DocumentFormat.EXCEL].push("csv");
   } else {
-    // No clear winner - default to markdown for technical projects
-    return {
-      format: DocumentFormat.MARKDOWN,
-      docType: DocumentType.CONCISE,
-      confidence: 'low',
-      reason: 'No strong indicators found; defaulting to markdown for implementation documentation',
-      matchedKeywords: [],
-      suggestedTool: getToolForFormat(DocumentFormat.MARKDOWN)
-    };
+    for (const f of formats) {
+      const hits = countHits(text, EXPLICIT[f] || []);
+      if (hits.length) {
+        explicit = explicit || f;
+        scores[f] += 100;
+        signals[f].push(...hits);
+      }
+    }
   }
 
-  // Determine docType based on winner and confidence
-  let docType = DocumentType.CONCISE;
-  if (winner.format === DocumentFormat.DOCX) {
-    docType = DocumentType.FORMAL;
-  } else if (winner.format === DocumentFormat.EXCEL) {
-    docType = DocumentType.SCIENTIFIC;
-  } else if (confidence === 'high') {
-    docType = DocumentType.EXPLANATORY;
+  // 2) Strong intent phrases (weight 10) + 3) context bags (weight 1).
+  for (const f of formats) {
+    const intentHits = countHits(text, INTENT[f] || []);
+    scores[f] += intentHits.length * 10;
+    signals[f].push(...intentHits);
+
+    const ctxHits = countHits(text, CONTEXT[f] || []);
+    scores[f] += ctxHits.length;
+    signals[f].push(...ctxHits);
   }
 
-  return {
+  // 4) Content-structure signals (only when content is provided).
+  if (content) {
+    const tableRows = (content.match(/^\s*\|.*\|.*$/gm) || []).length;
+    const codeBlocks = (content.match(/```/g) || []).length;
+    if (tableRows >= 3) {
+      scores[DocumentFormat.EXCEL] += 6;
+      signals[DocumentFormat.EXCEL].push("tabular content");
+    }
+    if (codeBlocks >= 2) {
+      scores[DocumentFormat.MARKDOWN] += 4;
+      signals[DocumentFormat.MARKDOWN].push("fenced code blocks");
+    }
+  }
+
+  // Rank.
+  const ranked = formats
+    .map((f) => ({ format: f, score: scores[f], signals: signals[f] }))
+    .sort((a, b) => b.score - a.score);
+  let winner = ranked[0];
+  const runnerUp = ranked[1];
+
+  // Presentation handling: there is no native slide/PPTX tool. If the user
+  // clearly wants slides and nothing stronger points elsewhere, recommend the
+  // best available substitute (PDF for a visual/printable deck) and say so.
+  const presHits = countHits(text, PRESENTATION_CUES);
+  let note;
+  let unsupported;
+  if (presHits.length && winner.score < 100) {
+    unsupported = "pptx";
+    note =
+      "No native slide/PowerPoint (.pptx) output exists yet. Recommending a PDF laid out as a deck (one '## ' heading per slide). For an editable deck, ask for DOCX instead.";
+    if (winner.format !== DocumentFormat.EXCEL) {
+      winner = { format: DocumentFormat.PDF, score: Math.max(winner.score, 5), signals: [...signals[DocumentFormat.PDF], "presentation→pdf"] };
+    }
+  }
+
+  // No signal at all → general document. DOCX (claude-like) is the most useful
+  // universal default; only lean Markdown when technical context appeared.
+  if (winner.score === 0) {
+    winner = { format: DocumentFormat.DOCX, score: 0, signals: [] };
+  }
+
+  // Confidence from absolute score and margin over the runner-up.
+  const margin = winner.score - (runnerUp ? runnerUp.score : 0);
+  let confidence;
+  if (explicit || winner.score >= 12 || margin >= 8) confidence = "high";
+  else if (winner.score >= 4 || margin >= 3) confidence = "medium";
+  else confidence = "low";
+
+  // Reason text — keeps the per-format label (tests assert these substrings).
+  const label = LABEL[winner.format] || "format";
+  const topSignals = winner.signals.slice(0, 5);
+  let reason;
+  if (explicit && (explicit === winner.format || outputFormat === "csv")) {
+    reason = `User explicitly asked for ${outputFormat === "csv" ? "CSV" : winner.format} (${label})${topSignals.length ? `: ${topSignals.join(", ")}` : ""}`;
+  } else if (winner.score === 0) {
+    reason = `No strong format signals; defaulting to a ${label} document (claude-like). Pass an explicit format if the user implied one.`;
+  } else {
+    reason = `${confidence === "high" ? "Strong" : confidence === "medium" ? "Several" : "Weak"} ${label} signals${topSignals.length ? `: ${topSignals.join(", ")}` : ""}`;
+  }
+
+  // Plan: category + style + tone.
+  const classification = classifyDocumentContent(params.title || params.userQuery || "", params.content || "");
+  const category = classification.category && classification.category !== "misc" ? classification.category : null;
+  const stylePreset = planStyle(winner.format, category);
+  const docType = planDocType(winner.format, confidence);
+
+  // Close runner-up worth mentioning (within 3 points and non-zero).
+  const alternativeFormat =
+    runnerUp && runnerUp.score > 0 && winner.score - runnerUp.score <= 3 && runnerUp.format !== winner.format
+      ? runnerUp.format
+      : null;
+
+  const plan = {
     format: winner.format,
+    suggestedTool: getToolForFormat(winner.format),
+    stylePreset,
+    category,
     docType,
     confidence,
     reason,
-    matchedKeywords: winner.keywords,
-    suggestedTool: getToolForFormat(winner.format)
+    signals: topSignals,
+    matchedKeywords: topSignals, // back-compat alias
+    alternativeFormat,
   };
+  if (outputFormat) plan.outputFormat = outputFormat; // "csv"
+  if (note) plan.note = note;
+  if (unsupported) plan.unsupported = unsupported;
+  return plan;
 }
 
 /**
- * Get the appropriate tool name for a given format
- * @param {string} format - Document format
- * @returns {string} Tool name to call
+ * Map a format to the create-* tool that produces it.
+ * @param {string} format
+ * @returns {string}
  */
 function getToolForFormat(format) {
   switch (format) {
     case DocumentFormat.MARKDOWN:
-      return 'create-markdown';
-    case DocumentFormat.DOCX:
-      return 'create-doc';
+      return "create-markdown";
     case DocumentFormat.EXCEL:
-      return 'create-excel';
+      return "create-excel";
+    case DocumentFormat.PDF:
+      return "create-pdf";
+    case DocumentFormat.DOCX:
     default:
-      return 'create-doc';
+      return "create-doc";
   }
 }
 

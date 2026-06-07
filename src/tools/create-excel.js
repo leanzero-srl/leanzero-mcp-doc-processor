@@ -24,7 +24,10 @@ import {
 import { applyDNAToInput } from "../utils/dna-manager.js";
 import {
   applyExcelStyling,
+  applyFormulas,
+  applyAutoNumberFormats,
   autoColumnWidths,
+  buildAutoFilterRef,
   cleanSheetData,
   getZebraColor,
 } from "./excel-utils.js";
@@ -54,8 +57,14 @@ export async function createExcel(input) {
     // so the preview reflects what would actually be written.
     applyDNAToInput(input);
 
+    // Output format: a real XLSX workbook (default) or a plain CSV (first sheet
+    // only — CSV has no sheets/styling/formulas). Fills the lightweight
+    // data-interchange gap without a separate tool.
+    const isCsv = input.outputFormat === "csv";
+    const fileExt = isCsv ? "csv" : "xlsx";
+
     // Step 1: Validate and normalize input
-    const normalized = validateAndNormalizeInput(input, ["sheets"], "xlsx");
+    const normalized = validateAndNormalizeInput(input, ["sheets"], fileExt);
 
     // Ensure sheets is array of objects with name and data
     if (!Array.isArray(normalized.sheets)) {
@@ -212,37 +221,57 @@ export async function createExcel(input) {
       // Convert 2D array to worksheet
       const ws = XLSX.utils.aoa_to_sheet(data);
 
-      // Apply column widths — explicit overrides win; otherwise auto-fit to
-      // content so columns aren't clipped (a readability win, especially for
-      // weak models that don't set widths).
-      if (
-        styleConfig.columnWidths &&
-        Object.keys(styleConfig.columnWidths).length > 0
-      ) {
-        ws["!cols"] = createExcelColumnWidths(styleConfig.columnWidths);
-      } else {
-        ws["!cols"] = autoColumnWidths(data);
-      }
+      // XLSX-only enhancements (CSV is plain values — no formulas/styling/filter).
+      if (!isCsv) {
+        // Live formulas: "=SUM(...)" string cells become real formula cells.
+        applyFormulas(ws, data);
 
-      // Apply row heights
-      if (
-        styleConfig.rowHeights &&
-        Object.keys(styleConfig.rowHeights).length > 0
-      ) {
-        ws["!rows"] = createExcelRowHeights(styleConfig.rowHeights);
-      }
+        // Auto number formats ($ / % ) inferred from column headers.
+        applyAutoNumberFormats(ws, data);
 
-      // Apply comprehensive styling with proper header formatting
-      applyExcelStyling(ws, data, styleConfig, input.stylePreset);
+        // Column widths — explicit overrides win; otherwise auto-fit to content.
+        if (
+          styleConfig.columnWidths &&
+          Object.keys(styleConfig.columnWidths).length > 0
+        ) {
+          ws["!cols"] = createExcelColumnWidths(styleConfig.columnWidths);
+        } else {
+          ws["!cols"] = autoColumnWidths(data);
+        }
+
+        // Row heights
+        if (
+          styleConfig.rowHeights &&
+          Object.keys(styleConfig.rowHeights).length > 0
+        ) {
+          ws["!rows"] = createExcelRowHeights(styleConfig.rowHeights);
+        }
+
+        // Comprehensive styling with proper header formatting
+        applyExcelStyling(ws, data, styleConfig, input.stylePreset);
+
+        // Autofilter dropdowns on the header row (skip single-row sheets).
+        if (data.length > 1) {
+          const ref = buildAutoFilterRef(data);
+          if (ref) ws["!autofilter"] = { ref };
+        }
+      }
 
       // Add sheet to workbook
       XLSX.utils.book_append_sheet(wb, ws, name);
     }
 
-    // Step 7: Write workbook to file
-    // Step 8: Return success
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
-    await fs.promises.writeFile(outputPath, wbout);
+    // Step 7: Write file — CSV (first sheet only) or a full XLSX workbook.
+    if (isCsv) {
+      if (normalized.sheets.length > 1) {
+        log("warn", `[create-excel] CSV output writes only the first sheet ("${normalized.sheets[0].name}"); ${normalized.sheets.length - 1} other sheet(s) omitted.`);
+      }
+      const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
+      await fs.promises.writeFile(outputPath, csv, "utf-8");
+    } else {
+      const wbout = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
+      await fs.promises.writeFile(outputPath, wbout);
+    }
 
     // Register document in registry (non-blocking, failure is non-fatal)
     const registryTitle = input.title || normalized.sheets.map(s => s.name).join(" + ");

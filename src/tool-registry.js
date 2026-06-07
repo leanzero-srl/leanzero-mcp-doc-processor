@@ -24,11 +24,25 @@ import { detectFormat } from "./services/format-router.js";
 export const SERVER_INSTRUCTIONS = [
   "This server reads, creates, and edits PDF / DOCX / Markdown / Excel files.",
   "",
-  "Format selection:",
-  "  • Call `detect-format` FIRST when the user didn't specify a format.",
-  "  • Technical/code/API/integration → markdown (use `create-markdown`).",
-  "  • Stakeholder/business/legal/research/report → docx (use `create-doc`).",
-  "  • Numeric/budget/data/tabular → excel (use `create-excel`).",
+  "Format selection (4 formats — pick by what the user will DO with the file):",
+  "  • Call `detect-format` FIRST when the user didn't name a format — it returns",
+  "    a ready plan (format, tool, stylePreset, category) you can pass straight in.",
+  "  • Technical/code/API/README/repo → markdown (`create-markdown`).",
+  "  • Editable Word deliverable they'll keep editing → docx (`create-doc`).",
+  "  • FINAL / print / send to a client / official / invoice / resume / sign →",
+  "    pdf (`create-pdf`). Key nuance: DOCX = editable; PDF = final, fixed-layout.",
+  "  • Any tabular/numeric data (budget, tracker, dataset, even a table in a",
+  "    'report') → excel (`create-excel`).",
+  "  • No native slides/PowerPoint tool yet — detect-format flags it and suggests",
+  "    the closest fit (usually a PDF deck). Don't pretend you made a .pptx.",
+  "  • Heed `formatSuggestion` in a create response — it means another format fits.",
+  "",
+  "Per-format superpowers (use them):",
+  "  • markdown: `toc:true` for an auto Table of Contents; `frontmatter:{...}` for YAML.",
+  "  • excel: '=' cells become live formulas; money/percent columns auto-format;",
+  "    header gets autofilter; `outputFormat:'csv'` for CSV.",
+  "  • pdf: `toc:true` for a clickable Table of Contents; headers/footers w/ page numbers.",
+  "  • docx: Document DNA defaults, 8 presets, headers/footers, blueprint validation.",
   "",
   "Quality:",
   "  • Titles MUST be specific. 'Document', 'Untitled', 'File' etc. are rejected.",
@@ -213,7 +227,9 @@ export const TOOL_DEFINITIONS = [
   {
     name: "detect-format",
     description:
-      "Recommend the right document format (markdown / docx / excel) and tone before creating. Call this FIRST when the user didn't specify a format. Returns { format, docType, confidence, reason, matchedKeywords, suggestedTool } — pass `format` to the corresponding create-* tool. Technical/code/API → markdown; stakeholder/business/legal → docx; numeric/budget/data → excel.",
+      "PLAN the best output format BEFORE creating. Call this FIRST whenever the user didn't explicitly name a format. It weighs explicit format words, what the user wants to DO with the file, topic, and content shape — then returns a ready-to-use creation plan. " +
+      "Nuance it captures: 'README / API / spec / for the repo' → markdown; 'budget / tracker / dataset / table' → excel (CSV if they say csv); 'editable / draft / template / in Word' → docx; 'print / send to the client / official / invoice / resume / final / sign' → PDF. DOCX = editable Word; PDF = final, fixed-layout, print/sign/send. " +
+      "Returns { format (markdown|docx|excel|pdf), suggestedTool, stylePreset, category, docType, confidence, reason, alternativeFormat, outputFormat? ('csv'), unsupported? ('pptx'), note? }. Pass these straight into the create-* tool. There is no native slides/PowerPoint tool yet — it recommends the closest fit (usually PDF) and flags `unsupported:'pptx'`.",
     inputSchema: {
       type: "object",
       properties: {
@@ -227,10 +243,11 @@ export const TOOL_DEFINITIONS = [
   {
     name: "create-doc",
     description:
-      "Create a styled Word DOCX. Use for stakeholder/business/legal/research documents — NOT for code-heavy technical docs (use create-markdown) or pure tabular data (use create-excel). " +
-      "ALWAYS format the body with markdown — never send a wall of plain text. The simplest way: put the whole body in the `content` string. " +
+      "Create a styled, EDITABLE Word DOCX. USE for stakeholder/business/legal/research deliverables the user will keep editing in Word, or when they say 'Word / .docx / editable / draft / template'. " +
+      "NOT for: a final/print/send-as-PDF deliverable (→ create-pdf), code/API/README docs (→ create-markdown), or tabular/numeric data (→ create-excel). The most full-featured tool: Document DNA defaults, 8 style presets, headers/footers with page numbers, margins, blueprint validation, and real tables. " +
+      "ALWAYS format the body with markdown — never a wall of plain text. Simplest: put the whole body in the `content` string. " +
       MARKDOWN_FEATURES + " " + CONTENT_EXAMPLE + " " +
-      "Title MUST be specific (rejects 'Document', 'Untitled', etc.). On duplicate detection returns { duplicate: true, existingPath } — switch to edit-doc. The response includes `formattingQuality` — if `isPlainText` is true, re-create with markdown structure. Document DNA auto-applies project-wide header/footer/style defaults. Use dryRun: true for preview.",
+      "Title MUST be specific. Duplicate → { duplicate: true, existingPath } (switch to edit-doc). Response includes `formattingQuality` and `formatSuggestion` — if formatSuggestion is set, the content fits another format better, so heed it. Use dryRun: true for preview.",
     inputSchema: {
       type: "object",
       properties: {
@@ -265,16 +282,19 @@ export const TOOL_DEFINITIONS = [
   {
     name: "create-markdown",
     description:
-      "Create a Markdown (.md) file. Use for implementation/technical docs, READMEs, integration guides, code-heavy content. " +
+      "Create a Markdown (.md) file for technical/code content that lives in a repo. USE for READMEs, API docs, specs, runbooks, changelogs, integration guides, code-heavy content — anything for GitHub/developers. " +
+      "NOT for stakeholder-facing or printable deliverables (→ create-doc / create-pdf) or tabular data (→ create-excel). " +
+      "MARKDOWN SUPERPOWERS: set `toc: true` to auto-generate an anchor-linked Table of Contents from the H2/H3 headings; pass `frontmatter: {...}` to emit YAML frontmatter (title, date, tags[]) for static-site generators (Hugo/Jekyll/Astro). " +
       "Simplest usage: put the whole body in the `content` string. " +
-      MARKDOWN_FEATURES + " The title becomes the H1, so start `content` at '## '. " +
-      "Fenced code blocks (```lang ... ```), task lists, and inline code are passed through. Title MUST be specific. The response includes `formattingQuality`. Use dryRun: true for preview.",
+      MARKDOWN_FEATURES + " The title becomes the H1, so start `content` at '## '. Title MUST be specific. Response includes `formattingQuality`. Use dryRun: true for preview.",
     inputSchema: {
       type: "object",
       properties: {
         title: { type: "string", description: "Specific descriptive title (becomes H1; rejected if generic)." },
         content: CONTENT_FIELD,
         paragraphs: { type: "array", items: PARA_ITEM, description: "ALTERNATIVE to `content`. Body as markdown strings or { text, headingLevel } objects. Prefer the single `content` string." },
+        toc: { type: "boolean", description: "Auto-generate an anchor-linked Table of Contents from the H2/H3 headings, inserted under the title. Great for long READMEs/guides." },
+        frontmatter: { type: "object", additionalProperties: true, description: "Optional YAML frontmatter emitted at the very top, e.g. { title, date, tags: [...] } — for static-site generators (Hugo/Jekyll/Astro)." },
         outputPath: { type: "string", description: "Optional. Default: derived from title, placed under docs/<category>/." },
         category: CATEGORY,
         tags: TAGS,
@@ -294,10 +314,11 @@ export const TOOL_DEFINITIONS = [
   {
     name: "create-excel",
     description:
-      "Create a styled Excel XLSX workbook. Use for tabular/numeric/financial data, trackers, KPI dashboards. " +
-      "Each sheet's `data` is a 2D array; the FIRST row is the header and is auto-styled (bold, filled, centered, bordered), body rows get zebra striping, and columns auto-fit their content — so you only supply the values. " +
-      'EXAMPLE: sheets: [{ name: "Q2 Revenue", data: [["Month","MRR","Churn"],["Apr",42000,0.012],["May",45500,0.009]] }]. ' +
-      "Sheet names MUST be specific (rejects 'Sheet1', 'Data', etc.). Workbook is auto-categorized when `title` is provided. Use dryRun: true for preview.",
+      "Create a styled Excel XLSX (or CSV). USE for ANY tabular/numeric data — budgets, trackers, datasets, KPIs, price lists, schedules; even a table inside a 'report' belongs here, not in a doc. " +
+      "EXCEL SUPERPOWERS: a cell whose string starts with '=' becomes a LIVE formula (e.g. \"=SUM(B2:B9)\", \"=B2*C2\") that Excel computes on open; columns whose header looks like money ($/price/cost/revenue) or percent (%) auto-format; the header row gets autofilter dropdowns; columns auto-fit. The first row of each sheet is the header (auto-styled bold/filled), body rows get zebra striping — you only supply values. " +
+      "Set `outputFormat: \"csv\"` for a plain CSV (first sheet only; no styling/formulas). " +
+      'EXAMPLE: sheets: [{ name: "Q2 Revenue", data: [["Month","Units","Price","Revenue"],["Apr",120,9.99,"=B2*C2"],["Total","=SUM(B2:B2)","","=SUM(D2:D2)"]] }]. ' +
+      "Sheet names MUST be specific (rejects 'Sheet1', 'Data', etc.). Use dryRun: true for preview.",
     inputSchema: {
       type: "object",
       properties: {
@@ -305,8 +326,9 @@ export const TOOL_DEFINITIONS = [
         sheets: {
           type: "array",
           items: { type: "object", properties: { name: { type: "string", description: "Specific sheet name." }, data: { type: "array", items: { type: "array" }, description: "2D array. First row is the header." } }, required: ["name", "data"] },
-          description: "Array of sheet definitions. At least one is required.",
+          description: "Array of sheet definitions. At least one is required. A cell string starting with '=' becomes a live formula (e.g. \"=SUM(B2:B9)\").",
         },
+        outputFormat: { type: "string", enum: ["xlsx", "csv"], description: "'xlsx' (default — full styling, formulas, autofilter) or 'csv' (plain text, first sheet only)." },
         stylePreset: STYLE_PRESET,
         style: {
           type: "object",
@@ -338,16 +360,19 @@ export const TOOL_DEFINITIONS = [
   {
     name: "create-pdf",
     description:
-      "Create a styled PDF. Use when the user explicitly wants a PDF (reports, proposals, letters, handouts). Rendered from markdown with the same 8 style presets as create-doc, via headless Chromium. " +
-      "ALWAYS format the body with markdown — never a wall of plain text. Easiest: put the whole body in the `content` string. " +
+      "Create a FINAL, fixed-layout PDF to read / print / send / sign. USE when the user says PDF / print / 'send to the client' / official / invoice / flyer / resume / cover letter / 'read-only' / 'final version'. " +
+      "NOT for content they'll keep editing (→ create-doc) or code/repo docs (→ create-markdown). Rendered from markdown with the same 8 presets as create-doc, via headless Chromium. " +
+      "PDF SUPERPOWER: set `toc: true` for a clickable Table of Contents (with heading anchors) at the top. Supports headers/footers with {current}/{total} page numbers and margins. " +
+      "ALWAYS format the body with markdown. Easiest: put the whole body in the `content` string. " +
       MARKDOWN_FEATURES + " " + CONTENT_EXAMPLE + " " +
-      "Title MUST be specific. Supports headers/footers ({current}/{total} page numbers) and margins. The response includes `formattingQuality`. Use dryRun: true for preview. (To READ a PDF, use read-doc.)",
+      "Title MUST be specific. Response includes `formattingQuality` and `formatSuggestion`. Use dryRun: true for preview. (To READ a PDF, use read-doc.)",
     inputSchema: {
       type: "object",
       properties: {
         title: { type: "string", description: "Specific descriptive title (rejected: 'Document', 'Untitled', etc.). Rendered as the top H1." },
         content: CONTENT_FIELD,
         paragraphs: { type: "array", items: PARA_ITEM, description: "ALTERNATIVE to `content`. Body as an array of markdown strings or { text, headingLevel } objects. Prefer the single `content` string." },
+        toc: { type: "boolean", description: "Add a clickable Table of Contents (with heading anchors) at the top of the PDF." },
         tables: { type: "array", items: { type: "array", items: { type: "array", items: { type: "string" } } }, description: "Optional tables as 2D arrays. First row is the header. Rendered as styled tables after the body." },
         outputPath: { type: "string", description: "Optional. Default: derived from title, placed under docs/<category>/." },
         stylePreset: STYLE_PRESET,
