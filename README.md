@@ -2,7 +2,7 @@
 
 An MCP (Model Context Protocol) server for reading, creating, and managing PDF, DOCX, and Excel documents. Built for AI agents that need to process documents with professional styling, automatic categorization, and intelligent document management.
 
-Part of the [LeanZero](https://leanzero.atlascrafted.com) ecosystem.
+Part of the [LeanZero](https://leanzero.net) ecosystem.
 
 ## Features
 
