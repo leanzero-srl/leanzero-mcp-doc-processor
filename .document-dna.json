@@ -22,58 +22,340 @@
   "usage": {
     "categories": {
       "engineering": 1,
-      "business": 2,
+      "business": 8,
       "executive": 1,
-      "technical": 1
+      "technical": 24,
+      "misc": 207,
+      "contracts": 20
     },
     "styles": {
-      "business": 3,
+      "business": 6,
       "technical": 1,
-      "professional": 1
+      "professional": 210,
+      "claude-like": 25,
+      "minimal": 16,
+      "legal": 3
     },
-    "totalDocs": 5,
+    "totalDocs": 261,
     "overrides": {
-      "stylePreset": 4,
-      "footer": 5
+      "stylePreset": 45,
+      "footer": 261
     },
     "correlations": {
       "engineering+business": 1,
-      "business+business": 1,
+      "business+business": 4,
       "executive+business": 1,
       "technical+technical": 1,
-      "business+professional": 1
+      "business+professional": 4,
+      "misc+claude-like": 25,
+      "misc+professional": 166,
+      "technical+professional": 23,
+      "misc+minimal": 16,
+      "contracts+professional": 17,
+      "contracts+legal": 3
     },
     "structures": [
       {
-        "signature": "h1:executive summary|h1:key metrics",
-        "category": "engineering",
-        "style": "business",
-        "createdAt": "2026-03-01T19:00:21.701Z"
-      },
-      {
-        "signature": "h1:q1 2026 engineering summary|h1:key accomplishments",
-        "category": "business",
-        "style": "business",
-        "createdAt": "2026-03-01T19:00:21.709Z"
-      },
-      {
-        "signature": "h1:q1 2026 executive summary|h1:key highlights",
-        "category": "executive",
-        "style": "business",
-        "createdAt": "2026-03-01T19:00:21.717Z"
-      },
-      {
-        "signature": "h1:this is a heading",
-        "category": "technical",
-        "style": "technical",
-        "createdAt": "2026-03-01T19:09:11.107Z"
-      },
-      {
-        "signature": "h1:this document outlines all requirements and action|h2:submission process|h2:required issue contents|h2:documentation status|h2:approval criteria|h2:pre-submission checklist|h2:timeline",
-        "category": "business",
+        "signature": "h2:agent paragraph one.",
+        "category": "misc",
         "style": "professional",
-        "createdAt": "2026-03-15T09:04:35.103Z"
+        "createdAt": "2026-06-07T11:00:33.930Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-06-07T11:00:34.322Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T11:01:40.751Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "minimal",
+        "createdAt": "2026-06-07T11:01:40.759Z"
+      },
+      {
+        "signature": "h1:parties",
+        "category": "contracts",
+        "style": "professional",
+        "createdAt": "2026-06-07T11:01:40.765Z"
+      },
+      {
+        "signature": "h2:a\n- x",
+        "category": "contracts",
+        "style": "legal",
+        "createdAt": "2026-06-07T12:50:11.854Z"
+      },
+      {
+        "signature": "h2:a\n- x",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T12:50:11.864Z"
+      },
+      {
+        "signature": "h2:overview",
+        "category": "misc",
+        "style": "claude-like",
+        "createdAt": "2026-06-07T12:52:01.943Z"
+      },
+      {
+        "signature": "h2:agent paragraph one.",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T12:52:01.961Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-06-07T12:52:02.346Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T12:53:11.158Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "minimal",
+        "createdAt": "2026-06-07T12:53:11.166Z"
+      },
+      {
+        "signature": "h1:parties",
+        "category": "contracts",
+        "style": "professional",
+        "createdAt": "2026-06-07T12:53:11.172Z"
+      },
+      {
+        "signature": "h2:overview",
+        "category": "misc",
+        "style": "claude-like",
+        "createdAt": "2026-06-07T13:07:49.014Z"
+      },
+      {
+        "signature": "h2:agent paragraph one.",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T13:07:49.032Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-06-07T13:07:49.417Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T13:09:01.221Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "minimal",
+        "createdAt": "2026-06-07T13:09:01.229Z"
+      },
+      {
+        "signature": "h1:parties",
+        "category": "contracts",
+        "style": "professional",
+        "createdAt": "2026-06-07T13:09:01.235Z"
+      },
+      {
+        "signature": "h2:overview",
+        "category": "misc",
+        "style": "claude-like",
+        "createdAt": "2026-06-07T15:16:48.568Z"
+      },
+      {
+        "signature": "h2:agent paragraph one.",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T15:16:48.585Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-06-07T15:16:48.968Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T15:18:02.473Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "minimal",
+        "createdAt": "2026-06-07T15:18:02.481Z"
+      },
+      {
+        "signature": "h1:parties",
+        "category": "contracts",
+        "style": "professional",
+        "createdAt": "2026-06-07T15:18:02.487Z"
+      },
+      {
+        "signature": "h2:overview",
+        "category": "misc",
+        "style": "claude-like",
+        "createdAt": "2026-06-07T16:11:58.085Z"
+      },
+      {
+        "signature": "h2:agent paragraph one.",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T16:11:58.102Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-06-07T16:11:58.483Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T16:13:14.620Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "minimal",
+        "createdAt": "2026-06-07T16:13:14.627Z"
+      },
+      {
+        "signature": "h1:parties",
+        "category": "contracts",
+        "style": "professional",
+        "createdAt": "2026-06-07T16:13:14.633Z"
+      },
+      {
+        "signature": "h2:overview",
+        "category": "misc",
+        "style": "claude-like",
+        "createdAt": "2026-06-07T16:40:52.620Z"
+      },
+      {
+        "signature": "h2:agent paragraph one.",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T16:40:52.638Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-06-07T16:40:53.018Z"
+      },
+      {
+        "signature": "h2:overview",
+        "category": "misc",
+        "style": "claude-like",
+        "createdAt": "2026-06-07T16:41:57.711Z"
+      },
+      {
+        "signature": "h2:agent paragraph one.",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T16:41:57.728Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-06-07T16:41:58.106Z"
+      },
+      {
+        "signature": "h2:overview",
+        "category": "misc",
+        "style": "claude-like",
+        "createdAt": "2026-06-07T17:57:31.365Z"
+      },
+      {
+        "signature": "h2:agent paragraph one.",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T17:57:31.383Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-06-07T17:57:31.763Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T17:58:52.585Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "minimal",
+        "createdAt": "2026-06-07T17:58:52.592Z"
+      },
+      {
+        "signature": "h1:parties",
+        "category": "contracts",
+        "style": "professional",
+        "createdAt": "2026-06-07T17:58:52.599Z"
+      },
+      {
+        "signature": "h2:overview",
+        "category": "misc",
+        "style": "claude-like",
+        "createdAt": "2026-06-07T18:06:22.490Z"
+      },
+      {
+        "signature": "h2:agent paragraph one.",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T18:06:22.508Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-06-07T18:06:22.887Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-06-07T18:07:46.048Z"
+      },
+      {
+        "signature": "h1:overview",
+        "category": "misc",
+        "style": "minimal",
+        "createdAt": "2026-06-07T18:07:46.055Z"
+      },
+      {
+        "signature": "h1:parties",
+        "category": "contracts",
+        "style": "professional",
+        "createdAt": "2026-06-07T18:07:46.061Z"
+      },
+      {
+        "signature": "h2:canary\n- goose-isolation-canary-1789900346959-a-on",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-09-20T10:32:28.280Z"
       }
-    ]
+    ],
+    "claudeLikeDocuments": 209
   }
 }
