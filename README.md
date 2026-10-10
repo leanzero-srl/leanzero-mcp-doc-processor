@@ -557,15 +557,26 @@ workspace directory, `<DATA_DIR>/workspaces/<key id>/`:
   path), lineage, Document DNA and learned blueprints are stored in the workspace, so a key only ever
   sees and changes its own entries.
 - **URLs.** `read-doc url`, `uploadUrl` and `fact-check webSearchUrl` must be `https://` and must not
-  resolve to a loopback, private, link-local or CGNAT address; redirects are refused. `create-pdf`
-  renders without page JavaScript and fetches only `data:` and public `https://` sub-resources.
+  resolve to a loopback, private, link-local or CGNAT address; redirects are refused. The address is
+  checked again at connect time on the connection that is actually used (a pinned, guarded DNS
+  lookup), so a hostile DNS server cannot answer "public" for the check and "127.0.0.1" for the fetch.
+  `create-pdf` renders without page JavaScript; its `https://` sub-resources are fetched by the server
+  over the same pinned connection and handed to Chromium (Chromium never resolves them itself), and
+  only `data:` and public `https://` sub-resources load.
+- **Revoked keys.** Revoking a key (admin or `/v1/provision` DELETE) moves its workspace to
+  `<DATA_DIR>/revoked-workspaces/<key id>--<epoch ms>/` at once; it is deleted after
+  `REVOKED_WORKSPACE_RETENTION_DAYS` (default 7, `0` = straight away), swept on every revoke and every
+  6 hours.
+- **Disk cap.** Each workspace is capped at `WORKSPACE_QUOTA_MB` (default 100). A key at or over its
+  cap gets `Workspace full: ...` from every tool that can write; reading and listing tools keep working.
 - **Audit.** Each key's `lastUsedAt` is updated (at most once a minute) and every tool call logs one
   metadata line: `tool_call {tenant, tool, workspace: inside|outside, result: ok|error|refused, ms}`.
   Document contents, paths and URLs are never logged.
 
 The admin token only manages keys (`/v1/admin`, localhost only); it does not grant wider file access.
 The stdio transport (`npm start`) has no key and no workspace: it runs as the local user, on the local
-user's files, exactly as before. Guarded by `npm run test:confinement`.
+user's files, exactly as before. Guarded by `npm run test:confinement`, `test:rebinding` and
+`test:lifecycle`.
 
 ## Testing
 
@@ -576,6 +587,8 @@ npm run test:schemas        # MCP schema invariants + detect-format E2E — 6 te
 npm run test:render         # parseMarkdownToDocx + create-doc round-trip — 15 tests (node:test)
 npm run test:upload         # uploadFileToTarget + create-doc upload integration — 18 tests (node:test)
 npm run test:confinement    # hosted-key workspace confinement, isolation and SSRF guards — 26 tests (node:test)
+npm run test:rebinding      # DNS rebinding: check and fetch use one resolution (stub resolver, loopback canary)
+npm run test:lifecycle      # revoked-key workspace archive/retention + per-key disk cap
 npm run test:pdf            # pdf-parse regression on a generated PDF (test/fixtures/make-pdf.js)
 npm run test:all            # Run every suite in sequence
 npm run lint:no-console-log # Fail if any src/ file uses console.log (corrupts MCP stdio)

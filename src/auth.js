@@ -5,6 +5,7 @@ import argon2 from "argon2";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import { log } from "./utils/logger.js";
+import { archiveTenantWorkspace } from "./utils/workspace.js";
 
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
 const TENANTS_PATH = path.join(DATA_DIR, "tenants.json");
@@ -200,12 +201,22 @@ export async function createTenant(displayName) {
   return { tenantId, bearer, displayName };
 }
 
-/** Revoke (delete) a tenant by id. Returns false if it did not exist. */
+/**
+ * Revoke (delete) a tenant by id. Returns false if it did not exist. Its
+ * workspace folder is moved out of service right away and deleted after the
+ * retention period (src/utils/workspace.js archiveTenantWorkspace).
+ */
 export async function revokeTenant(tenantId) {
   const tenants = await loadTenants();
   if (!tenants[tenantId]) return false;
   delete tenants[tenantId];
   await saveTenants(tenants);
+  try {
+    const archived = archiveTenantWorkspace(tenantId);
+    log("info", "[auth] revoked key's workspace archived", { tenantId, archived: !!archived });
+  } catch (err) {
+    log("warn", "[auth] could not archive revoked key's workspace", { tenantId, error: err.message });
+  }
   return true;
 }
 

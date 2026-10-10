@@ -22,7 +22,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import net from "node:net";
+import dnsCb from "node:dns";
 import dns from "node:dns/promises";
+
+import { Agent, fetch as undiciFetch } from "undici";
 
 import { requestContext } from "./request-context.js";
 
@@ -62,6 +65,93 @@ export function workspaceForTenant(tenantId) {
   const dir = path.join(getWorkspacesBase(), tenantId);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return fs.realpathSync(dir);
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Where revoked keys' workspaces wait out their retention before deletion. */
+export function getRevokedWorkspacesBase() {
+  return path.join(process.env.DATA_DIR || process.cwd(), "revoked-workspaces");
+}
+
+/** Retention for a revoked key's files (REVOKED_WORKSPACE_RETENTION_DAYS, default 7; 0 = delete at once). */
+export function revokedRetentionMs() {
+  const days = Number(process.env.REVOKED_WORKSPACE_RETENTION_DAYS);
+  return (Number.isFinite(days) && days >= 0 ? days : 7) * DAY_MS;
+}
+
+/**
+ * Delete archived workspaces whose retention has run out. The revocation time
+ * is in the folder name (<tenantId>--<epochMs>), because a rename does not
+ * touch the folder's mtime. Never throws; returns the names it removed.
+ */
+export function purgeExpiredRevokedWorkspaces(now = Date.now()) {
+  const base = getRevokedWorkspacesBase();
+  const removed = [];
+  let entries = [];
+  try {
+    entries = fs.readdirSync(base);
+  } catch {
+    return removed;
+  }
+  for (const name of entries) {
+    const m = /^[A-Za-z0-9_-]{1,64}--(\d{13})$/.exec(name);
+    if (!m || now - Number(m[1]) < revokedRetentionMs()) continue;
+    try {
+      fs.rmSync(path.join(base, name), { recursive: true, force: true });
+      removed.push(name);
+    } catch { /* retried on the next sweep */ }
+  }
+  return removed;
+}
+
+/**
+ * Take a revoked key's workspace out of service: move it to
+ * <DATA_DIR>/revoked-workspaces/<tenantId>--<epochMs> (kept for the retention
+ * period, then deleted by purgeExpiredRevokedWorkspaces). Returns the archive
+ * path, or null when the key never had a workspace.
+ */
+export function archiveTenantWorkspace(tenantId, now = Date.now()) {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(String(tenantId || ""))) throw new Error("invalid tenant id for workspace");
+  const src = path.join(getWorkspacesBase(), tenantId);
+  let archived = null;
+  if (fs.existsSync(src)) {
+    const base = getRevokedWorkspacesBase();
+    fs.mkdirSync(base, { recursive: true, mode: 0o700 });
+    archived = path.join(base, `${tenantId}--${now}`);
+    fs.renameSync(src, archived);
+  }
+  purgeExpiredRevokedWorkspaces(now);
+  return archived;
+}
+
+/** Per-key disk cap in bytes (WORKSPACE_QUOTA_MB, default 100). */
+export function workspaceQuotaBytes() {
+  const mb = Number(process.env.WORKSPACE_QUOTA_MB);
+  return Math.floor((Number.isFinite(mb) && mb > 0 ? mb : 100) * 1024 * 1024);
+}
+
+/** Total bytes of the regular files under `dir` (symlinks are not followed). */
+export function directorySizeBytes(dir) {
+  let total = 0;
+  const stack = [dir];
+  while (stack.length) {
+    const cur = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(cur, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      const p = path.join(cur, e.name);
+      if (e.isDirectory()) stack.push(p);
+      else if (e.isFile()) {
+        try { total += fs.lstatSync(p).size; } catch { /* vanished */ }
+      }
+    }
+  }
+  return total;
 }
 
 /** The calling key's workspace, or null for stdio / trusted local callers. */
@@ -236,9 +326,10 @@ async function publicHttpsProblem(input) {
  * host resolves to is public. Hosted keys only; stdio callers keep the old
  * behaviour (the fetching tools themselves still require https).
  *
- * Residual risk (documented): DNS is resolved once here; a hostile DNS server
- * could answer differently for the actual fetch (rebinding). Every fetch site
- * refuses redirects, so a public URL cannot bounce inwards.
+ * This is the early, friendly refusal. It is NOT what stops DNS rebinding: a
+ * hostile DNS server can answer "public" here and "127.0.0.1" a moment later
+ * for the real connection. The fetch itself goes through callerFetch(), whose
+ * connect-time lookup re-checks the address the socket actually uses.
  *
  * @param {string} input
  * @param {string} [label] - parameter name, for the error message
@@ -255,4 +346,62 @@ export async function assertPublicHttpsUrl(input, label = "url") {
 /** Boolean form of the same check, applied regardless of transport. */
 export async function isPublicHttpsUrl(input) {
   return (await publicHttpsProblem(input)) === null;
+}
+
+/**
+ * dns.lookup-shaped resolver for the pinned agent below. It runs at CONNECT
+ * time, so the address it approves is the address the socket connects to —
+ * checking and connecting are one resolution, not two (DNS-rebinding-proof).
+ * Node skips `lookup` for IP-literal hosts; guardedFetch checks those itself.
+ */
+function guardedLookup(hostname, options, callback) {
+  const cb = typeof options === "function" ? options : callback;
+  const opts = typeof options === "function" ? {} : { ...(options || {}) };
+  dnsCb.lookup(hostname, { ...opts, all: true }, (err, addresses) => {
+    if (err) return cb(err);
+    const list = Array.isArray(addresses) ? addresses : [];
+    const bad = list.find((a) => isBlockedAddress(a.address));
+    if (!list.length || bad) {
+      return cb(new UrlNotAllowedError(
+        `url not allowed: "${hostname}" resolved to a private, loopback or link-local address${bad ? ` (${bad.address})` : ""} when connecting. Hosted API keys may only call public https endpoints.`,
+      ));
+    }
+    if (opts.all) return cb(null, list);
+    return cb(null, list[0].address, list[0].family);
+  });
+}
+
+// One pooled agent for every hosted outbound request to a caller-chosen URL.
+const pinnedAgent = new Agent({ connect: { lookup: guardedLookup } });
+
+/**
+ * fetch() for a URL a hosted key handed us, with the connection pinned to an
+ * address that passed the public check at connect time. Redirects are always
+ * refused. Throws UrlNotAllowedError when the host is (or turns into) a
+ * private / loopback / link-local address.
+ */
+export async function guardedFetch(url, init = {}) {
+  let host;
+  try {
+    host = new URL(String(url)).hostname.replace(/^\[|\]$/g, "");
+  } catch {
+    throw new UrlNotAllowedError("url not allowed: not a valid URL.");
+  }
+  if (net.isIP(host) && isBlockedAddress(host)) {
+    throw new UrlNotAllowedError(`url not allowed: "${host}" is a private, loopback or link-local address. Hosted API keys may only call public https endpoints.`);
+  }
+  try {
+    return await undiciFetch(url, { ...init, redirect: "error", dispatcher: pinnedAgent });
+  } catch (err) {
+    if (err?.cause?.code === "URL_NOT_ALLOWED") throw err.cause;
+    throw err;
+  }
+}
+
+/**
+ * The fetch to use for a caller-supplied URL: pinned (guardedFetch) for a
+ * hosted key, the plain global fetch for stdio (unchanged local behaviour).
+ */
+export function callerFetch(url, init) {
+  return getTenantWorkspace() ? guardedFetch(url, init) : fetch(url, init);
 }

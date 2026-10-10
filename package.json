@@ -27,8 +27,10 @@
     "test:fact-check": "node --test test/test-fact-check.js",
     "test:format-router": "node --test test/test-format-router.js",
     "test:confinement": "node --test test/test-workspace-confinement.js",
+    "test:rebinding": "node --test test/test-dns-rebinding.js",
+    "test:lifecycle": "node --test test/test-workspace-lifecycle.js",
     "insights": "node scripts/insights-report.mjs",
-    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload && npm run test:http && npm run test:auth && npm run test:oauth && npm run test:pdf && npm run test:create-tags && npm run test:create-pdf && npm run test:create-pptx && npm run test:fact-check && npm run test:format-router && npm run test:confinement",
+    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload && npm run test:http && npm run test:auth && npm run test:oauth && npm run test:pdf && npm run test:create-tags && npm run test:create-pdf && npm run test:create-pptx && npm run test:fact-check && npm run test:format-router && npm run test:confinement && npm run test:rebinding && npm run test:lifecycle",
     "lint:no-console-log": "! grep -rn 'console\\.log(' src/ --include='*.js'"
   },
   "dependencies": {
@@ -44,6 +46,7 @@
     "pdf-parse": "^2.4.5",
     "pptxgenjs": "^4.0.1",
     "puppeteer": "^25.1.0",
+    "undici": "^7.30.0",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0"
   }

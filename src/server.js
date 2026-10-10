@@ -15,7 +15,7 @@ import { renderConsentPage } from "./oauth/consent.js";
 import path from "path";
 import { requestContext } from "./utils/request-context.js";
 import { verifyDownloadToken } from "./utils/download-registry.js";
-import { workspaceForTenant } from "./utils/workspace.js";
+import { workspaceForTenant, purgeExpiredRevokedWorkspaces } from "./utils/workspace.js";
 
 setupLogging();
 
@@ -254,4 +254,12 @@ if (isDirectRun) {
   app.listen(PORT, BIND_HOST, () => {
     log("info", `doc-processor HTTP listening on ${BIND_HOST}:${PORT}`);
   });
+  // Revoked keys' archived workspaces are deleted once their retention ends
+  // (also swept on every revoke).
+  const sweep = () => {
+    const removed = purgeExpiredRevokedWorkspaces();
+    if (removed.length) log("info", "[boot] purged expired revoked workspaces", { count: removed.length });
+  };
+  sweep();
+  setInterval(sweep, 6 * 60 * 60 * 1000).unref();
 }

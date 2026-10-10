@@ -9,7 +9,7 @@ import {
 } from "../utils/registry.js";
 import { log } from "../utils/logger.js";
 import { requestContext } from "../utils/request-context.js";
-import { getTenantWorkspace } from "../utils/workspace.js";
+import { getTenantWorkspace, callerFetch } from "../utils/workspace.js";
 
 /**
  * Root directory for all generated files.
@@ -569,7 +569,8 @@ export async function uploadFileToTarget({ filePath, uploadUrl, uploadAuthHeader
     size: buf.length,
   };
 
-  const resp = await fetch(uploadUrl, {
+  // callerFetch: pinned connection for hosted keys (see read-doc-tool.js).
+  const resp = await callerFetch(uploadUrl, {
     method: "POST",
     headers: {
       Authorization: uploadAuthHeader,
