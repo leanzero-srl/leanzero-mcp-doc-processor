@@ -470,3 +470,55 @@ describe("create-doc upload integration", () => {
     assert.strictEqual(result.enforcement, undefined);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Upload deliveries are one-shot: a same-title document must not be refused.
+// CogniRunner's generate-doc post-function creates one document per issue and
+// hands it straight to Jira through the upload bridge; the caller never edits a
+// server-side copy, so create-doc's "already exists, use edit-doc" refusal (and
+// its version cleanup) made the SECOND issue with the same title fail.
+// Found live 2026-10-10 (wolfaenpak dev, "Docproc Bridge Live Brief").
+// ---------------------------------------------------------------------------
+describe("create-doc upload delivery skips the same-title refusal", () => {
+  let tempDir;
+  let originalCwd;
+
+  beforeEach(async () => {
+    originalCwd = process.cwd();
+    tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "upload-dup-"));
+    process.chdir(tempDir); // stdio: the registry lives in cwd — keep it out of the repo
+  });
+
+  afterEach(async () => {
+    restoreFetch();
+    process.chdir(originalCwd);
+    await fs.promises.rm(tempDir, { recursive: true, force: true });
+  });
+
+  test("two uploads with the same title both succeed, as separate files", async () => {
+    let n = 0;
+    globalThis.fetch = async () => jsonOk({ success: true, attachment: { id: String(70000 + ++n), filename: "x.docx" } });
+    const args = {
+      title: "Same Title Upload Delivery",
+      content: "## Problem\n- one\n\n## Impact\n- two",
+      uploadUrl: "https://example.test/upload?t=mock",
+      uploadAuthHeader: "Bearer mock-bearer",
+    };
+    const first = await createDoc({ ...args });
+    const second = await createDoc({ ...args });
+    assert.strictEqual(first.success, true, JSON.stringify(first).slice(0, 300));
+    assert.strictEqual(second.success, true, `second same-title upload was refused: ${String(second.message).slice(0, 200)}`);
+    assert.strictEqual(second.uploaded, true);
+    assert.notStrictEqual(second.filePath, first.filePath, "the second local copy must not overwrite the first");
+    assert.ok(fs.existsSync(first.filePath) && fs.existsSync(second.filePath));
+  });
+
+  test("control: without an upload the agent still gets the edit-doc guidance", async () => {
+    const args = { title: "Same Title Agent Doc", content: "## Problem\n- one" };
+    const first = await createDoc({ ...args });
+    const second = await createDoc({ ...args });
+    assert.strictEqual(first.success, true);
+    assert.strictEqual(second.success, false);
+    assert.strictEqual(second.duplicate, true);
+  });
+});
