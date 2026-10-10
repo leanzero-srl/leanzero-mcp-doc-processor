@@ -29,7 +29,9 @@ export async function callWebSearchTool(cfg, toolName, args) {
   if (cfg.serperKey) headers["X-Serper-Key"] = cfg.serperKey;
   if (cfg.githubToken) headers["X-GitHub-Token"] = cfg.githubToken;
 
-  const transport = new StreamableHTTPClientTransport(new URL(target), { requestInit: { headers } });
+  // redirect: "error" — a caller-supplied URL that passed the public-https
+  // check must not be able to bounce this server to a loopback/private host.
+  const transport = new StreamableHTTPClientTransport(new URL(target), { requestInit: { headers, redirect: "error" } });
   const client = new Client({ name: "doc-processor-cross-mcp", version: "1.0.0" });
   await client.connect(transport);
   try {

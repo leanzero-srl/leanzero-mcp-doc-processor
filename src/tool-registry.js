@@ -25,6 +25,7 @@ import { handleDriftMonitor } from "./tools/drift-tool.js";
 import { handleGetLineage } from "./tools/lineage-tool.js";
 import { factCheck } from "./tools/fact-check.js";
 import { detectFormat } from "./services/format-router.js";
+import { confinePath, assertPublicHttpsUrl, getTenantId, getTenantWorkspace } from "./utils/workspace.js";
 
 export const SERVER_INSTRUCTIONS = [
   "This server reads, creates, and edits PDF / DOCX / Markdown / Excel files.",
@@ -817,7 +818,71 @@ function wrapCreateResult(r, toolName) {
   return { content, isError: !r.success };
 }
 
+// Every argument that names a file on this server, and every argument that
+// names a URL this server will fetch. A hosted key's paths are confined to its
+// workspace and its URLs must be public https (src/utils/workspace.js).
+// test/test-workspace-confinement.js fails if a tool schema grows a path- or
+// URL-like parameter that is not listed here.
+export const PATH_ARGS = ["filePath", "outputPath"];
+export const URL_ARGS = ["url", "uploadUrl", "webSearchUrl"];
+
+/**
+ * Confine a hosted call's path/URL arguments in place. No-op for stdio.
+ * Sets audit.workspace to "outside" when a path argument was refused.
+ * @throws {PathNotAllowedError|UrlNotAllowedError}
+ */
+async function confineToolArgs(params, audit) {
+  if (!params || typeof params !== "object" || !getTenantWorkspace()) return;
+  for (const key of PATH_ARGS) {
+    const value = params[key];
+    if (value === undefined || value === null || value === "") continue;
+    try {
+      params[key] = confinePath(value, key);
+    } catch (err) {
+      audit.workspace = "outside";
+      throw err;
+    }
+  }
+  for (const key of URL_ARGS) {
+    const value = params[key];
+    if (value === undefined || value === null || value === "") continue;
+    await assertPublicHttpsUrl(value, key);
+  }
+}
+
+/**
+ * Tool-call entry point: confine the caller's arguments, run the tool, and log
+ * one metadata-only audit line (tool, key id, inside/outside workspace,
+ * result, ms) — never document contents, paths or URLs.
+ */
 async function dispatchToolCall(request) {
+  const name = request.params?.name;
+  const started = Date.now();
+  // workspace: "inside" for every hosted call that ran (all its file access is
+  // confined), "outside" when a path was refused, "n/a" for stdio.
+  const audit = { tenant: getTenantId(), tool: name, workspace: getTenantWorkspace() ? "inside" : "n/a", result: "ok" };
+  try {
+    try {
+      await confineToolArgs(request.params?.arguments, audit);
+    } catch (err) {
+      if (err?.code !== "PATH_NOT_ALLOWED" && err?.code !== "URL_NOT_ALLOWED") throw err;
+      audit.result = "refused";
+      audit.reason = err.code;
+      return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
+    }
+    const response = await runTool(request);
+    if (response?.isError) audit.result = "error";
+    return response;
+  } catch (err) {
+    audit.result = "error";
+    throw err;
+  } finally {
+    audit.ms = Date.now() - started;
+    log("info", "tool_call", audit);
+  }
+}
+
+async function runTool(request) {
   const { name, arguments: params } = request.params;
 
   log("info", "Tool called:", { toolName: name });
