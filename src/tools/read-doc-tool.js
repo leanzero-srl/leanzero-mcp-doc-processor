@@ -16,6 +16,7 @@ import { imageProcessor } from "../utils/image-processor.js";
 import { log, logFunctionCall, logPath } from "../utils/logger.js";
 import { recordRead } from "../services/lineage-tracker.js";
 import { classifyDocumentContent } from "../utils/categorizer.js";
+import { callerFetch } from "../utils/workspace.js";
 
 // Store context for documents to support follow-up queries (focused mode)
 const documentContext = new Map();
@@ -45,7 +46,9 @@ export async function fetchToTempFile(url, authHeader, suggestedFilename) {
   }
   log("info", "read-doc remote fetch", { url: safeUrl });
 
-  const resp = await fetch(url, {
+  // callerFetch: for a hosted key the connection is pinned to an address that
+  // passed the public check at connect time (no DNS rebinding to loopback).
+  const resp = await callerFetch(url, {
     method: "GET",
     headers: { Authorization: authHeader, Accept: "application/json" },
     redirect: "error",

@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 import { log } from "../utils/logger.js";
+import { getTenantWorkspace, guardedFetch } from "../utils/workspace.js";
 
 /**
  * Cross-MCP bridge: doc-processor acts as an MCP CLIENT to the hosted
@@ -18,7 +19,7 @@ export const DEFAULT_WEB_SEARCH_URL =
 
 /**
  * Call one tool on the web-search MCP. Returns { ok, text, isError }.
- * @param {{url?:string, bearer?:string, serperKey?:string, githubToken?:string}} cfg
+ * @param {{url?:string, bearer?:string, serperKey?:string, githubToken?:string, callerUrl?:boolean}} cfg
  * @param {string} toolName
  * @param {Object} args
  */
@@ -31,7 +32,11 @@ export async function callWebSearchTool(cfg, toolName, args) {
 
   // redirect: "error" — a caller-supplied URL that passed the public-https
   // check must not be able to bounce this server to a loopback/private host.
-  const transport = new StreamableHTTPClientTransport(new URL(target), { requestInit: { headers, redirect: "error" } });
+  // A hosted key's own URL also gets a pinned connection (guardedFetch), so a
+  // hostile DNS cannot switch it to a private address after the check.
+  const opts = { requestInit: { headers, redirect: "error" } };
+  if (cfg.callerUrl && getTenantWorkspace()) opts.fetch = guardedFetch;
+  const transport = new StreamableHTTPClientTransport(new URL(target), opts);
   const client = new Client({ name: "doc-processor-cross-mcp", version: "1.0.0" });
   await client.connect(transport);
   try {

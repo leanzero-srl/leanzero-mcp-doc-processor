@@ -14,7 +14,7 @@
  */
 
 import { marked } from "marked";
-import { getTenantWorkspace, isPublicHttpsUrl } from "../utils/workspace.js";
+import { getTenantWorkspace, isPublicHttpsUrl, guardedFetch } from "../utils/workspace.js";
 import puppeteer from "puppeteer";
 
 import { log } from "../utils/logger.js";
@@ -280,6 +280,30 @@ function twipsToIn(twips, fallbackIn) {
   return `${fallbackIn}in`;
 }
 
+const SUBRESOURCE_MAX_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Fetch one sub-resource of a hosted render (an <img>, a stylesheet) over the
+ * pinned connection (guardedFetch). Returns a request.respond() payload, or
+ * null when the URL is not public https or the body is over the size cap.
+ */
+async function fetchSubresource(url) {
+  if (!(await isPublicHttpsUrl(url))) return null;
+  const resp = await guardedFetch(url, { method: "GET", signal: AbortSignal.timeout(15_000) });
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of resp.body || []) {
+    size += chunk.length;
+    if (size > SUBRESOURCE_MAX_BYTES) return null;
+    chunks.push(Buffer.from(chunk));
+  }
+  return {
+    status: resp.status,
+    contentType: resp.headers.get("content-type") || undefined,
+    body: Buffer.concat(chunks),
+  };
+}
+
 /**
  * Render a markdown document to a PDF buffer.
  *
@@ -321,8 +345,11 @@ export async function renderMarkdownToPdf({ title, markdown, styleConfig, header
           request.continue().catch(() => {});
           return;
         }
-        isPublicHttpsUrl(url)
-          .then((ok) => (ok ? request.continue() : request.abort("blockedbyclient")))
+        // Never request.continue() here: Chromium would resolve the host again
+        // itself, and a rebinding DNS could answer 127.0.0.1 the second time.
+        // We fetch over the pinned connection and hand Chromium the bytes.
+        fetchSubresource(url)
+          .then((r) => (r ? request.respond(r) : request.abort("blockedbyclient")))
           .catch(() => request.abort("blockedbyclient").catch(() => {}));
       });
     }
