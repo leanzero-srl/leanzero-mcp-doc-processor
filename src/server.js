@@ -9,12 +9,13 @@ import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from "@modelconte
 
 import { setupLogging, log } from "./utils/logger.js";
 import { registerAllTools, SERVER_INSTRUCTIONS, TOOL_DEFINITIONS } from "./tool-registry.js";
-import { requireBearer, tenantRateLimiter, mountAdminRoutes, mountProvisionRoutes, setResourceMetadataUrl } from "./auth.js";
+import { requireBearer, tenantRateLimiter, mountAdminRoutes, mountProvisionRoutes, setResourceMetadataUrl, touchTenant } from "./auth.js";
 import { DocProcessorOAuthProvider } from "./oauth/provider.js";
 import { renderConsentPage } from "./oauth/consent.js";
 import path from "path";
 import { requestContext } from "./utils/request-context.js";
 import { verifyDownloadToken } from "./utils/download-registry.js";
+import { workspaceForTenant } from "./utils/workspace.js";
 
 setupLogging();
 
@@ -192,14 +193,33 @@ export function buildApp() {
       || (typeof req.query.zai_key === "string" ? req.query.zai_key : undefined)
       || undefined;
 
-    // Per-request output sub-directory (X-Output-Dir header or ?output_dir).
-    // Sandboxed server-side in getOutputRoot() — see the note there.
+    // Per-request output sub-directory (X-Output-Dir header or ?output_dir): a
+    // sub-folder of the caller's own workspace (see getOutputRoot()). Refuse
+    // anything that tries to climb out of it rather than silently rewriting it.
     const outputDir = req.get("x-output-dir")
       || (typeof req.query.output_dir === "string" ? req.query.output_dir : undefined)
       || undefined;
+    if (outputDir && (/(^|[\\/])\.\.([\\/]|$)/.test(outputDir) || outputDir.trim().startsWith("~") || outputDir.includes("\0"))) {
+      return res.status(400).json({
+        jsonrpc: "2.0",
+        error: { code: -32602, message: "X-Output-Dir not allowed: it must name a sub-folder of your workspace (no '..' or '~')." },
+        id: req.body?.id ?? null,
+      });
+    }
+
+    // Every hosted key works inside its own workspace directory; the tools
+    // confine all file paths to it (src/utils/workspace.js).
+    let workspace;
+    try {
+      workspace = workspaceForTenant(req.tenant.id);
+    } catch (err) {
+      log("error", "[mcp] workspace unavailable", { tenant: req.tenant?.id, error: err.message });
+      return res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "internal error" }, id: req.body?.id ?? null });
+    }
+    touchTenant(req.tenant.id);
 
     try {
-      await requestContext.run({ zaiKey, outputDir }, async () => {
+      await requestContext.run({ zaiKey, outputDir, tenantId: req.tenant.id, workspace }, async () => {
         await server.connect(transport);
         await transport.handleRequest(req, res, req.body);
       });

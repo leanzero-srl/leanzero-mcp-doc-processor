@@ -12,17 +12,21 @@
 import fs from "fs";
 import path from "path";
 import { log } from "./logger.js";
+import { getProjectRoot } from "./workspace.js";
 
 const BLUEPRINT_FILENAME = ".document-blueprints.json";
 
+// Cache keyed by file path as well as mtime: each hosted key has its own
+// blueprint file, and two files can share an mtime.
 let _cache = null;
 let _cacheMtime = 0;
+let _cachePath = null;
 
 /**
  * Get the blueprint file path.
  */
 function getBlueprintPath(projectRoot) {
-  return path.join(projectRoot || process.cwd(), BLUEPRINT_FILENAME);
+  return path.join(projectRoot || getProjectRoot(), BLUEPRINT_FILENAME);
 }
 
 /**
@@ -33,12 +37,13 @@ function loadBlueprints(projectRoot) {
 
   try {
     const stat = fs.statSync(filePath);
-    if (_cache && _cacheMtime === stat.mtimeMs) {
+    if (_cache && _cacheMtime === stat.mtimeMs && _cachePath === filePath) {
       return _cache;
     }
     const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
     _cache = data;
     _cacheMtime = stat.mtimeMs;
+    _cachePath = filePath;
     return data;
   } catch (err) {
     if (err.code === "ENOENT") return {};
@@ -55,6 +60,7 @@ function writeBlueprints(blueprints, projectRoot) {
   fs.writeFileSync(filePath, JSON.stringify(blueprints, null, 2), "utf-8");
   _cache = blueprints;
   _cacheMtime = fs.statSync(filePath).mtimeMs;
+  _cachePath = filePath;
 }
 
 /**

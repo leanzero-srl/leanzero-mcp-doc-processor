@@ -6,21 +6,22 @@
 import fs from "fs/promises";
 import path from "path";
 
-const REGISTRY_PATH = path.join(process.cwd(), "docs", "registry.json");
-const LOCK_FILE_PATH = path.join(process.cwd(), "docs", ".registry.lock");
+import { getProjectRoot } from "./workspace.js";
 
 /**
- * Get the absolute registry file path
+ * Get the absolute registry file path. Resolved per call: a hosted key's
+ * registry (documents, drift watchlist, lineage) lives in its own workspace,
+ * so it only ever sees its own entries; stdio keeps <cwd>/docs/registry.json.
  */
 export function getRegistryPath() {
-  return REGISTRY_PATH;
+  return path.join(getProjectRoot(), "docs", "registry.json");
 }
 
 /**
- * Get the absolute lock file path
+ * Get the absolute lock file path (next to the registry it guards).
  */
 export function getLockFilePath() {
-  return LOCK_FILE_PATH;
+  return path.join(getProjectRoot(), "docs", ".registry.lock");
 }
 
 /**
@@ -28,12 +29,19 @@ export function getLockFilePath() {
  * @returns {boolean} True if lock acquired, false otherwise
  */
 export async function acquireLock() {
+  const lockFile = getLockFilePath();
   try {
-    await fs.writeFile(LOCK_FILE_PATH, String(process.pid), { flag: "wx" });
+    await fs.writeFile(lockFile, String(process.pid), { flag: "wx" });
     return true;
   } catch (err) {
     if (err.code === "EEXIST") {
       return false;
+    }
+    if (err.code === "ENOENT") {
+      // A fresh workspace has no docs/ yet; without this the first save (e.g.
+      // a drift-monitor watch before any create) failed with ENOENT.
+      await fs.mkdir(path.dirname(lockFile), { recursive: true });
+      return acquireLock();
     }
     throw err;
   }
@@ -44,7 +52,7 @@ export async function acquireLock() {
  */
 export async function releaseLock() {
   try {
-    await fs.unlink(LOCK_FILE_PATH);
+    await fs.unlink(getLockFilePath());
   } catch (err) {
     // Only ignore the expected case where lock file doesn't exist
     if (err.code !== "ENOENT") {
@@ -58,6 +66,12 @@ export async function releaseLock() {
  * @returns {Object} Registry object with documents array
  */
 export async function loadRegistry() {
+  // Nothing registered yet: answer without locking (which would create docs/).
+  try {
+    await fs.access(getRegistryPath());
+  } catch {
+    return { documents: [], version: 1, lastUpdated: null };
+  }
   try {
     // Wait for lock
     while (!await acquireLock()) {
@@ -65,7 +79,7 @@ export async function loadRegistry() {
     }
     
     try {
-      const data = await fs.readFile(REGISTRY_PATH, "utf8");
+      const data = await fs.readFile(getRegistryPath(), "utf8");
       return JSON.parse(data);
     } finally {
       await releaseLock();
@@ -90,12 +104,12 @@ export async function saveRegistry(registry) {
   
   try {
     // Ensure docs directory exists
-    const docsDir = path.dirname(REGISTRY_PATH);
-    await fs.mkdir(docsDir, { recursive: true });
-    
+    const registryPath = getRegistryPath();
+    await fs.mkdir(path.dirname(registryPath), { recursive: true });
+
     registry.lastUpdated = new Date().toISOString();
     await fs.writeFile(
-      REGISTRY_PATH,
+      registryPath,
       JSON.stringify(registry, null, 2),
       "utf8"
     );
