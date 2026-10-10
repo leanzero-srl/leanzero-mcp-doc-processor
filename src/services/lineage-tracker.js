@@ -8,9 +8,22 @@
 
 import { loadRegistry, saveRegistry } from "../utils/registry.js";
 import { log } from "../utils/logger.js";
+import { getProjectRoot } from "../utils/workspace.js";
 
-// Session-scoped state: tracks which documents were read recently
-const recentlyRead = new Map(); // filePath -> { readAt, tool }
+// Session-scoped state: which documents were read recently, kept PER PROJECT
+// ROOT (= per hosted key's workspace; the cwd for stdio). A single shared map
+// recorded one key's reads as sources of another key's documents.
+const recentlyReadByRoot = new Map(); // projectRoot -> Map(filePath -> { readAt, tool })
+
+function readsForCaller() {
+  const root = getProjectRoot();
+  let reads = recentlyReadByRoot.get(root);
+  if (!reads) {
+    reads = new Map();
+    recentlyReadByRoot.set(root, reads);
+  }
+  return reads;
+}
 
 /**
  * Record that a document was read in the current session.
@@ -20,7 +33,7 @@ const recentlyRead = new Map(); // filePath -> { readAt, tool }
  * @param {string} tool - Name of the tool that read it
  */
 export function recordRead(filePath, tool) {
-  recentlyRead.set(filePath, {
+  readsForCaller().set(filePath, {
     readAt: new Date().toISOString(),
     tool,
   });
@@ -36,6 +49,7 @@ export function recordRead(filePath, tool) {
  * @returns {Promise<Object|null>} Lineage record or null if no sources
  */
 export async function recordWrite(outputPath) {
+  const recentlyRead = readsForCaller();
   if (recentlyRead.size === 0) return null;
 
   const sources = [];
@@ -187,7 +201,7 @@ export async function getLineage(filePath, depth = 3) {
  * @returns {Array<Object>} Recently read documents
  */
 export function getRecentlyRead() {
-  return Array.from(recentlyRead.entries()).map(([filePath, info]) => ({
+  return Array.from(readsForCaller().entries()).map(([filePath, info]) => ({
     filePath,
     ...info,
   }));
@@ -197,5 +211,5 @@ export function getRecentlyRead() {
  * Clear the recently-read set (useful for testing).
  */
 export function clearRecentlyRead() {
-  recentlyRead.clear();
+  readsForCaller().clear();
 }
