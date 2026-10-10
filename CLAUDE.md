@@ -595,7 +595,7 @@ The `edit-doc` tool uses XML-level patching (not full document recreation) to pr
 
 1. **`createDoc` auto-categorizes and redirects paths** — `applyCategoryToPath` sends files to `docs/{category}/` even with `enforceDocsFolder: false`. Always use `result.filePath` from the return value, not an assumed path.
 
-2. **Duplicate detection is baked into `create-doc`** — `create-doc` returns `{ success: false, duplicate: true }` when a doc with the same title exists, instructing to use `edit-doc` instead.
+2. **Duplicate detection is baked into `create-doc`** — `create-doc` returns `{ success: false, duplicate: true }` when a doc with the same title exists, instructing to use `edit-doc` instead. EXCEPT for an upload delivery (`uploadUrl` + `uploadAuthHeader`, e.g. CogniRunner's generate-doc): that caller never edits a server-side copy and its capability is single-use, so the title check is skipped (the local copy still gets a `_N` filename). Refusing it broke the second issue with the same title (found live 2026-10-10).
 
 3. **The `docx` library uses half-points** — multiply pt by 2 for font sizes.
 
