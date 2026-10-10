@@ -207,6 +207,7 @@ Receivers MUST NOT respond with 3xx — `fetch` is configured with `redirect: "e
 - **Bounded payload size.** Capped by `WRITE_DOC_MAX_BYTES` env var (default 25 MB).
 - **60-second timeout** on the upload fetch.
 - **Local file is kept on upload failure** — your caller can retry or fall back to the local path.
+- **Hosted server: a confirmed upload removes the server copy** (the receiver holds the file). The response then has `serverCopyRemoved: true` and no `downloadUrl`, so a key that delivers every document never fills its workspace quota. A failed upload keeps the copy; stdio never removes anything.
 
 ### What your RECEIVER should provide
 
