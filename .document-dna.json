@@ -24,24 +24,29 @@
       "engineering": 1,
       "business": 2,
       "executive": 1,
-      "technical": 1
+      "technical": 4,
+      "misc": 15
     },
     "styles": {
       "business": 3,
       "technical": 1,
-      "professional": 1
+      "professional": 18,
+      "claude-like": 1
     },
-    "totalDocs": 5,
+    "totalDocs": 23,
     "overrides": {
-      "stylePreset": 4,
-      "footer": 5
+      "stylePreset": 5,
+      "footer": 23
     },
     "correlations": {
       "engineering+business": 1,
       "business+business": 1,
       "executive+business": 1,
       "technical+technical": 1,
-      "business+professional": 1
+      "business+professional": 1,
+      "technical+professional": 3,
+      "misc+professional": 14,
+      "misc+claude-like": 1
     },
     "structures": [
       {
@@ -73,7 +78,38 @@
         "category": "business",
         "style": "professional",
         "createdAt": "2026-03-15T09:04:35.103Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-10-10T10:07:05.634Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-10-10T10:07:11.722Z"
+      },
+      {
+        "signature": "h2:overview",
+        "category": "misc",
+        "style": "claude-like",
+        "createdAt": "2026-10-10T10:07:23.515Z"
+      },
+      {
+        "signature": "h2:agent paragraph one.",
+        "category": "misc",
+        "style": "professional",
+        "createdAt": "2026-10-10T10:07:23.542Z"
+      },
+      {
+        "signature": "h2:a heading",
+        "category": "technical",
+        "style": "professional",
+        "createdAt": "2026-10-10T10:07:23.971Z"
       }
-    ]
+    ],
+    "claudeLikeDocuments": 17
   }
 }
