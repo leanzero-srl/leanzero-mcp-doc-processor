@@ -6,7 +6,7 @@
       "tool": "read-doc",
       "expected": "Success - Excel file content retrieved",
       "params": {
-        "filePath": "./testfiles/factura avans Perdum Mihai.pdf",
+        "filePath": "./test/fixtures/generated/sample.pdf",
         "mode": "summary"
       }
     },
