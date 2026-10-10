@@ -263,8 +263,15 @@ export async function createDoc(input) {
     }
 
     // Check for existing documents with the same title/category BEFORE creating
-    // This prevents the model from creating duplicates
-    if (!parsedInput.dryRun && parsedInput.preventDuplicates !== false) {
+    // This prevents the model from creating duplicates.
+    // NOT for an upload delivery (uploadUrl + uploadAuthHeader): the file's real
+    // home is the receiver (e.g. a Jira issue via CogniRunner's upload bridge), the
+    // caller never edits a server-side copy and its capability is single-use, so
+    // "already exists, use edit-doc" (and the old-version cleanup below) only made
+    // the second issue with the same title fail. The local copy still gets a
+    // unique filename (preventDuplicateFiles), so nothing is overwritten.
+    const isUploadDelivery = !!(parsedInput.uploadUrl && parsedInput.uploadAuthHeader);
+    if (!parsedInput.dryRun && parsedInput.preventDuplicates !== false && !isUploadDelivery) {
       const duplicateCheck = await checkForExistingDocument(title, category);
 
       if (duplicateCheck.action === "augment") {
