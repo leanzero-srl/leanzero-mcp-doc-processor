@@ -68,7 +68,10 @@ export async function fetchToTempFile(url, authHeader, suggestedFilename) {
     throw new Error("read-doc payload missing required 'data' field (base64)");
   }
 
-  const filename = payload.filename || suggestedFilename || `attachment-${Date.now()}.bin`;
+  // basename only: the filename comes from the remote server (or the caller) —
+  // "../../x" must not steer the write out of the per-call temp dir.
+  const filename = path.basename(String(payload.filename || suggestedFilename || ""))
+    .replace(/^\.+$/, "") || `attachment-${Date.now()}.bin`;
   const buffer = Buffer.from(payload.data, "base64");
 
   const maxBytes = Number(process.env.READ_DOC_MAX_BYTES) || 50 * 1024 * 1024;

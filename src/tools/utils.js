@@ -9,37 +9,32 @@ import {
 } from "../utils/registry.js";
 import { log } from "../utils/logger.js";
 import { requestContext } from "../utils/request-context.js";
+import { getTenantWorkspace } from "../utils/workspace.js";
 
 /**
  * Root directory for all generated files.
  *
- * Defaults to the MCP process's current working directory. For a stdio MCP
- * launched by an agent (e.g. Claude Code), cwd is the workspace/project the
- * agent was opened from — so files land THERE, on the caller's machine, not on
- * a remote host. Set the DOC_OUTPUT_DIR env var to pin a fixed location instead
- * (e.g. an LM Studio config that should always write to ~/Documents/...).
+ * Hosted (HTTP) request: the calling key's own workspace directory
+ * (src/utils/workspace.js), optionally narrowed to a sub-folder named by the
+ * X-Output-Dir header. A hosted key can never write anywhere else, and (being
+ * server-side) its files never reach the caller's own machine — they come
+ * back through the signed download link / upload bridge instead.
  *
- * NOTE: this only puts files on the caller's machine when the server runs
- * locally (stdio). A REMOTE/hosted server writes to the HOST's disk — that is a
- * hard client/server boundary, not a setting.
+ * Stdio (local agent): DOC_OUTPUT_DIR when set (an LM Studio / self-host
+ * config that should always write to a fixed folder), else the process's cwd
+ * — the workspace the agent was opened from. Unchanged by the confinement.
  *
  * @returns {string} absolute output root
  */
 export function getOutputRoot() {
-  // 1) Per-request override from the hosted HTTP layer (X-Output-Dir header),
-  //    carried via AsyncLocalStorage. SANDBOXED under a server base so a remote
-  //    tenant can only organize files within an allowed area — it can NOT write
-  //    to arbitrary server paths, and (being server-side) it does NOT reach the
-  //    caller's own machine. For files on your machine, self-host over stdio.
-  const ctx = requestContext.getStore && requestContext.getStore();
-  if (ctx && ctx.outputDir && String(ctx.outputDir).trim()) {
-    const base = process.env.CLIENT_OUTPUT_BASE
-      || path.join(process.env.DATA_DIR || process.cwd(), "client-output");
-    const sub = path.normalize(String(ctx.outputDir))
-      .replace(/^([./\\]|\.\.[/\\]?)+/, "")  // strip leading ./ ../ and slashes
-      .replace(/^[/\\]+/, "");
-    const resolved = path.resolve(base, sub);
-    return resolved.startsWith(path.resolve(base)) ? resolved : path.resolve(base);
+  // 1) Hosted key: its workspace (+ optional X-Output-Dir sub-folder; the HTTP
+  //    layer already refused '..' / '~', this re-check is belt and braces).
+  const ws = getTenantWorkspace();
+  if (ws) {
+    const ctx = requestContext.getStore && requestContext.getStore();
+    const sub = ctx && ctx.outputDir ? String(ctx.outputDir).trim().replace(/^[/\\]+/, "") : "";
+    if (!sub || sub.split(/[/\\]+/).includes("..") || sub.startsWith("~")) return ws;
+    return path.join(ws, sub);
   }
 
   // 2) Operator/self-host env (trusted — your own machine), unsandboxed.

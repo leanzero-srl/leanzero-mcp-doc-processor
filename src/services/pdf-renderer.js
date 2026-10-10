@@ -14,6 +14,7 @@
  */
 
 import { marked } from "marked";
+import { getTenantWorkspace, isPublicHttpsUrl } from "../utils/workspace.js";
 import puppeteer from "puppeteer";
 
 import { log } from "../utils/logger.js";
@@ -307,6 +308,24 @@ export async function renderMarkdownToPdf({ title, markdown, styleConfig, header
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
+    // Hosted keys: markdown may carry raw HTML (<img>, <iframe>, <link>), and
+    // Chromium would fetch it FROM THIS HOST — loopback services rendered into
+    // the PDF. Allow only inline data: and public https sub-resources, and no
+    // page JavaScript (it could open WebSockets, which interception misses).
+    if (getTenantWorkspace()) {
+      await page.setJavaScriptEnabled(false);
+      await page.setRequestInterception(true);
+      page.on("request", (request) => {
+        const url = request.url();
+        if (url.startsWith("data:") || url === "about:blank") {
+          request.continue().catch(() => {});
+          return;
+        }
+        isPublicHttpsUrl(url)
+          .then((ok) => (ok ? request.continue() : request.abort("blockedbyclient")))
+          .catch(() => request.abort("blockedbyclient").catch(() => {}));
+      });
+    }
     await page.setContent(html, { waitUntil: "load" });
     const pdf = await page.pdf({
       format: "A4",

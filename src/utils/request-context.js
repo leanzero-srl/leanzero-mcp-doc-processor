@@ -20,7 +20,10 @@ import { AsyncLocalStorage } from "node:async_hooks";
  * @typedef {Object} RequestCtx
  * @property {string} [zaiKey] Per-request Z.AI vision key (X-ZAI-Key header or ?zai_key).
  * @property {string} [outputDir] Per-request output sub-dir (X-Output-Dir header or
- *   ?output_dir), sandboxed under the server output base by getOutputRoot().
+ *   ?output_dir), a sub-folder of the caller's workspace (see getOutputRoot()).
+ * @property {string} [tenantId] The authenticated hosted key's tenant id.
+ * @property {string} [workspace] Real path of that key's workspace directory —
+ *   every file path a tool touches must resolve inside it (src/utils/workspace.js).
  */
 
 /** @type {AsyncLocalStorage<RequestCtx>} */

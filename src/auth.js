@@ -26,7 +26,9 @@ async function loadTenants() {
 
 async function saveTenants(tenants) {
   await fs.mkdir(path.dirname(TENANTS_PATH), { recursive: true });
-  const tmp = `${TENANTS_PATH}.tmp.${process.pid}`;
+  // Unique tmp name: saves can overlap (lastUsedAt touches from concurrent
+  // requests); a shared tmp path would make one rename fail with ENOENT.
+  const tmp = `${TENANTS_PATH}.tmp.${process.pid}.${randomBytes(4).toString("hex")}`;
   await fs.writeFile(tmp, JSON.stringify(tenants, null, 2), { mode: 0o600 });
   await fs.rename(tmp, TENANTS_PATH);
   try { await fs.chmod(TENANTS_PATH, 0o600); } catch { /* best effort on non-POSIX FS */ }
@@ -70,6 +72,27 @@ export async function verifyTenantToken(token) {
     }
   }
   return null;
+}
+
+const TOUCH_INTERVAL_MS = 60_000;
+
+/**
+ * Record that a tenant key was just used (lastUsedAt, shown by the admin
+ * tenant listing). Persisted at most once a minute per key so busy keys do
+ * not rewrite tenants.json on every request. Never throws.
+ */
+export async function touchTenant(tenantId) {
+  try {
+    const tenants = await loadTenants();
+    const record = tenants[tenantId];
+    if (!record) return;
+    const last = record.lastUsedAt ? Date.parse(record.lastUsedAt) : 0;
+    if (Date.now() - last < TOUCH_INTERVAL_MS) return;
+    record.lastUsedAt = new Date().toISOString();
+    await saveTenants(tenants);
+  } catch (err) {
+    log("warn", "[auth] lastUsedAt update failed", { tenant: tenantId, error: err.message });
+  }
 }
 
 // When OAuth is enabled, 401s on protected resources advertise where the

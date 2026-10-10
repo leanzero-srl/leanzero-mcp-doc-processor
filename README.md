@@ -543,6 +543,30 @@ DNA supports three-level inheritance: System defaults (hardcoded) < Project DNA 
 | `READ_DOC_MAX_BYTES` | `52428800` (50 MB) | Maximum decoded payload size accepted by the `read-doc` URL-fetch path. Requests with larger bodies are rejected before the file is materialized. |
 | `WRITE_DOC_MAX_BYTES` | `26214400` (25 MB) | Maximum file size the `create-*` tools will POST to a remote `uploadUrl`. Half of the read cap because Forge web trigger payload limits are tighter. |
 
+## Workspace confinement (hosted HTTP server)
+
+Every API key used against the hosted HTTP server (`node src/server.js`) works inside its own
+workspace directory, `<DATA_DIR>/workspaces/<key id>/`:
+
+- **Paths.** `filePath` and `outputPath` on every tool must resolve, after symlink resolution, inside
+  that workspace. Relative paths resolve against it. Absolute paths elsewhere, `..` segments, `~`,
+  `file://` and symlinks that point outside are refused with a `... not allowed: ...` error. The
+  `filePath` values returned by earlier calls always work. `X-Output-Dir` names a sub-folder of the
+  workspace (`..` and `~` are refused with HTTP 400).
+- **State.** The document registry (`list-documents`), the drift watchlist (`drift-monitor` without a
+  path), lineage, Document DNA and learned blueprints are stored in the workspace, so a key only ever
+  sees and changes its own entries.
+- **URLs.** `read-doc url`, `uploadUrl` and `fact-check webSearchUrl` must be `https://` and must not
+  resolve to a loopback, private, link-local or CGNAT address; redirects are refused. `create-pdf`
+  renders without page JavaScript and fetches only `data:` and public `https://` sub-resources.
+- **Audit.** Each key's `lastUsedAt` is updated (at most once a minute) and every tool call logs one
+  metadata line: `tool_call {tenant, tool, workspace: inside|outside, result: ok|error|refused, ms}`.
+  Document contents, paths and URLs are never logged.
+
+The admin token only manages keys (`/v1/admin`, localhost only); it does not grant wider file access.
+The stdio transport (`npm start`) has no key and no workspace: it runs as the local user, on the local
+user's files, exactly as before. Guarded by `npm run test:confinement`.
+
 ## Testing
 
 ```bash
@@ -551,7 +575,9 @@ npm run test:read-doc       # read-doc URL-fetch — 14 tests (node:test)
 npm run test:schemas        # MCP schema invariants + detect-format E2E — 6 tests (node:test)
 npm run test:render         # parseMarkdownToDocx + create-doc round-trip — 15 tests (node:test)
 npm run test:upload         # uploadFileToTarget + create-doc upload integration — 18 tests (node:test)
-npm run test:all            # Run all five suites in sequence
+npm run test:confinement    # hosted-key workspace confinement, isolation and SSRF guards — 26 tests (node:test)
+npm run test:pdf            # pdf-parse regression on a generated PDF (test/fixtures/make-pdf.js)
+npm run test:all            # Run every suite in sequence
 npm run lint:no-console-log # Fail if any src/ file uses console.log (corrupts MCP stdio)
 ```
 

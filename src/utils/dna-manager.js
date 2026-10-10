@@ -15,6 +15,7 @@ import {
 // Import schema validation for DNA configuration
 import { validateDNA, applyMigration } from "./dna-schema.js";
 import { log } from "./logger.js";
+import { getProjectRoot } from "./workspace.js";
 
 // Module-level cache for DNA config (backward compatibility)
 let _cache = { path: null, mtime: 0, data: null };
@@ -35,7 +36,7 @@ export function getDefaultDNA() {
  * @returns {Object|null} Parsed DNA config, or null if file doesn't exist
  */
 export function loadDNA(projectRoot) {
-  const root = projectRoot || process.cwd();
+  const root = projectRoot || getProjectRoot();
   const filePath = path.join(root, DNA_FILENAME);
 
   try {
@@ -95,7 +96,7 @@ export function loadProjectDNA(projectRoot) {
  * @returns {Object} Result with path and final config
  */
 export function createDNAFile(config = {}, projectRoot) {
-  const root = projectRoot || process.cwd();
+  const root = projectRoot || getProjectRoot();
   const filePath = path.join(root, DNA_FILENAME);
   const defaults = getDefaultDNA();
 
@@ -316,7 +317,7 @@ export function recordUsage(category, stylePreset, overrides = {}, structureSign
 
     // Write updated DNA with usage stats
     const updated = { ...dna, usage };
-    const root = process.cwd();
+    const root = getProjectRoot();
     const filePath = path.join(root, DNA_FILENAME);
     fs.writeFileSync(filePath, JSON.stringify(updated, null, 2), "utf-8");
 
@@ -675,7 +676,7 @@ export function applyEvolution(mutation) {
   dna.usage.lastEvolutionAt = new Date().toISOString();
 
   // Write back
-  const root = process.cwd();
+  const root = getProjectRoot();
   const filePath = path.join(root, DNA_FILENAME);
   fs.writeFileSync(filePath, JSON.stringify(dna, null, 2), "utf-8");
 

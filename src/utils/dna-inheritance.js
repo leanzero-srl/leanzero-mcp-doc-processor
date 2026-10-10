@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { log } from "./logger.js";
+import { getProjectRoot } from "./workspace.js";
 
 const DNA_FILENAME = ".document-dna.json";
 const USER_DNA_FILENAME = ".document-user.json";
@@ -15,6 +16,10 @@ let _inheritanceCache = {
     system: 0,
     project: 0,
     user: 0
+  },
+  paths: {
+    project: null,
+    user: null
   }
 };
 
@@ -54,15 +59,16 @@ export function getSystemDefaults() {
  * @returns {Object|null} Parsed user DNA config, or null if file doesn't exist
  */
 export function loadUserDNA(projectRoot) {
-  const root = projectRoot || process.cwd();
+  const root = projectRoot || getProjectRoot();
   const filePath = path.join(root, USER_DNA_FILENAME);
 
   try {
     const stat = fs.statSync(filePath);
     const mtime = stat.mtimeMs;
 
-    // Return cached data if file hasn't changed
-    if (_inheritanceCache.user && _inheritanceCache.mtime.user === mtime) {
+    // Return cached data if file hasn't changed (keyed by path: each hosted
+    // key has its own project root, so an mtime match alone is not enough)
+    if (_inheritanceCache.user && _inheritanceCache.mtime.user === mtime && _inheritanceCache.paths.user === filePath) {
       return _inheritanceCache.user;
     }
 
@@ -72,6 +78,7 @@ export function loadUserDNA(projectRoot) {
     // Update cache
     _inheritanceCache.user = data;
     _inheritanceCache.mtime.user = mtime;
+    _inheritanceCache.paths.user = filePath;
 
     return data;
   } catch (err) {
@@ -91,7 +98,7 @@ export function loadUserDNA(projectRoot) {
  * @returns {Object|null} Parsed project DNA config, or null if file doesn't exist
  */
 export function loadProjectDNA(projectRoot) {
-  const root = projectRoot || process.cwd();
+  const root = projectRoot || getProjectRoot();
   const filePath = path.join(root, DNA_FILENAME);
 
   try {
@@ -99,7 +106,7 @@ export function loadProjectDNA(projectRoot) {
     const mtime = stat.mtimeMs;
 
     // Return cached data if file hasn't changed
-    if (_inheritanceCache.project && _inheritanceCache.mtime.project === mtime) {
+    if (_inheritanceCache.project && _inheritanceCache.mtime.project === mtime && _inheritanceCache.paths.project === filePath) {
       return _inheritanceCache.project;
     }
 
@@ -109,6 +116,7 @@ export function loadProjectDNA(projectRoot) {
     // Update cache
     _inheritanceCache.project = data;
     _inheritanceCache.mtime.project = mtime;
+    _inheritanceCache.paths.project = filePath;
 
     return data;
   } catch (err) {
@@ -188,6 +196,10 @@ export function clearDNACache() {
       system: 0,
       project: 0,
       user: 0
+    },
+    paths: {
+      project: null,
+      user: null
     }
   };
 }
