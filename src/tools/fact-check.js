@@ -132,7 +132,9 @@ export async function factCheck(input, deps = {}) {
     // 3) For each claim, call the web-search MCP and collect evidence (bounded concurrency).
     const results = await mapWithConcurrency(claims, 3, async (claim) => {
       try {
-        const r = await callWS({ url: webSearchUrl, bearer, serperKey }, "get-web-search-summaries", { query: claim });
+        // callerUrl: a URL the CALLER chose is fetched over a pinned connection
+        // (hosted keys); the server's own default endpoint is trusted config.
+        const r = await callWS({ url: webSearchUrl, bearer, serperKey, callerUrl: !!params.webSearchUrl }, "get-web-search-summaries", { query: claim });
         const { sources, supportScore } = evidenceFromText(claim, r.text || "");
         return { claim, supportScore, sources, evidence: (r.text || "").slice(0, 1200), searchOk: !!r.ok };
       } catch (err) {

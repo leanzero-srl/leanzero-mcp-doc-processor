@@ -25,7 +25,7 @@ import { handleDriftMonitor } from "./tools/drift-tool.js";
 import { handleGetLineage } from "./tools/lineage-tool.js";
 import { factCheck } from "./tools/fact-check.js";
 import { detectFormat } from "./services/format-router.js";
-import { confinePath, assertPublicHttpsUrl, getTenantId, getTenantWorkspace } from "./utils/workspace.js";
+import { confinePath, assertPublicHttpsUrl, getTenantId, getTenantWorkspace, directorySizeBytes, workspaceQuotaBytes } from "./utils/workspace.js";
 
 export const SERVER_INSTRUCTIONS = [
   "This server reads, creates, and edits PDF / DOCX / Markdown / Excel files.",
@@ -850,6 +850,27 @@ async function confineToolArgs(params, audit) {
   }
 }
 
+// Tools that only read or list. When a hosted key's workspace is over its disk
+// cap these still run; everything else (any tool that may write, including
+// tools added later) is refused until space is freed.
+export const READ_ONLY_TOOLS = new Set([
+  "read-doc", "get-doc-summary", "get-doc-indepth", "get-doc-focused",
+  "detect-format", "list-documents", "search-registry", "list-templates",
+  "get-lineage", "list-blueprints", "get-dna",
+]);
+
+/** Refusal text when the calling key's workspace is at or over its cap, else null. */
+function workspaceFullProblem(toolName) {
+  const ws = getTenantWorkspace();
+  if (!ws || READ_ONLY_TOOLS.has(toolName)) return null;
+  const cap = workspaceQuotaBytes();
+  const used = directorySizeBytes(ws);
+  if (used < cap) return null;
+  const mb = (n) => (n / (1024 * 1024)).toFixed(1);
+  return `Workspace full: this key's files use ${mb(used)} MB of its ${mb(cap)} MB limit, so "${toolName}" was not run. ` +
+    "Reading and listing still work. Ask the server operator to clear old files, or use a new key.";
+}
+
 /**
  * Tool-call entry point: confine the caller's arguments, run the tool, and log
  * one metadata-only audit line (tool, key id, inside/outside workspace,
@@ -869,6 +890,12 @@ async function dispatchToolCall(request) {
       audit.result = "refused";
       audit.reason = err.code;
       return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
+    }
+    const full = workspaceFullProblem(name);
+    if (full) {
+      audit.result = "refused";
+      audit.reason = "WORKSPACE_FULL";
+      return { content: [{ type: "text", text: `Error: ${full}` }], isError: true };
     }
     const response = await runTool(request);
     if (response?.isError) audit.result = "error";
