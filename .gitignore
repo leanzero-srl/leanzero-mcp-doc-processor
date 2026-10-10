@@ -107,3 +107,6 @@ launchd.err.log
 *.flv
 *.mov
 *.wmv
+
+# Generated test fixtures (test/fixtures/make-pdf.js)
+test/fixtures/generated/
