@@ -3,7 +3,7 @@ import path from "path";
 import { documentProcessor } from "../services/document-processor.js";
 import { callWebSearchTool, mapWithConcurrency, DEFAULT_WEB_SEARCH_URL } from "../services/web-search-client.js";
 import { createPdf } from "./create-pdf.js";
-import { resolveClientHint } from "./utils.js";
+import { resolveClientHint, releaseDeliveredCopy } from "./utils.js";
 import { resolveClientProfile } from "../utils/client-profile.js";
 import { logInsight } from "../utils/insights.js";
 
@@ -161,8 +161,14 @@ export async function factCheck(input, deps = {}) {
         uploadAuthHeader: params.uploadAuthHeader,
         uploadFilename: params.uploadFilename,
       });
+      await releaseDeliveredCopy(pdf);
       report = pdf.success
-        ? { filePath: pdf.filePath, downloadUrl: pdf.downloadUrl || null }
+        ? {
+            filePath: pdf.filePath,
+            downloadUrl: pdf.downloadUrl || null,
+            ...(pdf.uploaded !== undefined ? { uploaded: pdf.uploaded, uploadError: pdf.uploadError || null } : {}),
+            ...(pdf.serverCopyRemoved ? { serverCopyRemoved: true } : {}),
+          }
         : { error: pdf.error || "report generation failed" };
     }
 

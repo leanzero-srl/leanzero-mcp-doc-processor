@@ -18,7 +18,7 @@ import { createPptx } from "./tools/create-pptx.js";
 import { editPptx } from "./tools/edit-pptx.js";
 import { editDoc } from "./tools/edit-doc.js";
 import { editExcel } from "./tools/edit-excel.js";
-import { listDocuments, mimeTypeFromExtension } from "./tools/utils.js";
+import { listDocuments, mimeTypeFromExtension, releaseDeliveredCopy } from "./tools/utils.js";
 import { handleDNA } from "./tools/dna-tool.js";
 import { handleBlueprint } from "./tools/blueprint-tool.js";
 import { handleDriftMonitor } from "./tools/drift-tool.js";
@@ -91,6 +91,9 @@ export const SERVER_INSTRUCTIONS = [
   "    The tools work normally and return a local file path.",
   "  • The URL is single-use and bound server-side to a specific target. Do not",
   "    retry on 4xx, do not reuse one URL for a different target.",
+  "  • Hosted server: once the receiver confirms a create-* upload, the server",
+  "    copy is removed (the receiver holds the file) — the response says",
+  "    serverCopyRemoved:true and has no downloadUrl. A failed upload keeps it.",
 ].join("\n");
 
 // Parameter guidance lives in each tool's top-level `description` (a
@@ -217,7 +220,7 @@ const P_PAGE =
 const P_CLIENT_HINT =
   "clientHint: 'interactive' = polished one-line message for end users (no chatty registry/lineage notes); 'agent' = verbose response with all metadata for AI consumption; 'auto' (default) = detect from input shape or the MCP_CLIENT_TYPE env var, falling back to 'agent'.";
 const P_UPLOAD =
-  "uploadUrl / uploadAuthHeader / uploadFilename: OPTIONAL — if you have NOT been given an uploadUrl in your context, OMIT all three and the tool just writes the file locally. uploadUrl: HTTPS URL of a receiver that accepts a JSON envelope {data:base64, filename, mimeType, size} POSTed with Bearer auth (any compliant receiver; CogniRunner's attachment-upload web trigger is the reference implementation); single-use — do not retry on 4xx. uploadAuthHeader: its Authorization value (e.g. 'Bearer abc123'); REQUIRED when uploadUrl is set, ignored otherwise, never logged. uploadFilename: filename for the envelope; defaults to the local file's basename (useful when the local file got auto-suffixed by duplicate prevention and you want a clean name on the receiver).";
+  "uploadUrl / uploadAuthHeader / uploadFilename: OPTIONAL — if you have NOT been given an uploadUrl in your context, OMIT all three and the tool just writes the file locally. uploadUrl: HTTPS URL of a receiver that accepts a JSON envelope {data:base64, filename, mimeType, size} POSTed with Bearer auth (any compliant receiver; CogniRunner's attachment-upload web trigger is the reference implementation); single-use — do not retry on 4xx. uploadAuthHeader: its Authorization value (e.g. 'Bearer abc123'); REQUIRED when uploadUrl is set, ignored otherwise, never logged. uploadFilename: filename for the envelope; defaults to the local file's basename (useful when the local file got auto-suffixed by duplicate prevention and you want a clean name on the receiver). On the hosted server a create-* upload the receiver confirms removes the server copy (serverCopyRemoved:true, no downloadUrl); a failed upload keeps it.";
 
 const params = (...notes) => "\nParameters: " + notes.join(" ");
 
@@ -951,23 +954,23 @@ async function runTool(request) {
       }
 
       case "create-doc": {
-        return wrapCreateResult(await createDoc(params), "create-doc");
+        return wrapCreateResult(await releaseDeliveredCopy(await createDoc(params)), "create-doc");
       }
 
       case "create-markdown": {
-        return wrapCreateResult(await createMarkdown(params), "create-markdown");
+        return wrapCreateResult(await releaseDeliveredCopy(await createMarkdown(params)), "create-markdown");
       }
 
       case "create-excel": {
-        return wrapCreateResult(await createExcel(params), "create-excel");
+        return wrapCreateResult(await releaseDeliveredCopy(await createExcel(params)), "create-excel");
       }
 
       case "create-pdf": {
-        return wrapCreateResult(await createPdf(params), "create-pdf");
+        return wrapCreateResult(await releaseDeliveredCopy(await createPdf(params)), "create-pdf");
       }
 
       case "create-pptx": {
-        return wrapCreateResult(await createPptx(params), "create-pptx");
+        return wrapCreateResult(await releaseDeliveredCopy(await createPptx(params)), "create-pptx");
       }
 
       case "edit-pptx": {

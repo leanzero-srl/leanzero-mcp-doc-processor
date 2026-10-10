@@ -5,11 +5,12 @@ import path from "path";
 import { classifyDocument, getCategoryInfo } from "../utils/categorizer.js";
 import {
   registerDocument,
-  findDocuments
+  findDocuments,
+  unregisterDocument
 } from "../utils/registry.js";
 import { log } from "../utils/logger.js";
 import { requestContext } from "../utils/request-context.js";
-import { getTenantWorkspace, callerFetch } from "../utils/workspace.js";
+import { getTenantWorkspace, callerFetch, isInsideWorkspace } from "../utils/workspace.js";
 
 /**
  * Root directory for all generated files.
@@ -598,4 +599,41 @@ export async function uploadFileToTarget({ filePath, uploadUrl, uploadAuthHeader
   // any 2xx JSON shape — pull out a sensible attachment object if present.
   const attachment = parsed?.attachment || parsed || null;
   return { success: true, status: resp.status, attachment, raw: parsed };
+}
+
+/**
+ * After a CONFIRMED upload delivery on the HOSTED server, remove the server
+ * copy and its registry entry: the receiver holds the file now.
+ *
+ * WHY: a key that delivers every document it makes — CogniRunner attaches each
+ * one to a Jira issue, and reads attachments back from Jira through its own
+ * web trigger, never from this server — otherwise kept a copy of every
+ * delivery in its workspace until WORKSPACE_QUOTA_MB refused the next one.
+ *
+ * Kept: when the upload failed or was not attempted (the caller can still
+ * fetch or retry it), on stdio (the caller's own disk, no cap), and for any
+ * path outside the calling key's workspace. Mutates and returns the result of
+ * a create-* tool.
+ */
+export async function releaseDeliveredCopy(result) {
+  if (!result || result.success !== true || result.uploaded !== true || !result.filePath) return result;
+  if (!getTenantWorkspace() || !isInsideWorkspace(result.filePath)) return result;
+  try {
+    await fs.rm(result.filePath, { force: true });
+  } catch (err) {
+    log("warn", "[upload] delivered, but the server copy was not removed", { error: err.message });
+    return result;
+  }
+  try {
+    await unregisterDocument(result.filePath);
+  } catch (err) {
+    log("warn", "[upload] server copy removed, its registry entry was not", { error: err.message });
+  }
+  const ref = result.uploadAttachment?.content || result.uploadAttachment?.id || "remote endpoint";
+  result.serverCopyRemoved = true;
+  result.downloadUrl = undefined;
+  result.registryEntry = null;
+  result.message = `Created and uploaded: ${path.basename(result.filePath)} → ${ref}. ` +
+    "The server copy was removed after the confirmed upload (the receiver holds the file), so there is no download link.";
+  return result;
 }

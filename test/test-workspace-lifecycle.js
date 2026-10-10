@@ -10,6 +10,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import dns from "node:dns";
+import tls from "node:tls";
+import https from "node:https";
+import { execFileSync } from "node:child_process";
 
 const TMP = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "dp-lifecycle-test-")));
 const DATA_DIR = path.join(TMP, "data");
@@ -148,5 +152,165 @@ describe("per-key disk cap", () => {
     fs.rmSync(path.join(WS_BASE, full.tenantId, "filler.bin"));
     const again = await call(full, "create-markdown", { title: "After Freeing Space", content: "## A\n- b" });
     assert.equal(again.isError, false, again.text);
+  });
+});
+
+// A CONFIRMED upload delivery (uploadUrl + uploadAuthHeader, receiver answered
+// 2xx) leaves no server copy: the receiver holds the file. CogniRunner's key
+// delivers every document it generates to a Jira issue this way and reads
+// attachments back from Jira through its own web trigger, never from here — so
+// before this, every delivery stayed in its workspace until WORKSPACE_QUOTA_MB
+// refused the next one.
+//
+// The stand-in receiver: `upload-receiver.test` resolves to a public address
+// (so the hosted URL checks pass, as for a real receiver) and the TLS connect
+// to it is redirected to a local HTTPS server with a throwaway certificate.
+describe("a confirmed upload delivery keeps no server copy", () => {
+  const HOST = "upload-receiver.test";
+  const received = [];
+  let receiverStatus = 200;
+  let receiver;
+  let receiverPort;
+  let closeBrowser;
+  const realLookup = dns.lookup;
+  const realPromisesLookup = dns.promises.lookup;
+  const realTlsConnect = tls.connect;
+
+  before(async () => {
+    const certDir = path.join(TMP, "receiver-cert");
+    fs.mkdirSync(certDir);
+    execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", `/CN=${HOST}`,
+      "-keyout", path.join(certDir, "key.pem"), "-out", path.join(certDir, "cert.pem")], { stdio: "ignore" });
+    receiver = https.createServer({ key: fs.readFileSync(path.join(certDir, "key.pem")), cert: fs.readFileSync(path.join(certDir, "cert.pem")) }, (req, res) => {
+      let body = "";
+      req.on("data", (c) => { body += c; });
+      req.on("end", () => {
+        if (req.method !== "POST" || !req.url.startsWith("/up")) { res.writeHead(404); res.end("not found"); return; }
+        const env = JSON.parse(body);
+        received.push({ ...env, auth: req.headers.authorization, bytes: Buffer.from(env.data, "base64") });
+        if (receiverStatus !== 200) { res.writeHead(receiverStatus); res.end("token consumed"); return; }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, attachment: { id: String(10000 + received.length), filename: env.filename, content: `https://jira.example/attachment/${10000 + received.length}` } }));
+      });
+    });
+    await new Promise((r) => receiver.listen(0, "127.0.0.1", r));
+    receiverPort = receiver.address().port;
+    dns.lookup = function lookup(host, options, cb) {
+      if (typeof options === "function") { cb = options; options = {}; }
+      if (host !== HOST) return realLookup.call(dns, host, options, cb);
+      return options && options.all ? cb(null, [{ address: "93.184.215.14", family: 4 }]) : cb(null, "93.184.215.14", 4);
+    };
+    dns.promises.lookup = async function lookup(host, options = {}) {
+      if (host !== HOST) return realPromisesLookup.call(dns.promises, host, options);
+      return options.all ? [{ address: "93.184.215.14", family: 4 }] : { address: "93.184.215.14", family: 4 };
+    };
+    tls.connect = function connect(...args) {
+      const o = args[0];
+      if (o && typeof o === "object" && (o.servername === HOST || o.host === HOST)) {
+        args[0] = { ...o, host: "127.0.0.1", port: receiverPort, lookup: undefined, rejectUnauthorized: false };
+      }
+      return realTlsConnect.apply(this, args);
+    };
+    ({ closeBrowser } = await import("../src/services/pdf-renderer.js"));
+  });
+
+  after(async () => {
+    dns.lookup = realLookup;
+    dns.promises.lookup = realPromisesLookup;
+    tls.connect = realTlsConnect;
+    if (closeBrowser) await closeBrowser();
+    if (receiver) await new Promise((r) => receiver.close(r));
+  });
+
+  const upload = { uploadUrl: `https://${HOST}/up?t=one-shot`, uploadAuthHeader: "Bearer one-shot-bearer", clientHint: "interactive" };
+  const titles = (list) => (Array.isArray(list.json) ? list.json : []).map((d) => d.title);
+
+  test("every create-* tool: the receiver gets the file; the server copy, its registry entry and its download link are gone", async () => {
+    receiverStatus = 200;
+    const k = await mint("delivers-everything");
+    const cases = [
+      ["create-doc", { title: "Delivered Word Brief", content: "## Problem\n- one\n\n## Impact\n- two" }, /wordprocessingml/],
+      ["create-markdown", { title: "Delivered Markdown Notes", content: "## A\n- b" }, /markdown/],
+      ["create-excel", { sheets: [{ name: "Delivered Totals", data: [["Month", "Units"], ["Apr", 120]] }] }, /spreadsheetml/],
+      ["create-pptx", { title: "Delivered Slide Deck", content: "## First\n- a\n\n## Second\n- b" }, /presentationml/],
+      ["create-pdf", { title: "Delivered Pdf Letter", content: "## Dear team\n- one" }, /pdf/],
+    ];
+    for (const [tool, args, mime] of cases) {
+      const before = received.length;
+      const r = await call(k, tool, { ...args, ...upload });
+      assert.equal(r.isError, false, `${tool}: ${r.text.slice(0, 300)}`);
+      assert.equal(received.length, before + 1, `${tool}: the receiver got the file`);
+      const got = received[received.length - 1];
+      assert.match(got.mimeType, mime, tool);
+      assert.ok(got.bytes.length > 0 && got.bytes.length === got.size, `${tool}: the whole file was delivered`);
+      assert.equal(got.auth, "Bearer one-shot-bearer");
+      assert.equal(r.json.uploaded, true, `${tool}: upload confirmed`);
+      assert.ok(r.json.filePath.startsWith(path.join(WS_BASE, k.tenantId) + path.sep), `${tool}: positive control, it was written inside the key's workspace`);
+      assert.equal(fs.existsSync(r.json.filePath), false, `${tool}: the server copy must be removed after a confirmed upload`);
+      assert.equal(r.json.serverCopyRemoved, true, `${tool}: the response says so`);
+      assert.equal(r.json.downloadUrl, undefined, `${tool}: no download link to a removed file`);
+      assert.doesNotMatch(r.json.message, /Download it/, `${tool}: the message offers no download`);
+    }
+    const list = await call(k, "list-documents", {});
+    assert.equal(list.isError, false, list.text);
+    assert.deepEqual(titles(list), [], "no registry entry is left for a delivered document");
+  });
+
+  test("the fact-check report delivered by upload keeps no server copy either", async () => {
+    receiverStatus = 200;
+    const k = await mint("fact-check-delivery");
+    const before = received.length;
+    const r = await call(k, "fact-check", {
+      claims: ["Water boils at 100 degrees Celsius at sea level"], webSearchBearer: "x", serperKey: "x",
+      webSearchUrl: `https://${HOST}/mcp`, generateReport: true, reportTitle: "Delivered Fact Check Report", ...upload,
+    });
+    assert.equal(r.isError, false, r.text.slice(0, 300));
+    assert.equal(received.length, before + 1, "the receiver got the report");
+    assert.match(received[received.length - 1].mimeType, /pdf/);
+    assert.ok(r.json.report?.filePath, `positive control: a report was written: ${r.text.slice(0, 300)}`);
+    assert.equal(fs.existsSync(r.json.report.filePath), false, "the report's server copy must be removed");
+    assert.equal(r.json.report.uploaded, true);
+    assert.equal(r.json.report.serverCopyRemoved, true);
+    assert.equal(r.json.report.downloadUrl, null);
+  });
+
+  test("a FAILED delivery keeps the server copy, its registry entry and its download link", async () => {
+    receiverStatus = 404;
+    const k = await mint("delivery-fails");
+    const r = await call(k, "create-doc", { title: "Undelivered Word Brief", content: "## A\n- b", ...upload });
+    assert.equal(r.isError, false, r.text);
+    assert.equal(r.json.uploaded, false);
+    assert.match(r.json.uploadError, /HTTP 404/);
+    assert.ok(fs.existsSync(r.json.filePath), "the copy is kept when the receiver did not take it");
+    assert.ok(r.json.downloadUrl, "and stays downloadable");
+    assert.equal(r.json.serverCopyRemoved, undefined);
+    assert.deepEqual(titles(await call(k, "list-documents", {})), ["Undelivered Word Brief"]);
+    receiverStatus = 200;
+  });
+
+  test("control: a create without an upload keeps its file, entry and link", async () => {
+    const k = await mint("no-delivery");
+    const r = await call(k, "create-doc", { title: "Kept Word Brief", content: "## A\n- b" });
+    assert.equal(r.isError, false, r.text);
+    assert.ok(fs.existsSync(r.json.filePath));
+    assert.ok(r.json.downloadUrl);
+    assert.deepEqual(titles(await call(k, "list-documents", {})), ["Kept Word Brief"]);
+  });
+
+  test("CogniRunner's pattern: more deliveries than the cap could hold never fill the workspace", async () => {
+    receiverStatus = 200;
+    const k = await mint("cognirunner-like");
+    const cap = 0.25 * 1024 * 1024;
+    let delivered = 0;
+    for (let i = 0; i < 40; i++) {
+      const r = await call(k, "create-doc", { title: "Docproc Bridge Live Brief", content: `## Problem\n- run ${i}\n\n## Impact\n- ${"x".repeat(200)}`, ...upload });
+      assert.doesNotMatch(r.text, /Workspace full/, `delivery ${i + 1} was refused: the server copies filled the ${cap} byte cap`);
+      assert.equal(r.json?.uploaded, true, r.text.slice(0, 300));
+      delivered += received[received.length - 1].size;
+    }
+    assert.ok(delivered > cap, `positive control: the deliveries (${delivered} bytes) are more than the cap (${cap})`);
+    const { directorySizeBytes } = await import("../src/utils/workspace.js");
+    const left = directorySizeBytes(path.join(WS_BASE, k.tenantId));
+    assert.ok(left < 16 * 1024, `the workspace holds only bookkeeping after 40 deliveries (${left} bytes)`);
   });
 });
