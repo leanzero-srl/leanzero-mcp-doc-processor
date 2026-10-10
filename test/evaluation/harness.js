@@ -12,6 +12,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { ensureSampleFixtures } from '../fixtures/make-pdf.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,6 +51,10 @@ export class MCPServerHarness {
     }
 
     const serverPath = path.resolve(PROJECT_ROOT, this.serverPath);
+
+    // Scenarios read ./test/fixtures/generated/sample.pdf — generate it (no
+    // binary or personal fixture lives in the repo).
+    ensureSampleFixtures();
     
     try {
       fs.accessSync(serverPath, fs.constants.R_OK);
