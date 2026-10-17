@@ -23,9 +23,9 @@ const TTL_MS = Number(process.env.FILE_DOWNLOAD_TTL_MS || 24 * 3600 * 1000);
 let _ephemeralSecret;
 function secret() {
   return (
+    // 2026-10-17: ONLY a dedicated secret. Falling back to PROVISION_SECRET (which leanzero.net also holds) meant a
+    // leak of the website's env let anyone mint download links for server.env and tenants.json.
     process.env.FILE_TOKEN_SECRET ||
-    process.env.PROVISION_SECRET ||
-    process.env.DOC_PROCESSOR_ADMIN_TOKEN ||
     (_ephemeralSecret ||= crypto.randomBytes(32).toString("hex"))
   );
 }
@@ -82,7 +82,10 @@ export function verifyDownloadToken(token) {
   try { payload = JSON.parse(Buffer.from(b64, "base64url").toString()); } catch { return null; }
   if (!payload.p || !payload.exp || Date.now() > payload.exp) return null;
   const resolved = path.resolve(payload.p);
-  if (!allowedBases().some((b) => resolved.startsWith(b))) return null;
+  // Exact containment (a bare startsWith let ".../mcp-doc-processor-evil" pass), and never the server's own secrets.
+  if (!allowedBases().some((b) => resolved === b || resolved.startsWith(b + path.sep))) return null;
+  const name = path.basename(resolved);
+  if (name.startsWith(".") || name.endsWith(".env") || name === "tenants.json" || name.includes("server.env")) return null;
   if (!fs.existsSync(resolved)) return null;
   return { path: resolved };
 }
