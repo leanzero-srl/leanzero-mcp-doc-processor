@@ -25,7 +25,14 @@ async function loadTenants() {
   return cache;
 }
 
-async function saveTenants(tenants) {
+// Writes are serialised. Unique tmp names alone stop the ENOENT rename, but two
+// overlapping saves could still land out of order: a lastUsedAt touch that
+// serialised the map before a revoke and renamed after it put the revoked key
+// back on disk (live until the next restart reloaded it). Each queued write
+// serialises the map when its turn comes, so the last write is the newest state.
+let saveChain = Promise.resolve();
+
+async function writeTenantsFile(tenants) {
   await fs.mkdir(path.dirname(TENANTS_PATH), { recursive: true });
   // Unique tmp name: saves can overlap (lastUsedAt touches from concurrent
   // requests); a shared tmp path would make one rename fail with ENOENT.
@@ -33,7 +40,13 @@ async function saveTenants(tenants) {
   await fs.writeFile(tmp, JSON.stringify(tenants, null, 2), { mode: 0o600 });
   await fs.rename(tmp, TENANTS_PATH);
   try { await fs.chmod(TENANTS_PATH, 0o600); } catch { /* best effort on non-POSIX FS */ }
+}
+
+async function saveTenants(tenants) {
   cache = tenants;
+  const run = saveChain.then(() => writeTenantsFile(tenants));
+  saveChain = run.catch(() => { /* the caller sees the error; the chain keeps going */ });
+  await run;
 }
 
 export function invalidateTenantsCache() {
