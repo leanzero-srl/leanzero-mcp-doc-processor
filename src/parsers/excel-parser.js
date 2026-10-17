@@ -1,6 +1,11 @@
 import fs from "fs";
 import xlsx from "xlsx";
 
+// SheetJS 0.20.x ESM build (xlsx.mjs) does not load fs on its own; readFile
+// throws "Cannot access file" until it is handed one. 0.18.5 resolved to the
+// CJS build, which required fs itself.
+xlsx.set_fs(fs);
+
 /**
  * Excel Parser Module
  * Handles extraction of text, data, and images from Excel workbooks (.xlsx, .xls)
