@@ -30,7 +30,9 @@
     "test:rebinding": "node --test test/test-dns-rebinding.js",
     "test:lifecycle": "node --test test/test-workspace-lifecycle.js",
     "insights": "node scripts/insights-report.mjs",
-    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload && npm run test:http && npm run test:auth && npm run test:oauth && npm run test:pdf && npm run test:create-tags && npm run test:create-pdf && npm run test:create-pptx && npm run test:fact-check && npm run test:format-router && npm run test:confinement && npm run test:rebinding && npm run test:lifecycle",
+    "refused": "node scripts/refused-report.mjs",
+    "test:refused": "node --test test/test-refused-log.js",
+    "test:all": "npm test && npm run test:read-doc && npm run test:schemas && npm run test:render && npm run test:upload && npm run test:http && npm run test:auth && npm run test:oauth && npm run test:pdf && npm run test:create-tags && npm run test:create-pdf && npm run test:create-pptx && npm run test:fact-check && npm run test:format-router && npm run test:confinement && npm run test:rebinding && npm run test:lifecycle && npm run test:refused",
     "lint:no-console-log": "! grep -rn 'console\\.log(' src/ --include='*.js'"
   },
   "dependencies": {

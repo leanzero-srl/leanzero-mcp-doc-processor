@@ -16,6 +16,7 @@ import path from "path";
 import { requestContext } from "./utils/request-context.js";
 import { verifyDownloadToken } from "./utils/download-registry.js";
 import { workspaceForTenant, purgeExpiredRevokedWorkspaces } from "./utils/workspace.js";
+import { refusedLogger } from "./utils/refused-log.js";
 
 setupLogging();
 
@@ -45,6 +46,9 @@ export function buildApp() {
   // req.ip resolve to the actual client for rate limiting without letting remote
   // callers spoof X-Forwarded-For to bypass it — which a permissive `true` allows.
   app.set("trust proxy", "loopback");
+
+  // Audit every refused request (401/403/404/405/429) before anything can answer.
+  app.use(refusedLogger("doc-processor"));
 
   app.use(cors({
     origin: "*",
