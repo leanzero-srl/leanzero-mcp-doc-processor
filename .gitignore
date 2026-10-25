@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
-package-lock.json
+# package-lock.json IS tracked (2026-10-25): the live service and dep_audit.py read it; untracked, a dependency
+# fix could not be reviewed, pushed or reproduced with npm ci.
 yarn.lock
 
 # Build outputs
