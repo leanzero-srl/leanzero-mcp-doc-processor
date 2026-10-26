@@ -4,97 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working on code
 
 ---
 
-## CRITICAL WARNING: MANDATORY REITERATION PROTOCOL
+## Working rules
 
-**READ THIS FIRST: Before proceeding with ANY task, you MUST follow the Context-First Protocol.**
-
-**The Most Important Rule in This Document:**
-
-**Every single interaction MUST begin with reiterating your understanding of the task.** There are NO exceptions.
-
-- You cannot ask questions first
-- You cannot proceed to planning first
-- You cannot start implementation first
-- You MUST reiterate your understanding first
-
-**Simple Formula for Success:**
-```
-Task Received → Read Context → Reiterate Understanding → Wait for Confirmation → Proceed
-```
-
-**Do NOT skip the reiteration step. Ever.**
-
----
-
-## PRIMARY DIRECTIVE: CONTEXT-FIRST PROTOCOL
-
-This is your most important rule and overrides all others. Before any other action, you MUST follow this protocol.
-
-### Phase 1: Gather Project Context (MANDATORY FIRST STEP)
-
-Upon receiving a task, immediately gather context by:
-
-1. **Read Project Documentation** (priority order):
-   - `CLAUDE.md` - This file, understanding project structure, MCP protocol rules, and conventions
-   - `src/index.js` - MCP server entry point, tool definitions and dispatch (~450 lines)
-   - The specific tool handler file(s) relevant to the task in `src/tools/`
-   - Any service or utility files referenced by the tool handlers
-   - Any files specifically mentioned by the human agent
-
-2. **Analyze the Request**:
-   - Identify the core requirement
-   - Map the request to existing project files or patterns
-   - Determine what information is available vs. unclear
-   - Identify which MCP tools and which internal modules are affected
-
-### Phase 2: Reiterate Understanding and Confirm (MANDATORY - NO EXCEPTIONS)
-
-**CRITICAL: This phase is REQUIRED for EVERY task.**
-
-**There are NO exceptions** to this rule:
-- Even if the task seems simple
-- Even if you think you understand perfectly
-- Even if the human provided detailed instructions
-
-**Required Format for Reiteration:**
-
-```
-## My Understanding of This Task
-
-**Task Summary**: [Brief restatement of what you were asked to do]
-
-**Files I Read and What I Learned**:
-- `filename`: [Key insights]
-
-**My Understanding**:
-Based on the context I've gathered, you want me to [what I understand]. The project follows [pattern], so I should [approach].
-
-**Proposed Approach**:
-1. [First step based on patterns found]
-2. [Second step referencing specific files]
-3. [Third step following established conventions]
-
-**Is this understanding correct?** Should I proceed with this approach, or would you like me to modify it?
-```
-
-**HUMAN INPUT REQUIRED - DO NOT PROCEED UNTIL CONFIRMED**
-
-### Phase 3: Formulate Clarifying Questions (ONLY IF NEEDED - AFTER REITERATION)
-
-**IMPORTANT: You MUST complete Phase 2 BEFORE asking any questions.**
-
-**Only ask questions when:**
-- The human explicitly asks you what questions you have
-- The human indicates they need more information from you to proceed
-
-**Do NOT ask questions when:**
-- The human says "correct" or "proceed"
-- The human provides corrections (just incorporate them)
-- The question can be answered by reading project documentation
-
-### Phase 4: Proceed with Task
-
-Once you have confirmed your understanding (and any necessary clarifications), proceed with the task following the MCP protocol rules and architectural patterns defined below.
+Read the relevant context first: this file, `README.md`, the files you will change and the code around them, and the test suite that covers them. Then act: the owner's global autonomy rules apply here. Do not restate the task and wait for a go-ahead; do the work end to end (change, run the covering `npm run test:X` suites, commit) and report what you did. Ask only for the DANGER ZONE items below, or when the request is genuinely ambiguous after reading the code.
 
 ---
 
@@ -308,18 +220,9 @@ Many operations in `create-doc.js` and other handlers are wrapped in try/catch w
 - Add error propagation that would make them fatal
 - Log errors at a level that would alarm users
 
-### Rule 4: Show Changes Before Executing
+### Rule 4: Report exact changes
 
-For non-trivial changes:
-```
-## Proposed Changes to [filename]
-
-**Line X-Y:**
-OLD: [exact existing text]
-NEW: [exact new text]
-
-Do these changes look correct? Should I proceed?
-```
+Make the change, then name the file and lines you changed and the test suites that cover them in your report.
 
 ### DANGER ZONE: Actions Requiring Explicit Permission
 
@@ -495,12 +398,6 @@ Layout analysis is inlined in the PDF parser — it reads text/image data alread
 
 ## COMMUNICATION STANDARDS
 
-### First Interaction: ALWAYS Reiterate (ABSOLUTELY MANDATORY)
-
-- Every single response MUST begin with context reiteration
-- You cannot proceed to questions, planning, or implementation without first completing Phase 2
-- Wait for human confirmation before proceeding with any work
-
 ### When Providing Solutions:
 - Reference the specific project files you analyzed
 - Explain your reasoning based on project context
@@ -514,8 +411,7 @@ Layout analysis is inlined in the PDF parser — it reads text/image data alread
 - Explain how to verify correctness
 
 ### When Receiving Feedback:
-- If human corrects your understanding: acknowledge, update mental model, and reiterate corrected understanding
-- Never proceed with implementation until understanding is confirmed
+- If the human corrects your understanding: acknowledge it, update your mental model and continue with the corrected task.
 
 ---
 
