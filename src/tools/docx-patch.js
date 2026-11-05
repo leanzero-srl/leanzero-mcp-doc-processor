@@ -1,10 +1,9 @@
 import JSZip from "jszip";
 import { Packer, Document, Paragraph, HeadingLevel } from "docx";
 import {
-  parseInlineMarkdown,
   createParagraph,
   createTableFromData,
-  createCodeBlock,
+  renderParagraphEntry,
 } from "./doc-utils.js";
 import { getStyleConfig, buildDocumentStyles, createNumberingConfig } from "./styling.js";
 import { log } from "../utils/logger.js";
@@ -213,41 +212,17 @@ async function generateParagraphsXML(paragraphs, styleConfig) {
     color: styleConfig.font.color,
   };
 
+  // Strings are markdown blobs: the same block renderer as create-doc, so
+  // headings, lists, tables and code blocks survive an edit (before
+  // 2026-11-06 each string became ONE inline paragraph and tables vanished).
+  const entryBaseStyle = {
+    ...baseStyle,
+    codeColor: styleConfig.code?.color,
+    codeBackground: styleConfig.code?.backgroundColor,
+    linkColor: styleConfig.link?.color,
+  };
   for (const para of paragraphs) {
-    if (!para) continue;
-
-    if (typeof para === "string") {
-      // Detect fenced code blocks (```...```)
-      if (para.trimStart().startsWith("```")) {
-        children.push(...createCodeBlock(para, styleConfig.code));
-        continue;
-      }
-
-      const patchBaseStyle = {
-        ...baseStyle,
-        codeColor: styleConfig.code?.color,
-        codeBackground: styleConfig.code?.backgroundColor,
-      };
-      const textRuns = parseInlineMarkdown(para, patchBaseStyle);
-      children.push(
-        createParagraph(textRuns, {
-          alignment: styleConfig.paragraph.alignment,
-          spacingBefore: styleConfig.paragraph.spacingBefore,
-          spacingAfter: styleConfig.paragraph.spacingAfter,
-          lineSpacing: styleConfig.paragraph.lineSpacing,
-        }),
-      );
-    } else if (para && typeof para === "object" && para.text) {
-      const textRuns = parseInlineMarkdown(para.text, baseStyle);
-      children.push(
-        createParagraph(textRuns, {
-          alignment: para.alignment || styleConfig.paragraph.alignment,
-          spacingBefore: styleConfig.paragraph.spacingBefore,
-          spacingAfter: styleConfig.paragraph.spacingAfter,
-          lineSpacing: styleConfig.paragraph.lineSpacing,
-        }),
-      );
-    }
+    children.push(...renderParagraphEntry(para, styleConfig, entryBaseStyle));
   }
 
   // Create a temporary document to generate the XML (with embedded styles).
@@ -269,7 +244,199 @@ async function generateParagraphsXML(paragraphs, styleConfig) {
   const zip = await JSZip.loadAsync(buffer);
   const documentXml = await zip.file("word/document.xml").async("string");
 
-  return documentXml;
+  // The zip comes back too: markdown links and lists reference parts of the
+  // temp document (hyperlink relationships, numbering.xml) that must be
+  // carried into the target (carryPartDependencies).
+  return { xml: documentXml, zip };
+}
+
+const REL_TYPE_HYPERLINK =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
+const REL_TYPE_NUMBERING =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering";
+const NUMBERING_CONTENT_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml";
+const DOC_RELS_PATH = "word/_rels/document.xml.rels";
+
+/**
+ * Generated nodes may point at parts of the TEMP document they were rendered
+ * in: hyperlinks (`r:id` -> a hyperlink relationship) and list paragraphs
+ * (`w:numId` -> numbering.xml). Pasting the bare XML into another document
+ * leaves those references dangling (Word reports unreadable content for a
+ * missing hyperlink relationship). This copies each hyperlink relationship
+ * into the target with a fresh id (rewriting the nodes), and copies
+ * numbering.xml when the target has none.
+ *
+ * @returns {Promise<string[]>} the rewritten nodes
+ */
+async function carryPartDependencies(nodes, srcZip, dstZip) {
+  const joined = nodes.join("");
+  const usedIds = [...new Set([...joined.matchAll(/\br:id="([^"]+)"/g)].map((m) => m[1]))];
+  const usesNumbering = /<w:numId\b/.test(joined);
+  if (usedIds.length === 0 && !usesNumbering) return nodes;
+
+  const srcRels = (await srcZip.file(DOC_RELS_PATH)?.async("string")) || "";
+  let dstRels = (await dstZip.file(DOC_RELS_PATH)?.async("string")) ||
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+    `<Relationships xmlns="${NAMESPACES.rels}"></Relationships>`;
+  const dstIds = new Set([...dstRels.matchAll(/\bId="([^"]+)"/g)].map((m) => m[1]));
+  const freshId = () => {
+    let n = dstIds.size + 1;
+    while (dstIds.has(`rIdDp${n}`)) n++;
+    dstIds.add(`rIdDp${n}`);
+    return `rIdDp${n}`;
+  };
+  const addRel = (rel) => {
+    dstRels = dstRels.replace("</Relationships>", `${rel}</Relationships>`);
+  };
+
+  const idMap = new Map();
+  for (const oldId of usedIds) {
+    const safeId = oldId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const relMatch = srcRels.match(new RegExp(`<Relationship\\b[^>]*\\bId="${safeId}"[^>]*/>`));
+    if (!relMatch || !relMatch[0].includes(`Type="${REL_TYPE_HYPERLINK}"`)) {
+      log("warn", "[docx-patch] generated content references a non-hyperlink relationship; left as is", { id: oldId });
+      continue;
+    }
+    const newId = freshId();
+    addRel(relMatch[0].replace(`Id="${oldId}"`, `Id="${newId}"`));
+    idMap.set(oldId, newId);
+  }
+  // One pass, so a fresh id can never be re-mapped by a later entry.
+  const out = idMap.size === 0 ? nodes : nodes.map((n) =>
+    n.replace(/\br:id="([^"]+)"/g, (m, id) => (idMap.has(id) ? `r:id="${idMap.get(id)}"` : m)));
+
+  let result = out;
+  if (usesNumbering) {
+    const srcNumbering = await srcZip.file("word/numbering.xml")?.async("string");
+    if (srcNumbering) {
+      const hadNumbering = Boolean(dstZip.file("word/numbering.xml"));
+      const merged = mergeNumbering(
+        result,
+        srcNumbering,
+        hadNumbering ? await dstZip.file("word/numbering.xml").async("string") : null,
+      );
+      result = merged.nodes;
+      dstZip.file("word/numbering.xml", merged.numberingXml);
+      if (!hadNumbering) {
+        if (!dstRels.includes(`Type="${REL_TYPE_NUMBERING}"`)) {
+          addRel(`<Relationship Id="${freshId()}" Type="${REL_TYPE_NUMBERING}" Target="numbering.xml"/>`);
+        }
+        const ctPath = "[Content_Types].xml";
+        const ct = await dstZip.file(ctPath)?.async("string");
+        if (ct && !ct.includes('PartName="/word/numbering.xml"')) {
+          dstZip.file(ctPath, ct.replace("</Types>",
+            `<Override PartName="/word/numbering.xml" ContentType="${NUMBERING_CONTENT_TYPE}"/></Types>`));
+        }
+      }
+    }
+  }
+
+  dstZip.file(DOC_RELS_PATH, dstRels);
+  return result;
+}
+
+/**
+ * The copied list definitions may carry attributes/elements in namespaces the
+ * target's <w:numbering> root never declared (the docx library writes
+ * w15:restartNumberingAfterBreak). An undeclared prefix makes the part
+ * malformed XML. Declare each missing prefix from the temp root; if the temp
+ * root has no declaration either, drop those attributes.
+ */
+function declareMissingPrefixes(xml, srcXml) {
+  const rootMatch = xml.match(/<w:numbering\b[^>]*>/);
+  if (!rootMatch) return xml;
+  let root = rootMatch[0];
+  const body = xml.slice(xml.indexOf(root) + root.length);
+  const prefixes = new Set();
+  for (const m of body.matchAll(/<\/?([A-Za-z][\w.-]*):[\w.-]+/g)) prefixes.add(m[1]);
+  for (const m of body.matchAll(/\s([A-Za-z][\w.-]*):[\w.-]+\s*=/g)) prefixes.add(m[1]);
+  prefixes.delete("xmlns");
+  prefixes.delete("xml");
+  const srcRoot = (srcXml.match(/<w:numbering\b[^>]*>/) || [""])[0];
+  let out = body;
+  for (const pfx of prefixes) {
+    if (new RegExp(`\\sxmlns:${pfx}=`).test(root)) continue;
+    const decl = srcRoot.match(new RegExp(`\\sxmlns:${pfx}="[^"]*"`));
+    if (decl) {
+      root = root.replace(/\s*\/?>$/, (end) => `${decl[0]}${end.trim() === "/>" ? "/>" : ">"}`);
+    } else {
+      out = out.replace(new RegExp(`\\s${pfx}:[\\w.-]+="[^"]*"`, "g"), "");
+    }
+  }
+  return xml.slice(0, xml.indexOf(rootMatch[0])) + root + out;
+}
+
+/**
+ * Copy the list definitions the new nodes use from the temp document's
+ * numbering.xml into the target's, under FRESH ids, and remap every
+ * `w:numId` in the nodes. The docx library numbers lists in order of use, so
+ * the temp ids mean nothing in the target: unmapped, appended bullets landed
+ * on the target's numbered list (or on an id it does not define).
+ * Each appended list gets its own w:num, so numbered lists restart at 1.
+ *
+ * @param {string[]} nodes - generated nodes (reference temp numIds)
+ * @param {string} srcXml - temp document numbering.xml
+ * @param {string|null} dstXml - target numbering.xml, or null when absent
+ * @returns {{nodes: string[], numberingXml: string}}
+ */
+function mergeNumbering(nodes, srcXml, dstXml) {
+  const usedNumIds = [...new Set(nodes.join("").match(/<w:numId w:val="(\d+)"/g)?.map((m) => m.match(/"(\d+)"/)[1]) || [])];
+  const srcNums = new Map();
+  for (const m of srcXml.matchAll(/<w:num\b[^>]*w:numId="(\d+)"[^>]*>([\s\S]*?)<\/w:num>/g)) {
+    const abs = m[2].match(/<w:abstractNumId w:val="(\d+)"/);
+    if (abs) srcNums.set(m[1], abs[1]);
+  }
+  const srcAbstracts = new Map();
+  for (const m of srcXml.matchAll(/<w:abstractNum\b[^>]*w:abstractNumId="(\d+)"[^>]*>[\s\S]*?<\/w:abstractNum>/g)) {
+    srcAbstracts.set(m[1], m[0]);
+  }
+
+  let base = dstXml;
+  if (!base) {
+    const open = srcXml.match(/^[\s\S]*?<w:numbering\b[^>]*>/);
+    base = `${open ? open[0] : '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'}</w:numbering>`;
+  }
+  const maxOf = (re) => Math.max(0, ...[...base.matchAll(re)].map((m) => Number(m[1])));
+  let nextAbs = maxOf(/w:abstractNumId="(\d+)"/g) + 1;
+  let nextNum = maxOf(/<w:num\b[^>]*w:numId="(\d+)"/g) + 1;
+
+  const absMap = new Map(); // temp abstractNumId -> target abstractNumId
+  const numMap = new Map(); // temp numId -> target numId
+  let absXml = "";
+  let numXml = "";
+  for (const oldNum of usedNumIds) {
+    const oldAbs = srcNums.get(oldNum);
+    if (oldAbs === undefined || !srcAbstracts.has(oldAbs)) continue;
+    if (!absMap.has(oldAbs)) {
+      const newAbs = String(nextAbs++);
+      absMap.set(oldAbs, newAbs);
+      absXml += srcAbstracts.get(oldAbs)
+        .replace(/w:abstractNumId="\d+"/, `w:abstractNumId="${newAbs}"`)
+        // nsid identifies a list definition across documents; a copied one
+        // could collide with the target's and merge the two lists.
+        .replace(/<w:nsid\b[^>]*\/>/g, "");
+    }
+    const newNum = String(nextNum++);
+    numMap.set(oldNum, newNum);
+    numXml += `<w:num w:numId="${newNum}"><w:abstractNumId w:val="${absMap.get(oldAbs)}"/></w:num>`;
+  }
+
+  // Schema order: every w:abstractNum precedes every w:num.
+  const firstNum = base.search(/<w:num\b/);
+  let merged = firstNum === -1
+    ? base.replace("</w:numbering>", `${absXml}</w:numbering>`)
+    : base.slice(0, firstNum) + absXml + base.slice(firstNum);
+  const tailIdx = merged.search(/<w:numIdMacAtCleanup\b/);
+  merged = tailIdx === -1
+    ? merged.replace("</w:numbering>", `${numXml}</w:numbering>`)
+    : merged.slice(0, tailIdx) + numXml + merged.slice(tailIdx);
+
+  merged = declareMissingPrefixes(merged, srcXml);
+
+  const remapped = nodes.map((n) =>
+    n.replace(/<w:numId w:val="(\d+)"/g, (m, id) => (numMap.has(id) ? `<w:numId w:val="${numMap.get(id)}"` : m)));
+  return { nodes: remapped, numberingXml: merged };
 }
 
 /**
@@ -335,9 +502,14 @@ function extractContentNodes(xmlString) {
   // Combine and sort by position
   const allNodes = [...paragraphs, ...tables].sort((a, b) => a.start - b.start);
 
+  // Only TOP-LEVEL nodes: a table's cells hold their own <w:p>s, and taking
+  // those as well pasted every cell's text again after the table.
+  let lastEnd = -1;
   for (const node of allNodes) {
+    if (node.start < lastEnd) continue;
     // Extract from the ORIGINAL xml string, not parser.xml which might be modified
     nodes.push(xmlString.substring(node.start, node.end));
+    lastEnd = node.end;
   }
 
   return nodes;
@@ -394,8 +566,10 @@ export async function appendToDocx(filePath, options = {}) {
     let newContentNodes = [];
 
     if (paragraphs.length > 0) {
-      const paraXml = await generateParagraphsXML(paragraphs, styleConfig);
-      newContentNodes.push(...extractContentNodes(paraXml));
+      const { xml: paraXml, zip: paraZip } = await generateParagraphsXML(paragraphs, styleConfig);
+      newContentNodes.push(
+        ...(await carryPartDependencies(extractContentNodes(paraXml), paraZip, zip)),
+      );
     }
 
     // Generate XML for new tables
@@ -559,8 +733,10 @@ export async function replaceDocxContent(filePath, options = {}) {
 
     // Generate paragraphs
     if (paragraphs.length > 0) {
-      const paraXml = await generateParagraphsXML(paragraphs, styleConfig);
-      newContentNodes.push(...extractContentNodes(paraXml));
+      const { xml: paraXml, zip: paraZip } = await generateParagraphsXML(paragraphs, styleConfig);
+      newContentNodes.push(
+        ...(await carryPartDependencies(extractContentNodes(paraXml), paraZip, zip)),
+      );
     }
 
     // Generate tables

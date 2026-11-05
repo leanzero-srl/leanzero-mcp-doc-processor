@@ -19,11 +19,10 @@ import { recordWrite } from "../services/lineage-tracker.js";
 import { log } from "../utils/logger.js";
 // Import shared utilities from doc-utils.js (eliminates code duplication)
 import {
-  parseInlineMarkdown,
   extractHeadingLevels,
+  renderParagraphEntry,
   createParagraph,
   createTableFromData,
-  createCodeBlock,
 } from "./doc-utils.js";
 
 /**
@@ -334,33 +333,9 @@ export async function editDoc(input) {
         codeColor: styleConfig.code?.color,
         codeBackground: styleConfig.code?.backgroundColor,
       };
+      // Strings are markdown blobs: same block renderer as create-doc.
       for (const para of newParagraphs) {
-        if (!para) continue;
-        if (typeof para === "string") {
-          if (para.trimStart().startsWith("```")) {
-            children.push(...createCodeBlock(para, styleConfig.code));
-            continue;
-          }
-          const textRuns = parseInlineMarkdown(para, editBaseStyle1);
-          children.push(
-            createParagraph(textRuns, {
-              alignment: styleConfig.paragraph.alignment,
-              spacingBefore: styleConfig.paragraph.spacingBefore,
-              spacingAfter: styleConfig.paragraph.spacingAfter,
-              lineSpacing: styleConfig.paragraph.lineSpacing,
-            }),
-          );
-        } else if (para && typeof para === "object" && para.text) {
-          const textRuns = parseInlineMarkdown(para.text, editBaseStyle1);
-          children.push(
-            createParagraph(textRuns, {
-              alignment: para.alignment || styleConfig.paragraph.alignment,
-              spacingBefore: styleConfig.paragraph.spacingBefore,
-              spacingAfter: styleConfig.paragraph.spacingAfter,
-              lineSpacing: styleConfig.paragraph.lineSpacing,
-            }),
-          );
-        }
+        children.push(...renderParagraphEntry(para, styleConfig, editBaseStyle1));
       }
 
       // Add new tables
@@ -450,33 +425,9 @@ export async function editDoc(input) {
       codeColor: styleConfig.code?.color,
       codeBackground: styleConfig.code?.backgroundColor,
     };
+    // Strings are markdown blobs: same block renderer as create-doc.
     for (const para of newParagraphs) {
-      if (!para) continue;
-      if (typeof para === "string") {
-        if (para.trimStart().startsWith("```")) {
-          children.push(...createCodeBlock(para, styleConfig.code));
-          continue;
-        }
-        const textRuns = parseInlineMarkdown(para, editBaseStyle2);
-        children.push(
-          createParagraph(textRuns, {
-            alignment: styleConfig.paragraph.alignment,
-            spacingBefore: styleConfig.paragraph.spacingBefore,
-            spacingAfter: styleConfig.paragraph.spacingAfter,
-            lineSpacing: styleConfig.paragraph.lineSpacing,
-          }),
-        );
-      } else if (para && typeof para === "object" && para.text) {
-        const textRuns = parseInlineMarkdown(para.text, editBaseStyle2);
-        children.push(
-          createParagraph(textRuns, {
-            alignment: para.alignment || styleConfig.paragraph.alignment,
-            spacingBefore: styleConfig.paragraph.spacingBefore,
-            spacingAfter: styleConfig.paragraph.spacingAfter,
-            lineSpacing: styleConfig.paragraph.lineSpacing,
-          }),
-        );
-      }
+      children.push(...renderParagraphEntry(para, styleConfig, editBaseStyle2));
     }
 
     // Add new tables

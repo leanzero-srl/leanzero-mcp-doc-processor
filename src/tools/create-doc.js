@@ -60,6 +60,7 @@ import {
   parseMarkdownToDocx,
   stripMarkdownPlain,
   extractHeadingLevels,
+  listHeadings,
   createParagraph,
   createTableFromData,
   createDocHeader,
@@ -77,8 +78,7 @@ export { stripMarkdownLinePrefixes, parseInlineMarkdown, stripMarkdownPlain };
 function computeStructureSignature(paragraphs) {
   if (!paragraphs || !Array.isArray(paragraphs)) return null;
 
-  const headings = paragraphs
-    .filter(p => p && typeof p === "object" && p.headingLevel)
+  const headings = listHeadings(paragraphs)
     .map(p => {
       const level = p.headingLevel.replace("heading", "h");
       // Normalize the text: lowercase, trim, first 50 chars

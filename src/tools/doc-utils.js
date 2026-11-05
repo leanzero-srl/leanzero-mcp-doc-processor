@@ -26,6 +26,14 @@ export function extractHeadingLevels(paragraphs) {
 
   return paragraphs.map((para) => {
     if (typeof para === "string") {
+      // Only a SINGLE-LINE string can be a heading entry. A multi-line string
+      // is a markdown blob (e.g. the whole `content` body): it must stay a
+      // string so the block renderer (parseMarkdownToDocx) splits it into
+      // headings, paragraphs, lists and tables. Turning "# Title\n\nbody..."
+      // into one heading collapsed the whole body into the heading and
+      // dropped every table (bug found 2026-11-03).
+      if (isMultiLineMarkdown(para)) return para;
+
       // Check for markdown headings
       let headingLevel = null;
       let text = para;
@@ -64,6 +72,77 @@ export function extractHeadingLevels(paragraphs) {
 
     return para;
   });
+}
+
+/**
+ * True when a string paragraph spans more than one line (ignoring leading and
+ * trailing whitespace). Such a string is a markdown blob, never a single
+ * heading or paragraph, and must go through the block renderer.
+ */
+export function isMultiLineMarkdown(text) {
+  return typeof text === "string" && /[\r\n]/.test(text.trim());
+}
+
+/**
+ * The heading outline of a paragraphs array: explicit heading objects AND the
+ * h1-h3 headings inside markdown string entries (a `content` blob is one
+ * string). Used by the structure signature and blueprint validation, which
+ * before 2026-11-06 saw only heading objects and so missed every heading of
+ * a markdown body.
+ *
+ * @returns {Array<{headingLevel: string, text: string}>}
+ */
+export function listHeadings(paragraphs) {
+  if (!Array.isArray(paragraphs)) return [];
+  const out = [];
+  for (const p of paragraphs) {
+    if (p && typeof p === "object" && p.headingLevel && typeof p.text === "string") {
+      out.push({ headingLevel: p.headingLevel, text: p.text });
+    } else if (typeof p === "string" && /^\s{0,3}#{1,6}\s/m.test(p)) {
+      let tokens = [];
+      try { tokens = marked.lexer(p); } catch { tokens = []; }
+      for (const t of tokens) {
+        if (t.type === "heading" && t.depth >= 1) {
+          // depth 4-6 render as heading3 (renderHeadingToken clamps), so count them as such
+          out.push({ headingLevel: `heading${Math.min(t.depth, 3)}`, text: stripMarkdownPlain(t.text || "") });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Render ONE paragraph entry (string or object) of a create/edit request to
+ * docx block children, for the edit paths (edit-doc legacy + XML patch).
+ * Strings are markdown and go through the block renderer, exactly as in
+ * create-doc, so headings, lists, tables and code survive an edit too. An
+ * object with a valid headingLevel becomes a real heading; any other object
+ * becomes one inline-formatted paragraph.
+ *
+ * @returns {Array<Paragraph|Table>}
+ */
+export function renderParagraphEntry(para, styleConfig, baseStyle) {
+  if (!para) return [];
+  const paragraphOpts = (alignment) => ({
+    alignment: alignment || styleConfig.paragraph?.alignment,
+    spacingBefore: styleConfig.paragraph?.spacingBefore,
+    spacingAfter: styleConfig.paragraph?.spacingAfter,
+    lineSpacing: styleConfig.paragraph?.lineSpacing,
+  });
+  if (typeof para === "string") {
+    if (!para.trim()) return [];
+    return parseMarkdownToDocx(para, baseStyle, styleConfig);
+  }
+  if (typeof para === "object" && typeof para.text === "string" && para.text) {
+    const depth = { heading1: 1, heading2: 2, heading3: 3 }[para.headingLevel];
+    if (depth) {
+      const oneLine = para.text.replace(/\s*[\r\n]+\s*/g, " ").trim();
+      return parseMarkdownToDocx(`${"#".repeat(depth)} ${oneLine}`, baseStyle, styleConfig);
+    }
+    return [createParagraph(parseInlineMarkdown(para.text, baseStyle), paragraphOpts(para.alignment))];
+  }
+  return [];
 }
 
 /**

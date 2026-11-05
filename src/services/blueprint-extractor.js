@@ -11,6 +11,7 @@ import JSZip from "jszip";
 import fs from "fs/promises";
 import { documentProcessor } from "./document-processor.js";
 import { findXMLTags } from "../utils/xml-utils.js";
+import { listHeadings } from "../tools/doc-utils.js";
 
 /**
  * Extract text content from a w:p XML node
@@ -267,8 +268,8 @@ export function validateAgainstBlueprint(paragraphs, blueprint) {
   const warnings = [];
 
   // Extract headings from paragraphs
-  const providedHeadings = paragraphs
-    .filter(p => p && typeof p === "object" && p.headingLevel)
+  // listHeadings also reads headings inside markdown string entries.
+  const providedHeadings = listHeadings(paragraphs)
     .map(p => ({
       level: p.headingLevel,
       text: (p.text || "").trim().toLowerCase(),

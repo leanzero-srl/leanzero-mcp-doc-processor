@@ -1,3 +1,4 @@
+import { marked } from "marked";
 /**
  * Markdown Formatting Utilities
  * 
@@ -103,6 +104,40 @@ export function formatQuote(text) {
  * @param {string} [docType] - The intended tone and depth (concise, formal, explanatory, scientific)
  * @returns {string} Formatted markdown content
  */
+function preserveLineBreaks(text) {
+  if (!/\n/.test(text)) return text;
+  // A plain line straight after a list item, quote or table row used to come
+  // out as its own paragraph (every newline was doubled). Markdown would
+  // fold it into the block ("lazy continuation"), so keep it apart.
+  const blockLine = /^\s*(?:[-*+]\s|\d+[.)]\s|>|\|)/;
+  const lines = text.split('\n');
+  const separated = [];
+  let inFence = false;
+  for (let i = 0; i < lines.length; i++) {
+    const prev = separated.length ? separated[separated.length - 1] : '';
+    const cur = lines[i];
+    if (/^\s{0,3}(```|~~~)/.test(cur)) inFence = !inFence;
+    // a GFM table row may omit its leading pipe: still part of the table
+    const tableRowContinues = /^\s*\|/.test(prev) && cur.includes('|');
+    if (!inFence && !tableRowContinues && cur.trim() && blockLine.test(prev) && !blockLine.test(cur) && !/^\s{2,}\S/.test(cur)) {
+      separated.push('');
+    }
+    separated.push(cur);
+  }
+  let tokens;
+  try {
+    tokens = marked.lexer(separated.join('\n'));
+  } catch {
+    return text;
+  }
+  return tokens
+    .map((t) => (t.type === 'paragraph'
+      ? t.raw.trim().replace(/\n/g, '\n\n')
+      : (t.type === 'space' ? '' : t.raw.replace(/\s+$/, ''))))
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 export function applyImplementationStyle(paragraphs, docType) {
   if (!Array.isArray(paragraphs) || paragraphs.length === 0) return '';
   
@@ -125,8 +160,12 @@ export function applyImplementationStyle(paragraphs, docType) {
         continue;
       }
       
-      // Default: simple paragraph with line breaks preserved
-      formattedParts.push(text.replace(/\n/g, '\n\n'));
+      // A multi-line string is a markdown blob (e.g. the whole `content`
+      // body). Keep every block (tables, lists, code, quotes) verbatim and
+      // only split plain paragraph lines apart. Doubling EVERY newline put a
+      // blank line between table rows and list items, which stopped them
+      // being a table or a list (bug found 2026-11-06).
+      formattedParts.push(preserveLineBreaks(text));
       continue;
     }
     
