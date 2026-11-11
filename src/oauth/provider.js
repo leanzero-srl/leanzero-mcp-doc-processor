@@ -60,8 +60,13 @@ export class DocProcessorOAuthProvider {
   async _saveTokens() {
     await fs.mkdir(path.dirname(TOKENS_PATH), { recursive: true });
     const tmp = `${TOKENS_PATH}.tmp.${process.pid}`;
-    await fs.writeFile(tmp, JSON.stringify(this._tokens, null, 2), { mode: 0o600 });
-    await fs.rename(tmp, TOKENS_PATH);
+    try {
+      await fs.writeFile(tmp, JSON.stringify(this._tokens, null, 2), { mode: 0o600 });
+      await fs.rename(tmp, TOKENS_PATH);
+    } catch (err) {
+      await fs.unlink(tmp).catch(() => {}); // disk full: no partial temp file left
+      throw err;
+    }
     try { await fs.chmod(TOKENS_PATH, 0o600); } catch { /* best effort */ }
   }
 

@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+// Guard stdout/stderr first: a closed stdio reader (EPIPE) or a full disk
+// (ENOSPC) must drop the log line, never kill the process.
+import "./utils/stdio-guard.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 

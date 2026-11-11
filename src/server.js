@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+// A full disk under the launchd log file (ENOSPC) or a closed stdio reader
+// (EPIPE) must drop the log line, never kill the process: guard stdout/stderr
+// before anything else can write to them.
+import "./utils/stdio-guard.js";
 import express from "express";
 import cors from "cors";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -9,7 +13,7 @@ import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from "@modelconte
 
 import { setupLogging, log } from "./utils/logger.js";
 import { registerAllTools, SERVER_INSTRUCTIONS, TOOL_DEFINITIONS } from "./tool-registry.js";
-import { requireBearer, tenantRateLimiter, mountAdminRoutes, mountProvisionRoutes, setResourceMetadataUrl, touchTenant } from "./auth.js";
+import { requireBearer, tenantRateLimiter, mountAdminRoutes, mountProvisionRoutes, setResourceMetadataUrl, touchTenant, asyncRoute } from "./auth.js";
 import { DocProcessorOAuthProvider } from "./oauth/provider.js";
 import { renderConsentPage } from "./oauth/consent.js";
 import path from "path";
@@ -94,7 +98,7 @@ export function buildApp() {
 
     // Consent form target: validate the pasted tenant token, mint an auth code,
     // and redirect back to the client. Re-render with an error on a bad token.
-    app.post(CONSENT_PATH, express.urlencoded({ extended: false }), async (req, res) => {
+    app.post(CONSENT_PATH, express.urlencoded({ extended: false }), asyncRoute(async (req, res) => {
       const { ok, redirectTo } = await oauthProvider.completeAuthorization({
         client_id: req.body.client_id,
         redirect_uri: req.body.redirect_uri,
@@ -120,7 +124,7 @@ export function buildApp() {
         }));
       }
       return res.redirect(302, redirectTo);
-    });
+    }));
 
     log("info", "[boot] OAuth authorization server enabled", { issuer: issuerUrl.href });
   }

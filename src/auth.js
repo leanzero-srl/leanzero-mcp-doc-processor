@@ -25,6 +25,23 @@ async function loadTenants() {
   return cache;
 }
 
+/**
+ * Express 4 does not catch a rejected async handler: the rejection becomes an
+ * unhandledRejection, which kills the process (Node's default). A tenants.json
+ * write that fails with ENOSPC (disk full) did exactly that on /v1/provision.
+ * This answers 500 and logs instead; nothing else is swallowed.
+ */
+export function asyncRoute(fn) {
+  return (req, res, _next) => {
+    Promise.resolve()
+      .then(() => fn(req, res))
+      .catch((err) => {
+        log("error", "[auth] route failed", { path: req.path, method: req.method, code: err?.code, error: err?.message });
+        if (!res.headersSent) res.status(500).json({ error: "internal error" });
+      });
+  };
+}
+
 // Writes are serialised. Unique tmp names alone stop the ENOENT rename, but two
 // overlapping saves could still land out of order: a lastUsedAt touch that
 // serialised the map before a revoke and renamed after it put the revoked key
@@ -37,8 +54,14 @@ async function writeTenantsFile(tenants) {
   // Unique tmp name: saves can overlap (lastUsedAt touches from concurrent
   // requests); a shared tmp path would make one rename fail with ENOENT.
   const tmp = `${TENANTS_PATH}.tmp.${process.pid}.${randomBytes(4).toString("hex")}`;
-  await fs.writeFile(tmp, JSON.stringify(tenants, null, 2), { mode: 0o600 });
-  await fs.rename(tmp, TENANTS_PATH);
+  try {
+    await fs.writeFile(tmp, JSON.stringify(tenants, null, 2), { mode: 0o600 });
+    await fs.rename(tmp, TENANTS_PATH);
+  } catch (err) {
+    // Disk full (ENOSPC) leaves a partial temp file behind: never let those pile up.
+    await fs.unlink(tmp).catch(() => {});
+    throw err;
+  }
   try { await fs.chmod(TENANTS_PATH, 0o600); } catch { /* best effort on non-POSIX FS */ }
 }
 
@@ -238,15 +261,15 @@ export function mountAdminRoutes(app) {
   router.use(restrictAdminToLocal);
   router.use(express.json({ limit: "16kb" }));
 
-  router.post("/tenants", adminAuth, async (req, res) => {
+  router.post("/tenants", adminAuth, asyncRoute(async (req, res) => {
     const displayName = (req.body?.displayName || "").trim();
     if (!displayName) return res.status(400).json({ error: "displayName required" });
     const created = await createTenant(displayName);
     log("info", "[admin] minted tenant", { tenantId: created.tenantId, displayName });
     res.status(201).json(created);
-  });
+  }));
 
-  router.get("/tenants", adminAuth, async (_req, res) => {
+  router.get("/tenants", adminAuth, asyncRoute(async (_req, res) => {
     const tenants = await loadTenants();
     const list = Object.entries(tenants).map(([id, r]) => ({
       tenantId: id,
@@ -256,16 +279,16 @@ export function mountAdminRoutes(app) {
       activeHashCount: activeHashes(r).length,
     }));
     res.json({ tenants: list });
-  });
+  }));
 
-  router.delete("/tenants/:id", adminAuth, async (req, res) => {
+  router.delete("/tenants/:id", adminAuth, asyncRoute(async (req, res) => {
     const ok = await revokeTenant(req.params.id);
     if (!ok) return res.status(404).json({ error: "tenant not found" });
     log("info", "[admin] revoked tenant", { tenantId: req.params.id });
     res.json({ revoked: req.params.id });
-  });
+  }));
 
-  router.post("/tenants/:id/rotate", adminAuth, async (req, res) => {
+  router.post("/tenants/:id/rotate", adminAuth, asyncRoute(async (req, res) => {
     const tenants = await loadTenants();
     const record = tenants[req.params.id];
     if (!record) return res.status(404).json({ error: "tenant not found" });
@@ -290,7 +313,7 @@ export function mountAdminRoutes(app) {
       bearer: newBearer,
       oldBearerExpiresAt: new Date(expiresAt).toISOString(),
     });
-  });
+  }));
 
   app.use("/v1/admin", router);
 }
@@ -329,21 +352,21 @@ export function mountProvisionRoutes(app) {
 
   // Mint a tenant bearer for one self-service user. `label` is a free-text tag
   // (e.g. the user's email) stored as the tenant displayName for the audit log.
-  router.post("/", async (req, res) => {
+  router.post("/", asyncRoute(async (req, res) => {
     const label = String(req.body?.label || req.body?.displayName || "self-service")
       .trim().slice(0, 120) || "self-service";
     const created = await createTenant(label);
     log("info", "[provision] minted tenant", { tenantId: created.tenantId, label });
     res.status(201).json(created);
-  });
+  }));
 
   // Revoke a previously-provisioned tenant by id.
-  router.delete("/:id", async (req, res) => {
+  router.delete("/:id", asyncRoute(async (req, res) => {
     const ok = await revokeTenant(req.params.id);
     if (!ok) return res.status(404).json({ error: "tenant not found" });
     log("info", "[provision] revoked tenant", { tenantId: req.params.id });
     res.json({ revoked: req.params.id });
-  });
+  }));
 
   app.use("/v1/provision", router);
 }

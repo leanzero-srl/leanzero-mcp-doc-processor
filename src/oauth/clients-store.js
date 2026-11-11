@@ -28,8 +28,13 @@ export class FileClientsStore {
   async _save(clients) {
     await fs.mkdir(path.dirname(CLIENTS_PATH), { recursive: true });
     const tmp = `${CLIENTS_PATH}.tmp.${process.pid}`;
-    await fs.writeFile(tmp, JSON.stringify(clients, null, 2), { mode: 0o600 });
-    await fs.rename(tmp, CLIENTS_PATH);
+    try {
+      await fs.writeFile(tmp, JSON.stringify(clients, null, 2), { mode: 0o600 });
+      await fs.rename(tmp, CLIENTS_PATH);
+    } catch (err) {
+      await fs.unlink(tmp).catch(() => {}); // disk full: no partial temp file left
+      throw err;
+    }
     try { await fs.chmod(CLIENTS_PATH, 0o600); } catch { /* best effort on non-POSIX FS */ }
     this.cache = clients;
   }
