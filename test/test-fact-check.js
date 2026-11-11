@@ -67,6 +67,15 @@ describe("fact-check cross-MCP orchestration (stubbed web-search)", () => {
     assert.match(r2.error, /serperKey/);
   });
 
+  test("never points people at a hosted demo key or our hosted endpoint", async () => {
+    const fs = await import("node:fs");
+    const registry = fs.readFileSync(new URL("../src/tool-registry.js", import.meta.url), "utf8");
+    const tool = fs.readFileSync(new URL("../src/tools/fact-check.js", import.meta.url), "utf8");
+    for (const text of [registry, tool]) assert.doesNotMatch(text, /demo key|hosted endpoint/i);
+    const r = await factCheck({ claims: ["x is true now"] }, { callWebSearchTool: async () => ({ ok: true, text: "" }) });
+    assert.doesNotMatch(r.error, /demo/i);
+  });
+
   test("errors clearly when neither claims nor a document is given", async () => {
     const r = await factCheck({ webSearchBearer: "b", serperKey: "s" }, { callWebSearchTool: async () => ({ ok: true, text: "" }) });
     assert.strictEqual(r.success, false);

@@ -126,7 +126,8 @@ export async function factCheck(input, deps = {}) {
     const webSearchUrl = params.webSearchUrl || process.env.WEB_SEARCH_MCP_URL || DEFAULT_WEB_SEARCH_URL;
     const bearer = params.webSearchBearer || process.env.WEB_SEARCH_BEARER;
     const serperKey = params.serperKey || process.env.SERPER_API_KEY;
-    if (!bearer) return { success: false, error: "webSearchBearer is required — this tool calls the web-search MCP, which needs a tenant bearer (your web-search demo key)." };
+    if (!webSearchUrl) return { success: false, error: "webSearchUrl is required — the /mcp URL of a web-search MCP you run or subscribe to." };
+    if (!bearer) return { success: false, error: "webSearchBearer is required — the bearer of the web-search MCP at webSearchUrl." };
     if (!serperKey) return { success: false, error: "serperKey is required — the web-search MCP needs your Serper key to run the searches." };
 
     // 3) For each claim, call the web-search MCP and collect evidence (bounded concurrency).
