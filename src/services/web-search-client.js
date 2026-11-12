@@ -10,12 +10,14 @@ import { getTenantWorkspace, guardedFetch } from "../utils/workspace.js";
  * web-search's live search/extraction — a real function spanning the two MCPs,
  * rather than duplicating search here.
  *
- * Connect over the PUBLIC (Funnel) URL: web-search enables DNS-rebinding
- * protection when PUBLIC_HOST is set, so a 127.0.0.1 Host header would be 403'd;
- * the Funnel URL's Host matches the allow-list.
+ * There is no built-in URL: the caller's webSearchUrl or this server's
+ * WEB_SEARCH_MCP_URL names the web-search MCP. A copy bundled in an app must never
+ * point people at our hosted server (owner 2026-11-11; Elzi's release guard refuses
+ * it). The hosted server sets WEB_SEARCH_MCP_URL to its Funnel URL in server.env:
+ * web-search enables DNS-rebinding protection when PUBLIC_HOST is set, so a
+ * 127.0.0.1 Host header would be 403'd and the Funnel URL's Host matches.
  */
-export const DEFAULT_WEB_SEARCH_URL =
-  process.env.WEB_SEARCH_MCP_URL || "https://worksmacstudio.tailfc4700.ts.net:8443/mcp";
+export const DEFAULT_WEB_SEARCH_URL = process.env.WEB_SEARCH_MCP_URL || "";
 
 /**
  * Call one tool on the web-search MCP. Returns { ok, text, isError }.
@@ -25,6 +27,7 @@ export const DEFAULT_WEB_SEARCH_URL =
  */
 export async function callWebSearchTool(cfg, toolName, args) {
   const target = cfg.url || DEFAULT_WEB_SEARCH_URL;
+  if (!target) throw new Error("Configure WEB_SEARCH_MCP_URL to use document web research.");
   const headers = {};
   if (cfg.bearer) headers["Authorization"] = `Bearer ${cfg.bearer}`;
   if (cfg.serperKey) headers["X-Serper-Key"] = cfg.serperKey;

@@ -757,8 +757,8 @@ export const TOOL_DEFINITIONS = [
       "Returns, per claim, evidence + source URLs + a ROUGH keyword-overlap support score — NOT a verdict; read the evidence and decide support/refute yourself." +
       params(
         "claims (statements to verify) OR filePath (PDF/DOCX/Excel/PPTX) OR content (raw text) — claims are auto-extracted from the latter two.",
-        "webSearchBearer: REQUIRED, your web-search MCP tenant bearer (demo key). serperKey: REQUIRED, your Serper key (the web-search MCP is keyless).",
-        "webSearchUrl: optional /mcp URL; defaults to the hosted endpoint (or WEB_SEARCH_MCP_URL).",
+        "webSearchUrl + webSearchBearer: the /mcp URL and bearer of a web-search MCP you run or subscribe to; fact-check needs both. serperKey: your own Serper key.",
+        "Each falls back to the server's WEB_SEARCH_MCP_URL, WEB_SEARCH_BEARER or SERPER_API_KEY when set.",
         "maxClaims: default 8, max 20. generateReport: true also writes a cited PDF report (download link). reportTitle: optional.",
         P_CLIENT_HINT,
         P_UPLOAD,

@@ -40,6 +40,7 @@ describe("fact-check cross-MCP orchestration (stubbed web-search)", () => {
     const r = await factCheck(
       {
         claims: ["Solid-state batteries reached 500 Wh/kg in 2026", "The Eiffel Tower is located in Paris"],
+        webSearchUrl: "http://search.example.invalid/mcp",
         webSearchBearer: "tenant-x",
         serperKey: "serper-y",
       },
@@ -59,12 +60,39 @@ describe("fact-check cross-MCP orchestration (stubbed web-search)", () => {
 
   test("requires a web-search bearer and a serper key (the cross-MCP credentials)", async () => {
     const stub = async () => ({ ok: true, text: "" });
-    const r1 = await factCheck({ claims: ["x is true now"] }, { callWebSearchTool: stub });
+    const webSearchUrl = "http://search.example.invalid/mcp";
+    const r1 = await factCheck({ claims: ["x is true now"], webSearchUrl }, { callWebSearchTool: stub });
     assert.strictEqual(r1.success, false);
     assert.match(r1.error, /webSearchBearer/);
-    const r2 = await factCheck({ claims: ["x is true now"], webSearchBearer: "b" }, { callWebSearchTool: stub });
+    const r2 = await factCheck({ claims: ["x is true now"], webSearchUrl, webSearchBearer: "b" }, { callWebSearchTool: stub });
     assert.strictEqual(r2.success, false);
     assert.match(r2.error, /serperKey/);
+  });
+
+  test("never points people at a hosted demo key or our hosted endpoint", async () => {
+    const fs = await import("node:fs");
+    const registry = fs.readFileSync(new URL("../src/tool-registry.js", import.meta.url), "utf8");
+    const tool = fs.readFileSync(new URL("../src/tools/fact-check.js", import.meta.url), "utf8");
+    for (const text of [registry, tool]) assert.doesNotMatch(text, /demo key|hosted endpoint/i);
+    const r = await factCheck({ claims: ["x is true now"] }, { callWebSearchTool: async () => ({ ok: true, text: "" }) });
+    assert.doesNotMatch(r.error, /demo/i);
+  });
+
+  test("has no built-in web-search URL: a missing one is refused, never sent to our hosted server", async () => {
+    const fs = await import("node:fs");
+    const client = fs.readFileSync(new URL("../src/services/web-search-client.js", import.meta.url), "utf8");
+    assert.doesNotMatch(client, /tailfc4700|worksmacstudio|leanzero\.net/);
+    const saved = process.env.WEB_SEARCH_MCP_URL;
+    delete process.env.WEB_SEARCH_MCP_URL;
+    try {
+      const { callWebSearchTool } = await import("../src/services/web-search-client.js");
+      await assert.rejects(callWebSearchTool({ bearer: "b" }, "full-web-search", { query: "q" }), /WEB_SEARCH_MCP_URL/);
+      const r = await factCheck({ claims: ["x is true now"], webSearchBearer: "b", serperKey: "s" });
+      assert.strictEqual(r.success, false);
+      assert.match(r.error, /webSearchUrl is required/);
+    } finally {
+      if (saved !== undefined) process.env.WEB_SEARCH_MCP_URL = saved;
+    }
   });
 
   test("errors clearly when neither claims nor a document is given", async () => {
